@@ -1,0 +1,36 @@
+id = "generic/n-plus-one"
+title = "N+1 single-item reads"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "Many single-item reads on one path in a burst, usually one per item of an earlier list."
+
+description = """
+Loading a list and then fetching a related item for each entry issues one
+request per item. On per-request providers (Supabase, Vercel functions)
+this multiplies request cost; on Firestore the reads are billed the same,
+but every missing item still costs a read and the round trips add latency.
+"""
+
+fix = """
+Fetch related items in one query (`where(documentId(), "in", ids)` on
+Firestore, `.in("id", ids)` on Supabase), or denormalize the fields the list
+needs onto the list items.
+"""
+
+[params]
+window_ms = 1000
+# Distinct items read on the same template within the window.
+min_calls = 10
+
+[[examples]]
+lang = "ts"
+bad = '''
+for (const o of orders) o.user = (await getDoc(doc(db, "users", o.userId))).data();
+'''
+good = '''
+const users = await getDocs(query(collection(db, "users"), where(documentId(), "in", userIds)));
+'''

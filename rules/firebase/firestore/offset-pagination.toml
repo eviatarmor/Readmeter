@@ -1,0 +1,34 @@
+id = "firebase.firestore/offset-pagination"
+title = "Pagination with offset()"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "pagination"
+evaluation = "local"
+status = "stable"
+summary = "offset(n) bills every skipped document as a read."
+
+description = """
+Firestore still reads the documents that `offset()` skips, and bills them.
+Page 50 of a 20-item list costs 1,000 reads, and every page costs more than
+the one before it.
+"""
+
+fix = """
+Paginate with query cursors. Keep the last document of the current page and
+start the next query with `startAfter(lastDoc)`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/query-cursors"]
+
+[params]
+min_offset = 1
+
+[[examples]]
+lang = "ts"
+bad = '''
+const page = await db.collection("posts").orderBy("createdAt").offset(page * 20).limit(20).get();
+'''
+good = '''
+const page = await db.collection("posts").orderBy("createdAt").startAfter(lastDoc).limit(20).get();
+'''

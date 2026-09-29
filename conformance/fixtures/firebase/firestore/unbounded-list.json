@@ -1,0 +1,20 @@
+{
+  "description": "Web app loads all open orders of a user with getDocs(query(collection(db, 'users', uid, 'orders'), where('status', '==', 'open'))) and no limit; 1,200 documents come back.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1,
+      "path": "users/uid_1/orders",
+      "query": { "filters": [{ "field": "status", "op": "==", "value": "open" }] },
+      "result": { "docs": 1200, "bytes": 240000 },
+      "callsite": "src/Orders.tsx:14:9"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "users/{id}/orders", "units": { "reads": 1200, "egress_bytes": 240000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/unbounded-list" }
+  ]
+}

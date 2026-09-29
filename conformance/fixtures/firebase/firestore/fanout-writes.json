@@ -1,0 +1,19 @@
+{
+  "description": "Publishing a post writeBatch-sets one feed item per follower (120 documents) and commits that batch from the browser.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 1000, "call_id": 1,
+      "path": "feeds",
+      "commit": { "writes": 120, "deletes": 0, "transactional": false },
+      "callsite": "src/Publish.tsx:40:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "commit", "template": "feeds", "units": { "writes": 120 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/fanout-writes" }
+  ]
+}

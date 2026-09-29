@@ -1,0 +1,32 @@
+{
+  "description": "React component calls onSnapshot(query(collection(db, 'todos'), limit(50))) in useEffect under StrictMode: subscribe, unsubscribe, subscribe again within a few ms, then the initial snapshot arrives.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "subscribe", "ts_ms": 1000, "call_id": 1, "listener": 1,
+      "path": "todos", "query": { "limit": 50 }, "callsite": "src/Todos.tsx:12:5"
+    },
+    {
+      "service": "firestore", "op": "unsubscribe", "ts_ms": 1001, "call_id": 2, "listener": 1,
+      "path": "todos", "query": { "limit": 50 }, "callsite": "src/Todos.tsx:12:5"
+    },
+    {
+      "service": "firestore", "op": "subscribe", "ts_ms": 1002, "call_id": 3, "listener": 2,
+      "path": "todos", "query": { "limit": 50 }, "callsite": "src/Todos.tsx:12:5"
+    },
+    {
+      "service": "firestore", "op": "snapshot", "initial": true, "ts_ms": 1100, "call_id": 4, "listener": 2,
+      "path": "todos", "query": { "limit": 50 }, "result": { "docs": 50, "bytes": 10000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "subscribe", "template": "todos", "units": {} },
+    { "op": "unsubscribe", "template": "todos", "units": {} },
+    { "op": "subscribe", "template": "todos", "units": {} },
+    { "op": "snapshot", "template": "todos", "units": { "reads": 50, "egress_bytes": 10000 } }
+  ],
+  "expect_findings": [
+    { "rule": "generic/react-double-mount" }
+  ]
+}

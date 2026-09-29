@@ -1,0 +1,20 @@
+{
+  "description": "Feed loads the latest posts with getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(1000))) and renders the first screen; 800 documents come back.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1,
+      "path": "posts",
+      "query": { "order_by": [{ "field": "createdAt", "direction": "desc" }], "limit": 1000 },
+      "result": { "docs": 800, "bytes": 160000 },
+      "callsite": "src/Feed.tsx:18:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "reads": 800, "egress_bytes": 160000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/oversized-limit" }
+  ]
+}

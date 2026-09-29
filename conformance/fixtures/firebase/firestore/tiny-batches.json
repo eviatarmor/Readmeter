@@ -1,0 +1,32 @@
+{
+  "description": "Saving a checklist commits ten writeBatch calls of one setDoc each, instead of one batch, from the same callsite.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    { "service": "firestore", "op": "commit", "ts_ms": 1000, "call_id": 1, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 1150, "call_id": 2, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 1300, "call_id": 3, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 1450, "call_id": 4, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 1600, "call_id": 5, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 1750, "call_id": 6, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 1900, "call_id": 7, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 2050, "call_id": 8, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 2200, "call_id": 9, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" },
+    { "service": "firestore", "op": "commit", "ts_ms": 2350, "call_id": 10, "path": "outbox", "commit": { "writes": 1, "deletes": 0, "transactional": false }, "callsite": "src/Checklist.tsx:30:5" }
+  ],
+  "expect_envelopes": [
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } },
+    { "op": "commit", "template": "outbox", "units": { "writes": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/tiny-batches" }
+  ]
+}

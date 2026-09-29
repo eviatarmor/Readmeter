@@ -1,0 +1,37 @@
+id = "firebase.firestore/get-then-listen"
+title = "One-time read followed by a listener"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "A billed read is followed within seconds by a listener on the same query."
+
+description = """
+`onSnapshot` bills every matching document in its first snapshot. A
+`getDocs` or `getDoc` immediately before that listener bills those same
+documents again, including a second download, for data the snapshot was
+about to return.
+"""
+
+fix = """
+Use only `onSnapshot`. Its first snapshot is the initial load; do not call
+`getDocs` or `getDoc` on the same query first.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/listen"]
+
+[params]
+window_ms = 10000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const first = await getDocs(feedQuery);
+setPosts(first.docs);
+onSnapshot(feedQuery, snap => setPosts(snap.docs));
+'''
+good = '''
+onSnapshot(feedQuery, snap => setPosts(snap.docs));
+'''

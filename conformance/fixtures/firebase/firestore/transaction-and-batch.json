@@ -1,0 +1,24 @@
+{
+  "description": "Server increments a balance in runTransaction that succeeds on its 4th attempt (reading the account doc each time), then commits a batch of 3 sets and 1 delete.",
+  "platform": "server",
+  "evaluations": ["local"],
+  "calls": [
+    { "service": "firestore", "op": "get", "ts_ms": 1000, "call_id": 1, "attempt": 4, "path": "accounts/acc_1", "result": { "docs": 1, "bytes": 200 } },
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 1010, "call_id": 2, "attempt": 4, "path": "accounts/acc_1",
+      "commit": { "writes": 1, "deletes": 0, "transactional": true }
+    },
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 2000, "call_id": 3, "path": "audit",
+      "commit": { "writes": 3, "deletes": 1, "transactional": false }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "get", "template": "accounts/{id}", "units": { "reads": 1, "egress_bytes": 200 } },
+    { "op": "commit", "template": "accounts/{id}", "units": { "writes": 1 } },
+    { "op": "commit", "template": "audit", "units": { "writes": 3, "deletes": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/transaction-contention" }
+  ]
+}

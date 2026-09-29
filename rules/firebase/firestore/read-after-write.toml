@@ -1,0 +1,36 @@
+id = "firebase.firestore/read-after-write"
+title = "Document read back right after a write"
+provider = "firebase"
+service = "firestore"
+severity = "low"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "This client reads a document it just wrote."
+
+description = """
+`getDoc` after `setDoc`, `updateDoc`, or `addDoc` bills one read and
+downloads the document again. The client already has the fields it wrote.
+An `onSnapshot` listener on that document sees the local write immediately.
+"""
+
+fix = """
+Keep the written data in local state. To observe the server copy, use
+`onSnapshot` on the document instead of a follow-up `getDoc`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/listen"]
+
+[params]
+window_ms = 2000
+
+[[examples]]
+lang = "ts"
+bad = '''
+await updateDoc(ref, { title });
+const saved = await getDoc(ref);
+'''
+good = '''
+await updateDoc(ref, { title });
+setTitle(title);
+'''

@@ -1,0 +1,25 @@
+{
+  "description": "Badge shows unread count with (await getDocs(query(collection(db, 'messages'), where('read', '==', false)))).size; the shim reports that only .size was read.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 7, "path": "messages",
+      "query": { "filters": [{ "field": "read", "op": "==", "value": false }], "limit": 5000 },
+      "result": { "docs": 3000, "bytes": 900000 }, "callsite": "src/Badge.tsx:8:3"
+    },
+    {
+      "service": "firestore", "op": "usage", "ts_ms": 1002, "call_id": 7, "path": "messages",
+      "usage": { "read_items": false, "read_size": true, "read_empty": false }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "messages", "units": { "reads": 3000, "egress_bytes": 900000 } },
+    { "op": "usage", "template": "messages", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/oversized-limit" },
+    { "rule": "generic/oversized-payload" },
+    { "rule": "firebase.firestore/count-via-fetch", "wasted": { "reads": 2997 } }
+  ]
+}

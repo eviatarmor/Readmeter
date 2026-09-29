@@ -1,0 +1,38 @@
+id = "generic/polling-instead-of-subscription"
+title = "Polling on a timer"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "The same request is re-issued at a steady interval, re-billing the full result every time."
+
+description = """
+Polling bills the full result on every tick, even when nothing changed. A
+realtime subscription bills the initial result once and then only the items
+that change. Aggregation polling is reported by
+`firebase.firestore/polled-aggregation`.
+"""
+
+fix = """
+Replace the interval with a realtime subscription (`onSnapshot`, Supabase
+Realtime), or cache with a TTL that matches how often the data really
+changes.
+"""
+
+[params]
+min_samples = 5
+min_interval_ms = 1000
+max_interval_ms = 300000
+# Standard deviation / mean of the intervals. Lower means more regular.
+max_jitter_ratio = 0.2
+
+[[examples]]
+lang = "ts"
+bad = '''
+setInterval(async () => setJobs((await getDocs(jobsQuery)).docs), 10_000);
+'''
+good = '''
+const unsubscribe = onSnapshot(jobsQuery, snap => setJobs(snap.docs));
+'''

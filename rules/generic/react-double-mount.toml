@@ -1,0 +1,34 @@
+id = "generic/react-double-mount"
+title = "Mount, unmount, mount fetches twice"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "The same callsite opens a subscription or issues a read twice within milliseconds."
+
+description = """
+React StrictMode mounts, unmounts and re-mounts components in development,
+which exposes effects that fetch without a shared cache. The same pattern
+bills twice in production whenever a component remounts: route changes,
+`key` changes, Suspense retries, list reordering. Findings carry a `dev`
+flag so development-only noise can be filtered.
+"""
+
+fix = """
+Move fetching out of component effects into a cache or store that dedupes
+in-flight requests (TanStack Query, SWR, a context-level subscription).
+"""
+
+[params]
+max_gap_ms = 200
+
+[[examples]]
+lang = "tsx"
+bad = '''
+useEffect(() => { getDocs(q).then(s => setRows(s.docs)); }, []);
+'''
+good = '''
+const { data: rows } = useQuery({ queryKey: ["rows"], queryFn: () => getDocs(q) });
+'''

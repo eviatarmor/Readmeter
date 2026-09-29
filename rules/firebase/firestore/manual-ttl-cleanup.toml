@@ -1,0 +1,41 @@
+id = "firebase.firestore/manual-ttl-cleanup"
+title = "Expired documents deleted from the client"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "writes"
+evaluation = "window"
+status = "stable"
+summary = "A client queries by an age filter and then deletes the results."
+
+description = """
+A query with `<` or `<=` on a timestamp bills one read per document
+returned, and deleting those documents from the client bills one delete
+each. A TTL policy expires them on the server and skips both.
+The same cleanup can also match `firebase.firestore/client-side-bulk-delete`
+(low); this rule names the TTL policy that removes the reads.
+"""
+
+fix = """
+Add a TTL policy on the timestamp field so expired documents are deleted
+without a client query or `deleteDoc` loop.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/ttl"]
+
+[params]
+window_ms = 60000
+min_deletes = 20
+
+[[examples]]
+lang = "ts"
+bad = '''
+const old = await getDocs(query(
+  collection(db, "sessions"),
+  where("expiresAt", "<", Timestamp.now()),
+));
+for (const d of old.docs) await deleteDoc(d.ref);
+'''
+good = '''
+await setDoc(doc(db, "sessions", id), { expiresAt });
+'''

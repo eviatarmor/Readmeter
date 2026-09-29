@@ -1,0 +1,34 @@
+id = "firebase.firestore/count-via-fetch"
+title = "Fetching documents only to count them"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "aggregation"
+evaluation = "window"
+status = "stable"
+summary = "A query result was used only for .size; count() costs about 1/1000 as much."
+
+description = """
+Reading `snapshot.size` after `getDocs()` bills one read per document.
+`count()` bills one read per 1,000 index entries and downloads no documents.
+Detected when the SDK shim reports that only the size of the result was read.
+"""
+
+fix = """
+Replace `getDocs(q)` + `.size` with `getCountFromServer(q)` (web) or
+`q.count().get()` (server SDKs).
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/aggregation-queries"]
+
+[params]
+min_docs = 10
+
+[[examples]]
+lang = "ts"
+bad = '''
+const unread = (await getDocs(query(msgs, where("read", "==", false)))).size;
+'''
+good = '''
+const unread = (await getCountFromServer(query(msgs, where("read", "==", false)))).data().count;
+'''

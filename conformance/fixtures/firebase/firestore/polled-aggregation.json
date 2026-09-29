@@ -1,0 +1,47 @@
+{
+  "description": "A dashboard refreshes an open-order count with getCountFromServer on a 70 second timer, five times.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 1000, "call_id": 1, "path": "orders",
+      "query": { "filters": [{ "field": "status", "op": "==", "value": "open" }], "aggregations": ["count"] },
+      "result": { "docs": 1, "bytes": 24, "index_entries": 200 },
+      "callsite": "src/OrdersDashboard.tsx:11:3"
+    },
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 71000, "call_id": 2, "path": "orders",
+      "query": { "filters": [{ "field": "status", "op": "==", "value": "open" }], "aggregations": ["count"] },
+      "result": { "docs": 1, "bytes": 24, "index_entries": 200 },
+      "callsite": "src/OrdersDashboard.tsx:11:3"
+    },
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 141000, "call_id": 3, "path": "orders",
+      "query": { "filters": [{ "field": "status", "op": "==", "value": "open" }], "aggregations": ["count"] },
+      "result": { "docs": 1, "bytes": 24, "index_entries": 200 },
+      "callsite": "src/OrdersDashboard.tsx:11:3"
+    },
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 211000, "call_id": 4, "path": "orders",
+      "query": { "filters": [{ "field": "status", "op": "==", "value": "open" }], "aggregations": ["count"] },
+      "result": { "docs": 1, "bytes": 24, "index_entries": 200 },
+      "callsite": "src/OrdersDashboard.tsx:11:3"
+    },
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 281000, "call_id": 5, "path": "orders",
+      "query": { "filters": [{ "field": "status", "op": "==", "value": "open" }], "aggregations": ["count"] },
+      "result": { "docs": 1, "bytes": 24, "index_entries": 200 },
+      "callsite": "src/OrdersDashboard.tsx:11:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "aggregate", "template": "orders", "units": { "reads": 1, "egress_bytes": 24 } },
+    { "op": "aggregate", "template": "orders", "units": { "reads": 1, "egress_bytes": 24 } },
+    { "op": "aggregate", "template": "orders", "units": { "reads": 1, "egress_bytes": 24 } },
+    { "op": "aggregate", "template": "orders", "units": { "reads": 1, "egress_bytes": 24 } },
+    { "op": "aggregate", "template": "orders", "units": { "reads": 1, "egress_bytes": 24 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/polled-aggregation", "wasted": { "reads": 4, "egress_bytes": 96 } }
+  ]
+}

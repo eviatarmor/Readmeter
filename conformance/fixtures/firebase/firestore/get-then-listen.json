@@ -1,0 +1,27 @@
+{
+  "description": "The feed screen calls getDocs on the latest posts, then immediately starts onSnapshot on that same query.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 2000, "call_id": 1,
+      "path": "posts",
+      "query": { "order_by": [{ "field": "createdAt", "direction": "desc" }], "limit": 20 },
+      "result": { "docs": 6, "bytes": 1800 },
+      "callsite": "src/Feed.tsx:14:5"
+    },
+    {
+      "service": "firestore", "op": "subscribe", "ts_ms": 7000, "call_id": 2, "listener": 4,
+      "path": "posts",
+      "query": { "order_by": [{ "field": "createdAt", "direction": "desc" }], "limit": 20 },
+      "callsite": "src/Feed.tsx:22:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "reads": 6, "egress_bytes": 1800 } },
+    { "op": "subscribe", "template": "posts", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/get-then-listen", "wasted": { "reads": 6, "egress_bytes": 1800 } }
+  ]
+}

@@ -1,0 +1,39 @@
+id = "firebase.firestore/fanout-writes"
+title = "Commit that fans out to many documents"
+provider = "firebase"
+service = "firestore"
+severity = "info"
+category = "writes"
+evaluation = "local"
+status = "stable"
+summary = "One client commit writes or deletes many documents."
+
+description = """
+Each document in a batch or transaction is billed as its own write or
+delete. A client commit that touches a hundred documents turns one user
+action into a hundred billed operations, and it spends the client's
+500-operation batch budget on fan-out.
+"""
+
+fix = """
+Review the denormalization. Move the fan-out to a Cloud Function that runs
+once per event, or store the shared data once and have readers query it.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/transactions"]
+
+[params]
+min_writes = 100
+
+[[examples]]
+lang = "ts"
+bad = '''
+const batch = writeBatch(db);
+for (const uid of followerIds) {
+  batch.set(doc(db, "feeds", uid, "items", postId), { postId });
+}
+await batch.commit();
+'''
+good = '''
+await setDoc(doc(db, "posts", postId), { authorId, body });
+'''

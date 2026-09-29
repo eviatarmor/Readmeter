@@ -1,0 +1,35 @@
+{
+  "description": "The tasks screen calls getCountFromServer on the open-tasks query, then getDocs with the same filters and limit(25).",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 1000, "call_id": 1, "path": "tasks",
+      "query": {
+        "filters": [{ "field": "status", "op": "==", "value": "open" }],
+        "aggregations": ["count"]
+      },
+      "result": { "docs": 1, "bytes": 16, "index_entries": 40 },
+      "callsite": "src/Tasks.tsx:20:3"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 2000, "call_id": 2, "path": "tasks",
+      "query": {
+        "filters": [{ "field": "status", "op": "==", "value": "open" }],
+        "limit": 25
+      },
+      "result": { "docs": 12, "bytes": 2400 },
+      "callsite": "src/Tasks.tsx:24:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "aggregate", "template": "tasks", "units": { "reads": 1, "egress_bytes": 16 } },
+    { "op": "query", "template": "tasks", "units": { "reads": 12, "egress_bytes": 2400 } }
+  ],
+  "expect_findings": [
+    {
+      "rule": "firebase.firestore/count-then-fetch",
+      "wasted": { "reads": 1, "egress_bytes": 16 }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+id = "firebase.firestore/expensive-aggregation"
+title = "Aggregation over a large index"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "aggregation"
+evaluation = "local"
+status = "stable"
+summary = "An aggregation scans enough index entries to cost many reads per call."
+
+description = """
+Aggregation queries bill one read per 1,000 index entries scanned, with a
+minimum of one read, and they pay that again on every call. A count over a
+large collection is cheaper than fetching the documents, but a hot screen
+that recounts tens of thousands of entries still adds up.
+"""
+
+fix = """
+Maintain a counter document and update it with `increment()` in the same
+write as the change (or from a Cloud Function). Alternatively, cache the
+aggregated value on the client and refresh it rarely.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/aggregation-queries"]
+
+[params]
+min_index_entries = 50000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getAggregateFromServer(
+  query(collection(db, "orders"), where("status", "==", "open")),
+  { total: count() },
+);
+'''
+good = '''
+const open = (await getDoc(doc(db, "stats", "orders"))).data().open;
+'''

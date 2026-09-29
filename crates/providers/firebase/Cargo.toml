@@ -1,0 +1,25 @@
+[package]
+name = "readmeter-provider-firebase"
+description = "Firebase provider: Firestore normalization, billing units and Firestore rules."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["firestore", "window"]
+firestore = []
+window = ["readmeter-rules/window"]
+
+[dependencies]
+readmeter-core.workspace = true
+readmeter-rules.workspace = true
+readmeter-provider-api.workspace = true
+
+[dev-dependencies]
+readmeter-rules = { workspace = true, features = ["testing"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true

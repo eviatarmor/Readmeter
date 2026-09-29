@@ -1,0 +1,24 @@
+{
+  "name": "@readmeter/ingest",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:core": "bash ../../scripts/build-wasm-server.sh",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc -p .",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@readmeter/db": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "hono": "^4.13.10"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

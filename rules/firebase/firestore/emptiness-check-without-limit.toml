@@ -1,0 +1,32 @@
+id = "firebase.firestore/emptiness-check-without-limit"
+title = "Existence check without limit(1)"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "A query used only for .empty returned many documents; limit(1) gives the same answer for 1 read."
+
+description = """
+Checking whether any document matches (`snapshot.empty`) only needs one
+document, but without `limit(1)` Firestore returns and bills every match.
+Detected when the SDK shim reports that only the emptiness of the result
+was read.
+"""
+
+fix = "Add `limit(1)` to existence checks."
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/order-limit-data"]
+
+[params]
+min_docs = 2
+
+[[examples]]
+lang = "ts"
+bad = '''
+const taken = !(await getDocs(query(users, where("handle", "==", h)))).empty;
+'''
+good = '''
+const taken = !(await getDocs(query(users, where("handle", "==", h), limit(1)))).empty;
+'''

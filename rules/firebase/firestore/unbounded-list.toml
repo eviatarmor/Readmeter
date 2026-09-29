@@ -1,0 +1,38 @@
+id = "firebase.firestore/unbounded-list"
+title = "Query or listener without a limit"
+provider = "firebase"
+service = "firestore"
+severity = "critical"
+category = "reads"
+evaluation = "local"
+status = "stable"
+summary = "A list read has no limit(), so its cost grows with the collection."
+
+description = """
+Firestore bills one read per document returned. A query or listener without
+`limit()` returns the whole matching set, so its cost grows with your data,
+not with what the screen shows. A collection that is small today turns into
+thousands of reads per page view as it grows.
+"""
+
+fix = """
+Add `limit()` and paginate with `startAfter(lastDoc)`. If you only need a
+number, use `count()` instead.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/order-limit-data"]
+
+[params]
+# Results smaller than this are not reported; small lookup collections are fine.
+min_docs = 100
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(query(collection(db, "orders"), where("status", "==", "open")));
+'''
+good = '''
+const snap = await getDocs(query(
+  collection(db, "orders"), where("status", "==", "open"), orderBy("createdAt"), limit(25),
+));
+'''

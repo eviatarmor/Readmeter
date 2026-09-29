@@ -1,0 +1,20 @@
+{
+  "description": "Article list calls getDocs(query(collection(db, 'articles'), orderBy('publishedAt', 'desc'), limit(20))) where each article stores its full body; 12 documents averaging 30 KB come back.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1,
+      "path": "articles",
+      "query": { "order_by": [{ "field": "publishedAt", "direction": "desc" }], "limit": 20 },
+      "result": { "docs": 12, "bytes": 360000 },
+      "callsite": "src/Articles.tsx:22:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "articles", "units": { "reads": 12, "egress_bytes": 360000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/large-docs-in-list", "wasted": { "egress_bytes": 114240 } }
+  ]
+}

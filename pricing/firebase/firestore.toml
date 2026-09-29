@@ -1,0 +1,32 @@
+# Firestore Standard edition, pay-as-you-go.
+# UNVERIFIED: numbers are from memory of the public pricing page and must be
+# checked against `source` before any customer-facing estimate uses them.
+# When verified, set checked_on to the date (YYYY-MM-DD).
+# Network egress is intentionally unpriced for now (reported as "unpriced").
+
+provider = "firebase"
+service = "firestore"
+currency = "USD"
+source = "https://cloud.google.com/firestore/pricing"
+checked_on = "unverified"
+default_region = "nam5"
+
+[regions.nam5]
+reads = { price = 0.06, per = 100000 }
+writes = { price = 0.18, per = 100000 }
+deletes = { price = 0.02, per = 100000 }
+
+[regions.eur3]
+reads = { price = 0.06, per = 100000 }
+writes = { price = 0.18, per = 100000 }
+deletes = { price = 0.02, per = 100000 }
+
+[regions.us-central1]
+reads = { price = 0.03, per = 100000 }
+writes = { price = 0.09, per = 100000 }
+deletes = { price = 0.01, per = 100000 }
+
+[free_per_day]
+reads = 50000
+writes = 20000
+deletes = 20000

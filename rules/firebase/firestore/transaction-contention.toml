@@ -1,0 +1,27 @@
+id = "firebase.firestore/transaction-contention"
+title = "Transaction retried under contention"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "reliability"
+evaluation = "local"
+status = "stable"
+summary = "A transaction needed several attempts; each attempt re-reads and re-bills its documents."
+
+description = """
+When documents read in a transaction change before it commits, Firestore
+retries the whole transaction function. Every retry reads its documents
+again, and each of those reads is billed. Frequent retries point at hot
+documents or at transactions that read more than they need.
+"""
+
+fix = """
+Read fewer documents inside the transaction, avoid slow work inside it, and
+for counters use `increment()` in a plain batched write instead of a
+read-modify-write transaction.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/transactions"]
+
+[params]
+max_attempts = 3

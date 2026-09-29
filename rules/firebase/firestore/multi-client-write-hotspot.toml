@@ -1,0 +1,21 @@
+id = "firebase.firestore/multi-client-write-hotspot"
+title = "Document written by many clients at once"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "hotspots"
+evaluation = "aggregate"
+status = "planned"
+default_enabled = false
+summary = "Writes from many sessions to the same document exceed the per-document write rate."
+
+description = """
+The cross-session version of `write-hotspot`: a global counter or shared
+document that every client updates. Each client is under the limit, but
+together they cause contention, failed writes and retries. Needs
+aggregation of document keys across sessions on the backend.
+"""
+
+fix = "Shard the document (distributed counter) or move the update into a Cloud Function that batches."
+
+docs = ["https://firebase.google.com/docs/firestore/solutions/counters"]

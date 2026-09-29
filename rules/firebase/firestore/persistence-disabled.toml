@@ -1,0 +1,23 @@
+id = "firebase.firestore/persistence-disabled"
+title = "Offline persistence disabled"
+provider = "firebase"
+service = "firestore"
+severity = "low"
+category = "reads"
+evaluation = "local"
+status = "planned"
+default_enabled = false
+summary = "The client SDK runs without a persistent cache, so every reload re-reads from the server."
+
+description = """
+With persistent local cache enabled, repeated reads and listener
+resumes can be served locally. Without it, every page load re-bills
+everything it reads. Needs an SDK init event (cache settings) from shims.
+"""
+
+fix = """
+Initialize Firestore with `persistentLocalCache()` (web) or keep the
+default persistence on mobile.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/enable-offline"]

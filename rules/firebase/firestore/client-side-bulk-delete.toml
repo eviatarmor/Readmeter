@@ -1,0 +1,40 @@
+id = "firebase.firestore/client-side-bulk-delete"
+title = "Bulk delete from the client"
+provider = "firebase"
+service = "firestore"
+severity = "low"
+category = "writes"
+evaluation = "window"
+status = "stable"
+summary = "A client deletes many documents of one collection in a short window."
+
+description = """
+Each document deleted from a client is one billed delete. Clearing a
+collection document by document therefore costs one delete per document,
+and the reads used to list those documents are billed as well.
+"""
+
+fix = """
+Use a TTL policy, or delete from the server with `firebase firestore:delete`
+or the Admin SDK `recursiveDelete`. Do not loop `deleteDoc` in the client.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/delete-data"]
+
+[params]
+window_ms = 60000
+min_deletes = 100
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(collection(db, "notifications"));
+for (const d of snap.docs) {
+  await deleteDoc(d.ref);
+}
+'''
+good = '''
+await setDoc(doc(db, "notifications", id), {
+  expiresAt: Timestamp.fromDate(expiry),
+});
+'''

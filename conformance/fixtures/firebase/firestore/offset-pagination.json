@@ -1,0 +1,19 @@
+{
+  "description": "db.collection('posts').orderBy('createdAt').offset(200).limit(20).get()",
+  "platform": "server",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1,
+      "path": "posts",
+      "query": { "order_by": [{ "field": "createdAt" }], "limit": 20, "offset": 200 },
+      "result": { "docs": 20, "bytes": 20000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "reads": 220, "egress_bytes": 20000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/offset-pagination", "wasted": { "reads": 200 } }
+  ]
+}

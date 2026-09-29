@@ -1,0 +1,162 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Keep in sync with wasm-bindgen in Cargo.lock.
+  WASM_BINDGEN_VERSION: 0.2.129
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+      - run: cargo test --workspace --all-features
+      - name: Production SDK feature set (no window rules) builds clean
+        run: cargo clippy -p readmeter-wasm -p readmeter-ffi --no-default-features --features firebase -- -D warnings
+      - name: Rule catalog
+        run: cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - name: Build production SDK wasm (size gate)
+        run: ./scripts/build-wasm.sh
+      - name: Smoke test in Node
+        run: |
+          cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+          node scripts/smoke-wasm.mjs
+      - name: Report dev build size
+        run: FEATURES=firebase,window OUT=target/wasm-pkg-dev BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
+
+  ffi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install --locked cbindgen
+      - name: Header is up to date
+        working-directory: crates/bindings/ffi
+        run: |
+          cbindgen --config cbindgen.toml --crate readmeter-ffi --output include/readmeter.h
+          git diff --exit-code include/readmeter.h
+      - name: C smoke test
+        run: ./scripts/smoke-ffi.sh
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: readmeter
+          POSTGRES_PASSWORD: readmeter
+          POSTGRES_DB: readmeter
+        ports: ["5442:5432"]
+        options: >-
+          --health-cmd "pg_isready -U readmeter" --health-interval 2s --health-retries 30
+    env:
+      DATABASE_URL: postgres://readmeter:readmeter@127.0.0.1:5442/readmeter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - name: Build rule bundle, SDK wasm (test batches) and server core
+        run: |
+          cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+          BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
+          ./scripts/build-wasm-server.sh
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm db:migrate
+      - name: Migrations match the schema
+        run: pnpm db:generate && git diff --exit-code packages/db/migrations
+      - run: pnpm test
+
+  sdk-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - run: pnpm install --frozen-lockfile
+      # build.sh compiles prod and dev wasm, runs rulec, and emits dist/.
+      - run: pnpm --filter @readmeter/firebase build
+      - run: pnpm --filter @readmeter/firebase test
+      - run: pnpm --filter @readmeter/firebase test:emulator
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: readmeter
+          POSTGRES_PASSWORD: readmeter
+          POSTGRES_DB: readmeter
+        ports: ["5442:5432"]
+        options: >-
+          --health-cmd "pg_isready -U readmeter" --health-interval 2s --health-retries 30
+    env:
+      DATABASE_URL: postgres://readmeter:readmeter@127.0.0.1:5442/readmeter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - run: pnpm install --frozen-lockfile
+      - name: Playwright system libraries
+        run: pnpm --filter web-firestore exec playwright install-deps chromium
+      - name: End to end
+        run: chmod +x scripts/*.sh && ./scripts/e2e.sh

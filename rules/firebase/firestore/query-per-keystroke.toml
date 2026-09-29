@@ -1,0 +1,54 @@
+id = "firebase.firestore/query-per-keystroke"
+title = "Query on every keystroke"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "One callsite runs the same query shape with new values several times within a few seconds."
+
+description = """
+Each keystroke that runs a Firestore query bills one read per document
+returned, and at least one read when nothing matches. A search box that
+queries on every input event pays for every intermediate string, not just
+the term the user keeps.
+"""
+
+fix = """
+Debounce the input by at least 300 ms, require a minimum length, and cache
+results per term. Call `getDocs(query(...))` only for the debounced term.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/queries"]
+
+[params]
+window_ms = 3000
+min_distinct = 4
+
+[[examples]]
+lang = "ts"
+bad = '''
+input.oninput = async () => {
+  const term = input.value;
+  const snap = await getDocs(query(
+    collection(db, "users"),
+    where("name", ">=", term),
+    where("name", "<=", term + "\uf8ff"),
+    limit(10),
+  ));
+  setHits(snap.docs);
+};
+'''
+good = '''
+const term = debounce(input.value, 300);
+if (term.length >= 2) {
+  const snap = await getDocs(query(
+    collection(db, "users"),
+    where("name", ">=", term),
+    where("name", "<=", term + "\uf8ff"),
+    limit(10),
+  ));
+  setHits(snap.docs);
+}
+'''

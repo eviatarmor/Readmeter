@@ -1,0 +1,42 @@
+id = "firebase.firestore/large-docs-in-list"
+title = "Large documents in a list query"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "payload"
+evaluation = "local"
+status = "stable"
+summary = "A list downloads documents whose average size is larger than a row needs."
+
+description = """
+The web and mobile SDKs always download every field of every document.
+Reads are billed per document, but egress bytes scale with document size,
+so a list of fat documents pays for fields the row UI never shows.
+At or above `generic/oversized-payload`'s average-item threshold, that
+rule reports the call instead, so this one stays silent.
+"""
+
+fix = """
+Move heavy fields (bodies, history, arrays of ids) into a subcollection or
+a separate detail document. Keep a small summary document for lists.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/structure-data"]
+
+[params]
+min_docs = 10
+# Average size at or above this, and below upper_avg_doc_bytes, is reported.
+max_avg_doc_bytes = 20480
+# At or above this, generic/oversized-payload reports the call instead.
+upper_avg_doc_bytes = 102400
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(query(collection(db, "articles"), orderBy("publishedAt", "desc"), limit(20)));
+'''
+good = '''
+const snap = await getDocs(query(
+  collection(db, "articleSummaries"), orderBy("publishedAt", "desc"), limit(20),
+));
+'''

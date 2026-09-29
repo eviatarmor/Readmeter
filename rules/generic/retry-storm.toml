@@ -1,0 +1,25 @@
+id = "generic/retry-storm"
+title = "Failing request retried in a loop"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "reliability"
+evaluation = "window"
+status = "stable"
+summary = "A request keeps failing and is retried rapidly, or an SDK retries far past a sane backoff."
+
+description = """
+Retrying errors like `permission-denied` or `invalid-argument` never
+succeeds, and on per-request providers every attempt is billed. Tight retry
+loops also look like abuse to rate limiters.
+"""
+
+fix = """
+Retry only transient errors (`unavailable`, `deadline-exceeded`,
+`resource-exhausted`) with exponential backoff and a cap.
+"""
+
+[params]
+window_ms = 10000
+min_errors = 5
+max_attempts = 5

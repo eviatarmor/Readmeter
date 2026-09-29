@@ -1,0 +1,32 @@
+id = "firebase.firestore/get-while-listening"
+title = "Server read while a listener is open"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "A billed read hits a query that an open listener already delivers."
+
+description = """
+A listener's snapshots are documents this client already paid to receive.
+`getDoc` or `getDocs` on that same target bills every document again and
+downloads them a second time. The listener already holds the data.
+"""
+
+fix = """
+Read the listener's latest snapshot from a shared store, or call
+`getDocFromCache` / `getDocsFromCache` while that listener is open.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/listen"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+onSnapshot(inboxQuery, snap => setThreads(snap.docs));
+const fresh = await getDocs(inboxQuery);
+'''
+good = '''
+onSnapshot(inboxQuery, snap => setThreads(snap.docs));
+'''

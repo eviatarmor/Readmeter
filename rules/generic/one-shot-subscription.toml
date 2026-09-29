@@ -1,0 +1,21 @@
+id = "generic/one-shot-subscription"
+title = "Subscription used as a one-time read"
+provider = "*"
+service = "*"
+severity = "low"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "Subscriptions are closed right after their first snapshot; a one-time read is cheaper."
+
+description = """
+Opening a realtime stream to read a value once costs the same reads as a
+one-time read, plus the connection and listener overhead on client and
+server.
+"""
+
+fix = "Use `getDoc` / `getDocs` (or a plain select) for one-time reads."
+
+[params]
+max_lifetime_ms = 5000
+min_occurrences = 3

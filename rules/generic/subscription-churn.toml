@@ -1,0 +1,25 @@
+id = "generic/subscription-churn"
+title = "Subscription re-opened repeatedly"
+provider = "*"
+service = "*"
+severity = "high"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "The same subscription is closed and re-opened many times, re-billing its initial result each time."
+
+description = """
+Every new subscription starts with a full initial result. Re-creating it on
+every render, route change or dependency change pays that initial cost over
+and over. Usually caused by unstable effect dependencies (a new query object
+each render).
+"""
+
+fix = """
+Keep the subscription alive above the components that come and go, and
+memoize the query so effect dependencies stay stable.
+"""
+
+[params]
+window_ms = 60000
+min_initial_snapshots = 5

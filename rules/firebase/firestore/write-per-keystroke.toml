@@ -1,0 +1,37 @@
+id = "firebase.firestore/write-per-keystroke"
+title = "Write on every keystroke"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "writes"
+evaluation = "window"
+status = "stable"
+summary = "One callsite writes the same document several times within a few seconds."
+
+description = """
+Every `setDoc` or `updateDoc` is one billed write, even when it overwrites
+the previous write of the same document a few milliseconds later. Saving on
+each keystroke or drag event turns one edit into many writes.
+A long burst can also match `firebase.firestore/write-hotspot`; that rule
+asks for a slower sustained rate, and this one asks to debounce the callsite.
+"""
+
+fix = """
+Debounce, and call `updateDoc` or `setDoc` on blur or submit. Keep the
+draft in local state until then.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/add-data"]
+
+[params]
+window_ms = 5000
+min_writes = 5
+
+[[examples]]
+lang = "ts"
+bad = '''
+input.oninput = () => updateDoc(doc(db, "drafts", draftId), { body: input.value });
+'''
+good = '''
+input.onblur = () => updateDoc(doc(db, "drafts", draftId), { body: input.value });
+'''

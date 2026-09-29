@@ -1,0 +1,23 @@
+id = "generic/duplicate-read"
+title = "Same request billed repeatedly"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "The exact same request (same path, filters and values) is billed several times in a short window."
+
+description = """
+Several components, or the same component on every render, issue the
+same request instead of sharing one result. Each copy is billed in full.
+"""
+
+fix = """
+Share results through a cache layer (TanStack Query, SWR, a store), or use
+one realtime subscription that all consumers read from.
+"""
+
+[params]
+window_ms = 60000
+min_repeats = 3

@@ -1,0 +1,36 @@
+id = "firebase.firestore/count-then-fetch"
+title = "Count query followed by fetching the documents"
+provider = "firebase"
+service = "firestore"
+severity = "low"
+category = "aggregation"
+evaluation = "window"
+status = "stable"
+summary = "count() runs and the same query's documents are fetched right after."
+
+description = """
+`count()` bills one read per 1,000 index entries. Fetching those documents
+with `getDocs` bills one read per document returned and already exposes the
+count as `snapshot.size`, so the earlier aggregation is wasted.
+"""
+
+fix = """
+Drop the `getCountFromServer` call when you fetch the documents anyway, and
+read `snapshot.size` on the `getDocs` result.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/aggregation-queries"]
+
+[params]
+window_ms = 5000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const total = (await getCountFromServer(pageQuery)).data().count;
+const snap = await getDocs(pageQuery);
+'''
+good = '''
+const snap = await getDocs(pageQuery);
+const total = snap.size;
+'''

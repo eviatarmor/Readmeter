@@ -1,0 +1,39 @@
+id = "firebase.firestore/missing-cursor"
+title = "Load more by growing limit()"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "pagination"
+evaluation = "window"
+status = "stable"
+summary = "Each 'load more' re-reads every previous page because limit() grows instead of using a cursor."
+
+description = """
+Infinite scroll built as `limit(20)`, then `limit(40)`, then `limit(60)` on
+the same query reads the first page again every time. The total cost grows
+quadratically with the number of pages loaded.
+"""
+
+fix = """
+Keep the pages you already have. Fetch only the next page with
+`startAfter(lastDoc)` and a fixed `limit()`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/query-cursors"]
+
+[params]
+window_ms = 600000
+# Consecutive growing-limit fetches of the same query before reporting.
+min_pages = 3
+
+[[examples]]
+lang = "ts"
+bad = '''
+const [n, setN] = useState(20);
+useEffect(() => onSnapshot(query(col, orderBy("ts"), limit(n)), setSnap), [n]);
+'''
+good = '''
+const next = query(col, orderBy("ts"), startAfter(lastDoc), limit(20));
+const more = await getDocs(next);
+setItems(prev => [...prev, ...more.docs]);
+'''

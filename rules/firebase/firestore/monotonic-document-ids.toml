@@ -1,0 +1,26 @@
+id = "firebase.firestore/monotonic-document-ids"
+title = "Sequential or timestamp document ids"
+provider = "firebase"
+service = "firestore"
+severity = "low"
+category = "hotspots"
+evaluation = "window"
+status = "beta"
+summary = "New documents use ids that increase monotonically, which concentrates writes on one index range."
+
+description = """
+Ids such as `1727481600000` or `2026-09-28T10:00:00Z` sort together, so all
+new documents land on the same part of the index. That caps write
+throughput at high rates and causes contention and retries.
+"""
+
+fix = """
+Let Firestore generate ids (`addDoc`, `doc(collection(...))`) and store the
+timestamp in a field.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/best-practices#hotspots"]
+
+[params]
+window_ms = 60000
+min_writes = 20

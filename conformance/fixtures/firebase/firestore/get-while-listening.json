@@ -1,0 +1,27 @@
+{
+  "description": "The inbox keeps onSnapshot on the signed-in user's threads and also calls getDocs on that same query when the tab becomes visible again.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "subscribe", "ts_ms": 1000, "call_id": 1, "listener": 1,
+      "path": "threads",
+      "query": { "filters": [{ "field": "uid", "op": "==", "value": "ada" }], "limit": 25 },
+      "callsite": "src/Inbox.tsx:18:3"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 4000, "call_id": 2,
+      "path": "threads",
+      "query": { "filters": [{ "field": "uid", "op": "==", "value": "ada" }], "limit": 25 },
+      "result": { "docs": 9, "bytes": 2700 },
+      "callsite": "src/Inbox.tsx:40:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "subscribe", "template": "threads", "units": {} },
+    { "op": "query", "template": "threads", "units": { "reads": 9, "egress_bytes": 2700 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/get-while-listening", "wasted": { "reads": 9, "egress_bytes": 2700 } }
+  ]
+}

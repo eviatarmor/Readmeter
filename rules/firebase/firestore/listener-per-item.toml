@@ -1,0 +1,40 @@
+id = "firebase.firestore/listener-per-item"
+title = "One listener per document"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "Many single-document listeners are open on one document template."
+
+description = """
+Each `onSnapshot(doc(...))` is its own listener. Every changed document
+bills a read on that listener, so a screen with one listener per row
+multiplies the cost by the number of rows. One query listener delivers the
+same documents through a single listener.
+"""
+
+fix = """
+Replace the per-document listeners with one
+`onSnapshot(query(collection, where(documentId(), 'in', ids)))` in chunks
+of 30, or a query on a shared field.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/listen"]
+
+[params]
+max_active = 25
+
+[[examples]]
+lang = "ts"
+bad = '''
+ids.forEach(id => onSnapshot(doc(db, "posts", id), snap => setPost(id, snap.data())));
+'''
+good = '''
+for (const chunk of chunksOf(ids, 30)) {
+  onSnapshot(query(collection(db, "posts"), where(documentId(), "in", chunk)), snap => {
+    snap.docs.forEach(d => setPost(d.id, d.data()));
+  });
+}
+'''

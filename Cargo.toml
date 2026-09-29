@@ -1,0 +1,55 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/rules",
+    "crates/cost",
+    "crates/provider-api",
+    "crates/providers/firebase",
+    "crates/runtime",
+    "crates/evaluator",
+    "crates/bindings/ffi",
+    "crates/bindings/wasm",
+    "crates/bindings/wasm-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "LicenseRef-Readmeter-SUL"
+repository = "https://github.com/eviatarmor/Readmeter"
+publish = false
+
+[workspace.dependencies]
+readmeter-core = { path = "crates/core" }
+readmeter-rules = { path = "crates/rules", default-features = false }
+readmeter-cost = { path = "crates/cost" }
+readmeter-provider-api = { path = "crates/provider-api" }
+readmeter-provider-firebase = { path = "crates/providers/firebase", default-features = false }
+readmeter-runtime = { path = "crates/runtime", default-features = false }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+postcard = { version = "1.1", default-features = false, features = ["alloc"] }
+siphasher = "1"
+thiserror = "2"
+toml = "1"
+wasm-bindgen = "0.2"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+# Size-optimised profile for SDK artifacts (wasm + native libs).
+[profile.release-small]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

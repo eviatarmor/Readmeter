@@ -1,0 +1,25 @@
+{
+  "description": "The profile editor calls updateDoc on the user's profile, then getDoc on the same document to refresh the form.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "update", "ts_ms": 5000, "call_id": 1,
+      "path": "profiles/ada",
+      "callsite": "src/ProfileForm.tsx:44:3"
+    },
+    {
+      "service": "firestore", "op": "get", "ts_ms": 5600, "call_id": 2,
+      "path": "profiles/ada",
+      "result": { "docs": 1, "bytes": 500 },
+      "callsite": "src/ProfileForm.tsx:48:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "update", "template": "profiles/{id}", "units": { "writes": 1 } },
+    { "op": "get", "template": "profiles/{id}", "units": { "reads": 1, "egress_bytes": 500 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/read-after-write", "wasted": { "reads": 1, "egress_bytes": 500 } }
+  ]
+}

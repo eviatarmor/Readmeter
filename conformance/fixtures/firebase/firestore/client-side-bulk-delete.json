@@ -1,0 +1,24 @@
+{
+  "description": "Clearing the inbox commits two writeBatch calls of 50 deletes each from the browser.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 1000, "call_id": 1, "path": "notifications",
+      "commit": { "writes": 0, "deletes": 50, "transactional": false },
+      "callsite": "src/Inbox.tsx:22:3"
+    },
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 1800, "call_id": 2, "path": "notifications",
+      "commit": { "writes": 0, "deletes": 50, "transactional": false },
+      "callsite": "src/Inbox.tsx:22:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "commit", "template": "notifications", "units": { "deletes": 50 } },
+    { "op": "commit", "template": "notifications", "units": { "deletes": 50 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/client-side-bulk-delete" }
+  ]
+}

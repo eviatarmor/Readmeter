@@ -1,0 +1,23 @@
+[package]
+name = "readmeter-wasm"
+description = "wasm-bindgen wrapper over readmeter-runtime for browser, Node, Deno and Go (wazero)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["firebase", "window"]
+firebase = ["readmeter-runtime/firebase"]
+window = ["readmeter-runtime/window"]
+
+[dependencies]
+readmeter-runtime = { workspace = true, default-features = false }
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true

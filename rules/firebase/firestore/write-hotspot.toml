@@ -1,0 +1,29 @@
+id = "firebase.firestore/write-hotspot"
+title = "Document written faster than ~1/s"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "hotspots"
+evaluation = "window"
+status = "stable"
+summary = "One document is updated faster than Firestore's sustained per-document write rate."
+
+description = """
+Firestore handles roughly one sustained write per second per document.
+Going faster causes contention: writes queue, fail, and are retried, which
+adds latency and billed retries. Counters and "last seen" fields are the
+usual cause. This rule sees writes from one client session; the backend
+checks writes from all clients together.
+"""
+
+fix = """
+Use a distributed counter (N shard documents, summed on read), batch
+updates on the client and write at most once per second, or use
+`increment()` inside a debounced write.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/solutions/counters"]
+
+[params]
+window_ms = 10000
+max_writes_per_sec = 1.0

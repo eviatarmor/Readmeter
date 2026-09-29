@@ -1,0 +1,24 @@
+[package]
+name = "readmeter-evaluator"
+description = "Server-side batch processing: decode, limits, window rules per project, JSON-safe rows for storage."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+readmeter-core.workspace = true
+readmeter-rules = { workspace = true, features = ["window"] }
+readmeter-provider-api = { workspace = true, features = ["serde"] }
+readmeter-provider-firebase = { workspace = true, features = ["firestore", "window"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+readmeter-rules = { workspace = true, features = ["window", "catalog-toml"] }
+readmeter-runtime = { workspace = true, features = ["firebase"] }
+
+[lints]
+workspace = true

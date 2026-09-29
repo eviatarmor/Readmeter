@@ -1,0 +1,44 @@
+id = "firebase.firestore/tiny-batches"
+title = "Many tiny write batches"
+provider = "firebase"
+service = "firestore"
+severity = "low"
+category = "writes"
+evaluation = "window"
+status = "stable"
+summary = "One callsite commits many batches of one or two writes that could be a single batch."
+
+description = """
+A commit of one or two documents bills the same writes those operations
+would cost on their own. Issuing them as many commits does not multiply
+the write bill, but each commit is its own round trip, so a save waits on
+a chain of requests instead of one `writeBatch`.
+"""
+
+fix = """
+Collect the writes and commit one `writeBatch` (up to 500 operations).
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/transactions"]
+
+[params]
+window_ms = 2000
+min_commits = 10
+max_writes_per_commit = 2
+
+[[examples]]
+lang = "ts"
+bad = '''
+for (const item of items) {
+  const batch = writeBatch(db);
+  batch.set(doc(db, "outbox", item.id), item);
+  await batch.commit();
+}
+'''
+good = '''
+const batch = writeBatch(db);
+for (const item of items) {
+  batch.set(doc(db, "outbox", item.id), item);
+}
+await batch.commit();
+'''

@@ -1,0 +1,42 @@
+id = "firebase.firestore/initial-load-fanout"
+title = "Page load fans out into many reads"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "A session's first seconds contain many distinct billed reads."
+
+description = """
+Every document get on startup is one billed read, and every query bills one
+read per document returned. A page that fans out across dozens of documents
+and queries pays that cost on every visit, before the user does anything.
+"""
+
+fix = """
+Denormalize the screen into one page document, serve public data with a
+Firestore bundle (`loadBundle`), or defer below-the-fold reads until they
+scroll into view.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/bundles"]
+
+[params]
+window_ms = 5000
+max_distinct = 30
+
+[[examples]]
+lang = "ts"
+bad = '''
+const [user, posts, comments, flags] = await Promise.all([
+  getDoc(doc(db, "users", uid)),
+  getDocs(query(collection(db, "posts"), where("author", "==", uid), limit(20))),
+  getDocs(query(collection(db, "comments"), where("author", "==", uid), limit(20))),
+  getDoc(doc(db, "flags", uid)),
+]);
+'''
+good = '''
+await loadBundle(db, await fetch("/bundles/home"));
+const page = await getDocFromCache(doc(db, "pages", uid));
+'''

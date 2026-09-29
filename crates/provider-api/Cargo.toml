@@ -1,0 +1,25 @@
+[package]
+name = "readmeter-provider-api"
+description = "Contract every Readmeter provider (Firebase, Supabase, ...) implements."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Serde for `JsonValue`, used by tests and the backend. SDK builds leave it off.
+serde = ["dep:serde"]
+
+[dependencies]
+readmeter-core.workspace = true
+readmeter-rules.workspace = true
+serde = { workspace = true, optional = true }
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

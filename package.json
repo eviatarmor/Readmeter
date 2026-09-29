@@ -1,0 +1,24 @@
+{
+  "name": "readmeter",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.16.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @readmeter/db generate",
+    "db:migrate": "pnpm --filter @readmeter/db migrate",
+    "db:seed": "pnpm --filter @readmeter/db seed",
+    "dev:ingest": "pnpm --filter @readmeter/ingest dev",
+    "rm": "pnpm --filter @readmeter/cli start --",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "sdk:build": "pnpm --filter @readmeter/firebase build",
+    "sdk:test": "pnpm --filter @readmeter/firebase test",
+    "sdk:test:emulator": "pnpm --filter @readmeter/firebase test:emulator"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "name": "@readmeter/firebase",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "type": "module",
+  "files": [
+    "dist",
+    "wasm",
+    "bundle",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./firestore": {
+      "types": "./dist/web/firestore.d.ts",
+      "import": "./dist/web/firestore.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "import": "./dist/admin/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "test:bundle": "vite build --config test/bundle/vite.config.ts && node test/bundle/check.mjs",
+    "test:emulator": "bash scripts/emulator-test.sh"
+  },
+  "peerDependencies": {
+    "@google-cloud/firestore": ">=7",
+    "firebase": ">=10 <13",
+    "firebase-admin": ">=12"
+  },
+  "peerDependenciesMeta": {
+    "firebase": {
+      "optional": true
+    },
+    "firebase-admin": {
+      "optional": true
+    },
+    "@google-cloud/firestore": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eviatarmor/Readmeter.git",
+    "directory": "sdks/js/firebase"
+  },
+  "description": "Find Firestore cost problems in Firebase web apps and Cloud Functions, down to the callsite."
+}

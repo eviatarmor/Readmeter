@@ -1,0 +1,24 @@
+id = "firebase.firestore/listener-reconnect-rebill"
+title = "Listeners re-billed after long disconnects"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "realtime"
+evaluation = "aggregate"
+status = "planned"
+default_enabled = false
+summary = "Clients reconnect after 30+ minutes offline and re-read full listener results."
+
+description = """
+When a listener has been disconnected for more than 30 minutes, Firestore
+bills it as a new query on reconnect. Mobile apps that background often and
+keep large listeners pay the full result repeatedly. Needs the reconnect
+signal from SDK shims and cross-session aggregation on the backend.
+"""
+
+fix = """
+Detach listeners when the app backgrounds and re-attach with a narrower
+query, or listen to a summary document.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/pricing#listens"]

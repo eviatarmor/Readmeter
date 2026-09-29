@@ -1,0 +1,47 @@
+{
+  "description": "A chat room keeps onSnapshot on the latest 50 messages. Four update batches arrive within a minute, 50 changed documents each.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "subscribe", "ts_ms": 1000, "call_id": 1, "listener": 7,
+      "path": "rooms/general/messages",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 50 },
+      "callsite": "src/ChatRoom.tsx:16:5"
+    },
+    {
+      "service": "firestore", "op": "snapshot", "initial": false, "ts_ms": 10000, "call_id": 2, "listener": 7,
+      "path": "rooms/general/messages",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 50 },
+      "result": { "docs": 50, "bytes": 4000 }
+    },
+    {
+      "service": "firestore", "op": "snapshot", "initial": false, "ts_ms": 20000, "call_id": 3, "listener": 7,
+      "path": "rooms/general/messages",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 50 },
+      "result": { "docs": 50, "bytes": 4000 }
+    },
+    {
+      "service": "firestore", "op": "snapshot", "initial": false, "ts_ms": 30000, "call_id": 4, "listener": 7,
+      "path": "rooms/general/messages",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 50 },
+      "result": { "docs": 50, "bytes": 4000 }
+    },
+    {
+      "service": "firestore", "op": "snapshot", "initial": false, "ts_ms": 40000, "call_id": 5, "listener": 7,
+      "path": "rooms/general/messages",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 50 },
+      "result": { "docs": 50, "bytes": 4000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "subscribe", "template": "rooms/{id}/messages", "units": {} },
+    { "op": "snapshot", "template": "rooms/{id}/messages", "units": { "reads": 50, "egress_bytes": 4000 } },
+    { "op": "snapshot", "template": "rooms/{id}/messages", "units": { "reads": 50, "egress_bytes": 4000 } },
+    { "op": "snapshot", "template": "rooms/{id}/messages", "units": { "reads": 50, "egress_bytes": 4000 } },
+    { "op": "snapshot", "template": "rooms/{id}/messages", "units": { "reads": 50, "egress_bytes": 4000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/hot-listener" }
+  ]
+}

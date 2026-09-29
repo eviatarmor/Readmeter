@@ -1,0 +1,37 @@
+[package]
+name = "readmeter-rules"
+description = "Rule catalog model, overrides, detector registry and evaluation engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["window"]
+# Detectors for `evaluation = "window"` rules. Production SDK builds leave
+# this off (they only run local rules); dev builds and the backend enable it.
+window = []
+# Load rule definitions from `rules/**/*.toml`. Server and tooling only; SDKs
+# receive a pre-compiled binary bundle (`bundle.bin`) instead.
+catalog-toml = ["dep:toml", "dep:serde_json"]
+# Envelope builders for detector tests in other crates.
+testing = []
+
+[dependencies]
+readmeter-core.workspace = true
+postcard.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[[bin]]
+name = "readmeter-rulec"
+required-features = ["catalog-toml"]
+
+[lints]
+workspace = true

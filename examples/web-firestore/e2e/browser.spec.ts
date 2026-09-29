@@ -1,0 +1,16 @@
+import { expect, test } from "@playwright/test";
+
+test("seed, unbounded list, and offset pagination show local findings", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.goto("/");
+  const log = page.locator("#log");
+  await expect(log).toContainText("ready");
+  await page.getByRole("button", { name: "seed data" }).click();
+  await expect(log).toContainText("seeded 300 posts");
+  await page.getByRole("button", { name: "unbounded list" }).click();
+  await page.getByRole("button", { name: "offset pagination" }).click();
+  await expect(log).toContainText("firebase.firestore/unbounded-list");
+  await expect(log).toContainText("firebase.firestore/offset-pagination");
+  expect(pageErrors, pageErrors.join("\n")).toEqual([]);
+});

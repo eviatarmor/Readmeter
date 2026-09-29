@@ -1,0 +1,37 @@
+{
+  "description": "The draft editor calls updateDoc on the same draft document once per keystroke, five times from one callsite.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "update", "ts_ms": 1000, "call_id": 1, "path": "drafts/d1",
+      "callsite": "src/Editor.tsx:44:3"
+    },
+    {
+      "service": "firestore", "op": "update", "ts_ms": 1400, "call_id": 2, "path": "drafts/d1",
+      "callsite": "src/Editor.tsx:44:3"
+    },
+    {
+      "service": "firestore", "op": "update", "ts_ms": 1800, "call_id": 3, "path": "drafts/d1",
+      "callsite": "src/Editor.tsx:44:3"
+    },
+    {
+      "service": "firestore", "op": "update", "ts_ms": 2200, "call_id": 4, "path": "drafts/d1",
+      "callsite": "src/Editor.tsx:44:3"
+    },
+    {
+      "service": "firestore", "op": "update", "ts_ms": 2600, "call_id": 5, "path": "drafts/d1",
+      "callsite": "src/Editor.tsx:44:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "update", "template": "drafts/{id}", "units": { "writes": 1 } },
+    { "op": "update", "template": "drafts/{id}", "units": { "writes": 1 } },
+    { "op": "update", "template": "drafts/{id}", "units": { "writes": 1 } },
+    { "op": "update", "template": "drafts/{id}", "units": { "writes": 1 } },
+    { "op": "update", "template": "drafts/{id}", "units": { "writes": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/write-per-keystroke", "wasted": { "writes": 4 } }
+  ]
+}

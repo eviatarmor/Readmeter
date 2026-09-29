@@ -1,0 +1,34 @@
+id = "firebase.firestore/unused-projection"
+title = "Server query fetches full documents"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "payload"
+evaluation = "local"
+status = "beta"
+summary = "A server-side query downloads large full documents where select() could fetch only needed fields."
+
+description = """
+Server SDKs (Admin, Go, Python, Java, .NET) support `select()` to return
+only some fields. Reads are billed the same, but network egress, memory and
+latency scale with document size. Batch jobs over large documents pay for
+fields they never touch. Client SDKs cannot project, so this rule only
+applies to server platforms.
+"""
+
+fix = "Add `select(\"field1\", \"field2\")` to the query."
+
+docs = ["https://cloud.google.com/firestore/docs/samples/firestore-query-select"]
+
+[params]
+min_docs = 20
+min_avg_doc_bytes = 4096
+
+[[examples]]
+lang = "go"
+bad = '''
+iter := client.Collection("users").Where("plan", "==", "pro").Documents(ctx)
+'''
+good = '''
+iter := client.Collection("users").Where("plan", "==", "pro").Select("email").Documents(ctx)
+'''

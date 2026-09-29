@@ -1,0 +1,38 @@
+id = "firebase.firestore/oversized-limit"
+title = "Limit far larger than a page"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "reads"
+evaluation = "local"
+status = "stable"
+summary = "A client query uses a limit() far larger than one page."
+
+description = """
+Firestore bills one read per document returned. A `limit()` of hundreds or
+thousands still downloads that many full documents in one round trip, even
+when the screen shows a short page. Client apps pay that cost on every
+visit. Server jobs that intentionally read a large page are not reported.
+"""
+
+fix = """
+Page with `limit(25)` to `limit(50)` and `startAfter(lastDoc)`. Load the
+next page only when the user asks for it.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/order-limit-data"]
+
+[params]
+max_limit = 500
+min_docs = 200
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(1000)));
+'''
+good = '''
+const snap = await getDocs(query(
+  collection(db, "posts"), orderBy("createdAt", "desc"), limit(25), startAfter(lastDoc),
+));
+'''

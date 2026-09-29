@@ -1,0 +1,6 @@
+packages:
+  - apps/*
+  - packages/*
+  - sdks/*/*
+  - examples/web-firestore
+  - examples/e2e

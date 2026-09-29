@@ -1,0 +1,24 @@
+id = "generic/oversized-payload"
+title = "Oversized response or items"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "payload"
+evaluation = "local"
+status = "stable"
+summary = "A response, or its average item, is far larger than a UI usually needs."
+
+description = """
+Large responses cost egress, memory and time to first render. Large
+individual items usually mean blobs, arrays or history stored inline, which
+every read of the item downloads again.
+"""
+
+fix = """
+Page the response, move large fields into a sub-document or object storage,
+and project only the fields you need where the SDK supports it.
+"""
+
+[params]
+max_response_bytes = 524288
+max_avg_item_bytes = 102400

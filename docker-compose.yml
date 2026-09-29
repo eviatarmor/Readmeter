@@ -1,0 +1,21 @@
+# Local infrastructure. `pnpm db:up`, then `pnpm db:migrate && pnpm db:seed`.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: readmeter
+      POSTGRES_PASSWORD: readmeter
+      POSTGRES_DB: readmeter
+    ports:
+      # 5442 on the host so it does not collide with other local Postgres instances.
+      - "${READMETER_PG_PORT:-5442}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U readmeter -d readmeter"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

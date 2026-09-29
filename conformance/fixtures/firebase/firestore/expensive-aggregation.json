@@ -1,0 +1,23 @@
+{
+  "description": "Orders badge calls getAggregateFromServer(query(collection(db, 'orders'), where('status', '==', 'open')), { total: count() }) on every visit; the count scans 120,000 index entries.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "aggregate", "ts_ms": 1000, "call_id": 1,
+      "path": "orders",
+      "query": {
+        "filters": [{ "field": "status", "op": "==", "value": "open" }],
+        "aggregations": ["count"]
+      },
+      "result": { "docs": 1, "bytes": 32, "index_entries": 120000 },
+      "callsite": "src/OrdersBadge.tsx:12:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "aggregate", "template": "orders", "units": { "reads": 120, "egress_bytes": 32 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/expensive-aggregation" }
+  ]
+}

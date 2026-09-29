@@ -1,0 +1,33 @@
+id = "generic/listener-leak"
+title = "Subscriptions never closed"
+provider = "*"
+service = "*"
+severity = "high"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "Open subscriptions from one callsite keep growing because they are never unsubscribed."
+
+description = """
+Every open subscription bills its initial result and then every change it
+receives. Subscriptions opened in effects or event handlers without cleanup
+pile up, so each change is billed once per leaked copy.
+"""
+
+fix = """
+Keep the unsubscribe function and call it on cleanup
+(`useEffect(() => onSnapshot(...), [])` returns it), or subscribe once in a
+shared store.
+"""
+
+[params]
+max_active_per_callsite = 20
+
+[[examples]]
+lang = "ts"
+bad = '''
+useEffect(() => { onSnapshot(q, setSnap); }, [q]);
+'''
+good = '''
+useEffect(() => onSnapshot(q, setSnap), [q]);
+'''

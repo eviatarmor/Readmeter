@@ -1,0 +1,65 @@
+{
+  "description": "A cleanup screen queries sessions where expiresAt is before now, then calls deleteDoc on each of the 20 results.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "sessions",
+      "query": {
+        "filters": [{ "field": "expiresAt", "op": "<", "value": 1700000000000 }],
+        "limit": 25
+      },
+      "result": { "docs": 20, "bytes": 2400 },
+      "callsite": "src/SessionCleanup.tsx:14:3"
+    },
+    { "service": "firestore", "op": "delete", "ts_ms": 1100, "call_id": 2, "path": "sessions/s01", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1150, "call_id": 3, "path": "sessions/s02", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1200, "call_id": 4, "path": "sessions/s03", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1250, "call_id": 5, "path": "sessions/s04", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1300, "call_id": 6, "path": "sessions/s05", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1350, "call_id": 7, "path": "sessions/s06", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1400, "call_id": 8, "path": "sessions/s07", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1450, "call_id": 9, "path": "sessions/s08", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1500, "call_id": 10, "path": "sessions/s09", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1550, "call_id": 11, "path": "sessions/s10", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1600, "call_id": 12, "path": "sessions/s11", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1650, "call_id": 13, "path": "sessions/s12", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1700, "call_id": 14, "path": "sessions/s13", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1750, "call_id": 15, "path": "sessions/s14", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1800, "call_id": 16, "path": "sessions/s15", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1850, "call_id": 17, "path": "sessions/s16", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1900, "call_id": 18, "path": "sessions/s17", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 1950, "call_id": 19, "path": "sessions/s18", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 2000, "call_id": 20, "path": "sessions/s19", "callsite": "src/SessionCleanup.tsx:18:5" },
+    { "service": "firestore", "op": "delete", "ts_ms": 2050, "call_id": 21, "path": "sessions/s20", "callsite": "src/SessionCleanup.tsx:18:5" }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "sessions", "units": { "reads": 20, "egress_bytes": 2400 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } },
+    { "op": "delete", "template": "sessions/{id}", "units": { "deletes": 1 } }
+  ],
+  "expect_findings": [
+    {
+      "rule": "firebase.firestore/manual-ttl-cleanup",
+      "wasted": { "reads": 20, "egress_bytes": 2400 }
+    }
+  ]
+}

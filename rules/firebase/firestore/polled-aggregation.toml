@@ -1,0 +1,40 @@
+id = "firebase.firestore/polled-aggregation"
+title = "Aggregation polled on a timer"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "aggregation"
+evaluation = "window"
+status = "stable"
+summary = "The same aggregation runs repeatedly instead of a counter document."
+
+description = """
+`count()`, `sum()`, and `average()` cannot be listened to. Each call bills
+one read per 1,000 index entries scanned, with a minimum of one read, and
+a timer pays that again on every tick. A counter document costs one write
+when the data changes and one read when a listener delivers it.
+"""
+
+fix = """
+Keep a counter document, update it with `increment()` in the same write as
+the change, and listen to it with `onSnapshot`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/aggregation-queries"]
+
+[params]
+window_ms = 600000
+min_repeats = 5
+min_interval_ms = 2000
+
+[[examples]]
+lang = "ts"
+bad = '''
+setInterval(async () => {
+  const snap = await getCountFromServer(openOrders);
+  setOpen(snap.data().count);
+}, 60_000);
+'''
+good = '''
+onSnapshot(doc(db, "stats", "orders"), snap => setOpen(snap.data().open));
+'''

@@ -1,0 +1,38 @@
+id = "firebase.firestore/hot-listener"
+title = "Listener receiving too many changes"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "A listener is billed for a large number of document changes per minute."
+
+description = """
+After the initial snapshot, every added or modified document bills one read
+on every client listening to that query. A busy listener therefore costs
+reads proportional to clients times changes, not to what one screen shows.
+"""
+
+fix = """
+Narrow the query with filters or a smaller `limit`, batch or throttle the
+writers, or listen to a summary document with `onSnapshot` instead of the
+raw stream.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/pricing#listens"]
+
+[params]
+window_ms = 60000
+max_changed_docs = 200
+
+[[examples]]
+lang = "ts"
+bad = '''
+onSnapshot(query(collection(db, "events"), orderBy("at", "desc")), snap => {
+  snap.docChanges().forEach(change => prepend(change.doc));
+});
+'''
+good = '''
+onSnapshot(doc(db, "summaries", "events"), snap => setSummary(snap.data()));
+'''

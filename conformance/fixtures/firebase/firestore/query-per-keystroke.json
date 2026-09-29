@@ -1,0 +1,40 @@
+{
+  "description": "The user search box calls getDocs on every keystroke, prefix-querying users by name four times from the same callsite.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "users",
+      "query": { "filters": [{ "field": "name", "op": ">=", "value": "a" }], "limit": 8 },
+      "result": { "docs": 2, "bytes": 200 },
+      "callsite": "src/Search.tsx:18:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1080, "call_id": 2, "path": "users",
+      "query": { "filters": [{ "field": "name", "op": ">=", "value": "ab" }], "limit": 8 },
+      "result": { "docs": 2, "bytes": 200 },
+      "callsite": "src/Search.tsx:18:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1160, "call_id": 3, "path": "users",
+      "query": { "filters": [{ "field": "name", "op": ">=", "value": "abc" }], "limit": 8 },
+      "result": { "docs": 2, "bytes": 200 },
+      "callsite": "src/Search.tsx:18:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1240, "call_id": 4, "path": "users",
+      "query": { "filters": [{ "field": "name", "op": ">=", "value": "abcd" }], "limit": 8 },
+      "result": { "docs": 2, "bytes": 200 },
+      "callsite": "src/Search.tsx:18:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "users", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "users", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "users", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "users", "units": { "reads": 2, "egress_bytes": 200 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/query-per-keystroke", "wasted": { "reads": 6, "egress_bytes": 600 } }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "description": "Infinite scroll re-runs the same feed query with limit(20), then limit(40), then limit(60) instead of startAfter(lastDoc).",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "feed",
+      "query": { "order_by": [{ "field": "ts", "direction": "desc" }], "limit": 20 },
+      "result": { "docs": 20, "bytes": 4000 }, "callsite": "src/Feed.tsx:30:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 5000, "call_id": 2, "path": "feed",
+      "query": { "order_by": [{ "field": "ts", "direction": "desc" }], "limit": 40 },
+      "result": { "docs": 40, "bytes": 8000 }, "callsite": "src/Feed.tsx:30:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 9000, "call_id": 3, "path": "feed",
+      "query": { "order_by": [{ "field": "ts", "direction": "desc" }], "limit": 60 },
+      "result": { "docs": 60, "bytes": 12000 }, "callsite": "src/Feed.tsx:30:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "feed", "units": { "reads": 20, "egress_bytes": 4000 } },
+    { "op": "query", "template": "feed", "units": { "reads": 40, "egress_bytes": 8000 } },
+    { "op": "query", "template": "feed", "units": { "reads": 60, "egress_bytes": 12000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/missing-cursor", "wasted": { "reads": 60 } }
+  ]
+}

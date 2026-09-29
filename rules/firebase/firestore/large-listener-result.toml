@@ -1,0 +1,27 @@
+id = "firebase.firestore/large-listener-result"
+title = "Listener with a large initial result"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "realtime"
+evaluation = "local"
+status = "stable"
+summary = "A listener loads many documents up front and bills them again on every re-subscribe."
+
+description = """
+A listener's first snapshot bills every document in the result. The same
+full cost is paid again each time the listener is re-created (navigation,
+remounts) and when a client reconnects after more than 30 minutes offline.
+Large listeners multiply that cost by every open tab and device.
+"""
+
+fix = """
+Listen to a smaller query (add `limit()`, narrow filters), or listen to one
+summary document that a Cloud Function keeps up to date, and fetch details
+on demand.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/pricing#listens"]
+
+[params]
+max_docs = 500

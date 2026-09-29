@@ -1,0 +1,21 @@
+id = "generic/hot-callsite"
+title = "Callsite dominates spend"
+provider = "*"
+service = "*"
+severity = "info"
+category = "reads"
+evaluation = "aggregate"
+status = "planned"
+default_enabled = false
+summary = "A single callsite accounts for a large share of the project's billed units."
+
+description = """
+Cost is usually concentrated in a few places in the code. Surfacing the
+callsites behind most of the spend tells teams where optimisation pays off
+first, even when no other rule fires there.
+"""
+
+fix = "Review the callsite for caching, pagination and subscription scope."
+
+[params]
+min_share = 0.2

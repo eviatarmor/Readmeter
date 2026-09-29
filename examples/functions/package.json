@@ -1,0 +1,22 @@
+{
+  "name": "readmeter-functions-example",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "node scripts/pack.mjs && tsc"
+  },
+  "dependencies": {
+    "@readmeter/firebase": "file:../../sdks/js/firebase/readmeter-firebase-0.1.0.tgz",
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5.9.3"
+  }
+}
