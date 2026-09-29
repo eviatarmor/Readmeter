@@ -34,6 +34,7 @@ import { useMembers } from "@/features/members/queries";
 import { ApiError, api } from "@/lib/api";
 import type { DataTableFeatures } from "@/lib/data-table-features";
 import { formatCount, formatMoney } from "@/lib/format-value";
+import { ServiceName, serviceOptions } from "@/lib/services";
 import { queryClient } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
@@ -196,9 +197,9 @@ function findingColumns(): ColumnDef<DataTableFeatures, FindingRow>[] {
       id: "service",
       accessorKey: "service",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Service" />,
-      cell: ({ row }) => <Truncate text={row.original.service} />,
+      cell: ({ row }) => <ServiceName service={row.original.service} />,
       enableColumnFilter: true,
-      meta: { label: "Service", variant: "text", width: "8%" },
+      meta: { label: "Service", variant: "multiSelect", options: serviceOptions, width: "12%" },
     },
     {
       id: "sessions",

@@ -1,0 +1,38 @@
+id = "firebase.database/value-listener-on-list"
+title = "Value listener re-downloads a whole list"
+provider = "firebase"
+service = "database"
+severity = "high"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "onValue on a list downloads every child again each time one child changes."
+
+description = """
+`onValue` delivers the whole node on every change. On a list, one child
+write makes every client download every sibling again, and each of those
+bytes is billed. A busy list multiplies that cost by the update rate.
+"""
+
+fix = """
+Use `onChildAdded`, `onChildChanged`, and `onChildRemoved` so each event
+carries one child. Keep `onValue` for a single record, not a list.
+"""
+
+docs = ["https://firebase.google.com/docs/database/web/lists-of-data"]
+
+[params]
+min_updates = 10
+window_ms = 60000
+min_bytes = 102400
+
+[[examples]]
+lang = "ts"
+bad = '''
+onValue(ref(db, "messages"), (snap) => render(snap.val()));
+'''
+good = '''
+onChildAdded(ref(db, "messages"), (snap) => add(snap.key, snap.val()));
+onChildChanged(ref(db, "messages"), (snap) => patch(snap.key, snap.val()));
+onChildRemoved(ref(db, "messages"), (snap) => drop(snap.key));
+'''

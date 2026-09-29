@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteApp, initializeApp } from "firebase/app";
+import { connectDatabaseEmulator, getDatabase } from "@readmeter/firebase/database";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { findingRules } from "@readmeter/db";
 import { flush, init, shutdown } from "@readmeter/firebase";
@@ -29,7 +30,15 @@ import {
   unboundedList,
   unusedPrefetch,
   writePerKeystroke,
-} from "../web-firestore/src/scenarios.ts";
+} from "../web/src/scenarios.ts";
+import {
+  downloadWholeList,
+  duplicateListeners,
+  listenOnRoot,
+  unindexedQuery,
+  valueListenerOnList,
+  writeHotspot,
+} from "../web/src/database.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter";
@@ -61,6 +70,11 @@ const EXPECTED = [
   "generic/unused-result",
   "generic/n-plus-one",
   "firebase.firestore/fanout-writes",
+  "firebase.database/listen-on-root",
+  "firebase.database/download-whole-list",
+  "firebase.database/value-listener-on-list",
+  "firebase.database/rtdb-write-hotspot",
+  "firebase.database/duplicate-listeners",
 ];
 
 const COUNTER_RULE = "firebase.firestore/read-modify-write-counter";
@@ -164,6 +178,12 @@ async function drive(): Promise<void> {
   const app = initializeApp({ apiKey: "demo", projectId: "demo-readmeter" }, "readmeter-e2e");
   const db = getFirestore(app);
   connectFirestoreEmulator(db, host, port);
+  const rawDatabase = process.env.FIREBASE_DATABASE_EMULATOR_HOST ?? "127.0.0.1:9000";
+  const [databaseHost, databasePortText] = rawDatabase.split(":");
+  const databasePort = Number(databasePortText);
+  if (!databaseHost || databasePort !== 9000) throw new Error(`bad FIREBASE_DATABASE_EMULATOR_HOST ${rawDatabase}`);
+  const rtdb = getDatabase(app, "https://demo-readmeter.firebaseio.com");
+  connectDatabaseEmulator(rtdb, databaseHost, databasePort);
   try {
     console.log(await seedData(db));
     console.log(await unboundedList(db));
@@ -181,6 +201,12 @@ async function drive(): Promise<void> {
     console.log(await counterTransaction(db));
     console.log(await unusedPrefetch(db));
     console.log(await blobWrite(db));
+    console.log(await listenOnRoot(rtdb));
+    console.log(await downloadWholeList(rtdb));
+    console.log(await valueListenerOnList(rtdb));
+    console.log(await writeHotspot(rtdb));
+    console.log(await duplicateListeners(rtdb));
+    console.log(await unindexedQuery(rtdb));
     await flush();
   } finally {
     await shutdown();

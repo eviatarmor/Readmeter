@@ -1,0 +1,18 @@
+{
+  "description": "Three onValue subscriptions to posts from one session, with no unsubscribe. Below the listener-leak threshold and with no recent unsubscribe, so only the duplicate-listeners rule fires.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "database", "op": "subscribe", "ts_ms": 1000, "call_id": 1, "listener": 1, "path": "posts" },
+    { "service": "database", "op": "subscribe", "ts_ms": 1100, "call_id": 2, "listener": 2, "path": "posts" },
+    { "service": "database", "op": "subscribe", "ts_ms": 1200, "call_id": 3, "listener": 3, "path": "posts" }
+  ],
+  "expect_envelopes": [
+    { "op": "subscribe", "template": "posts", "units": {} },
+    { "op": "subscribe", "template": "posts", "units": {} },
+    { "op": "subscribe", "template": "posts", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.database/duplicate-listeners" }
+  ]
+}

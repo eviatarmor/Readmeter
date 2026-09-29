@@ -1,0 +1,18 @@
+{
+  "description": "get() on posts returns 500 children and about 50 KB, with no limitToFirst or limitToLast.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "database", "op": "get", "ts_ms": 1000, "call_id": 1,
+      "path": "posts",
+      "result": { "children": 500, "bytes": 50000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "get", "template": "posts", "units": { "download_bytes": 50000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.database/download-whole-list" }
+  ]
+}

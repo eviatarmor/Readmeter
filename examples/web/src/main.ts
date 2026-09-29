@@ -1,7 +1,16 @@
 import { flush, init, type Finding } from "@readmeter/firebase";
 import { initializeApp } from "firebase/app";
+import { connectDatabaseEmulator, getDatabase, type Database } from "@readmeter/firebase/database";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "@readmeter/firebase/firestore";
 
+import {
+  downloadWholeList,
+  duplicateListeners,
+  listenOnRoot,
+  unindexedQuery,
+  valueListenerOnList,
+  writeHotspot,
+} from "./database.ts";
 import {
   countViaFetch,
   getThenListen,
@@ -25,6 +34,7 @@ import {
 
 const logEl = document.querySelector("#log");
 const actions = document.querySelector("#actions");
+const databaseActions = document.querySelector("#database");
 const search = document.querySelector("#search");
 const draft = document.querySelector("#draft");
 
@@ -55,6 +65,15 @@ const buttons: { label: string; rule: string; run: (db: Firestore) => Promise<st
   { label: "counter transaction", rule: "firebase.firestore/read-modify-write-counter", run: counterTransaction },
   { label: "unused prefetch", rule: "generic/unused-result", run: unusedPrefetch },
   { label: "blob write", rule: "firebase.firestore/blob-in-document", run: blobWrite },
+];
+
+const databaseButtons: { label: string; rule: string; run: (db: Database) => Promise<string> }[] = [
+  { label: "listen on root", rule: "firebase.database/listen-on-root", run: listenOnRoot },
+  { label: "download whole list", rule: "firebase.database/download-whole-list", run: downloadWholeList },
+  { label: "value listener on list", rule: "firebase.database/value-listener-on-list", run: valueListenerOnList },
+  { label: "write hotspot", rule: "firebase.database/rtdb-write-hotspot", run: writeHotspot },
+  { label: "duplicate listeners", rule: "firebase.database/duplicate-listeners", run: duplicateListeners },
+  { label: "unindexed query", rule: "firebase.database/unindexed-query", run: unindexedQuery },
 ];
 
 let sdkError = "";
@@ -91,26 +110,26 @@ init({
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const rtdb = getDatabase(app, "https://demo-readmeter.firebaseio.com");
 if (import.meta.env.VITE_USE_EMULATOR === "1") {
   connectFirestoreEmulator(db, "127.0.0.1", 8085);
+  connectDatabaseEmulator(rtdb, "127.0.0.1", 9000);
 }
 
-const bar = requireEl<HTMLElement>(actions, "actions");
 const buttonEls: HTMLButtonElement[] = [];
 
 function setBusy(busy: boolean): void {
   for (const button of buttonEls) button.disabled = busy;
 }
 
-for (const spec of buttons) {
+function addButton(bar: HTMLElement, label: string, rule: string, run: () => Promise<string>): void {
   const button = document.createElement("button");
   button.type = "button";
-  button.textContent = spec.rule ? `${spec.label} — ${spec.rule}` : spec.label;
+  button.textContent = rule ? `${label} — ${rule}` : label;
   button.disabled = true;
   button.addEventListener("click", () => {
     setBusy(true);
-    void spec
-      .run(db)
+    void run()
       .then((line) => log(line))
       .catch((error: unknown) => log(error instanceof Error ? error.message : String(error)))
       .finally(() => setBusy(false));
@@ -118,6 +137,11 @@ for (const spec of buttons) {
   bar.append(button);
   buttonEls.push(button);
 }
+
+const firestoreBar = requireEl<HTMLElement>(actions, "actions");
+for (const spec of buttons) addButton(firestoreBar, spec.label, spec.rule, () => spec.run(db));
+const databaseBar = requireEl<HTMLElement>(databaseActions, "database");
+for (const spec of databaseButtons) addButton(databaseBar, spec.label, spec.rule, () => spec.run(rtdb));
 
 const searchInput = requireEl<HTMLInputElement>(search, "search");
 searchInput.addEventListener("input", () => {

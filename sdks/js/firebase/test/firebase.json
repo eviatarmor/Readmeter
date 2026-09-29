@@ -2,10 +2,20 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "database": [
+    {
+      "instance": "demo-readmeter",
+      "rules": "database.rules.json"
+    }
+  ],
   "emulators": {
     "firestore": {
       "host": "127.0.0.1",
       "port": 8085
+    },
+    "database": {
+      "host": "127.0.0.1",
+      "port": 9000
     },
     "ui": {
       "enabled": false

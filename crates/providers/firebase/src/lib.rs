@@ -1,7 +1,7 @@
 //! Firebase provider.
 //!
 //! Services are cargo features so SDK builds only carry what they wrap.
-//! Firestore is the first service; Realtime Database, Storage and Functions
+//! Firestore and Realtime Database are implemented; Storage and Functions
 //! slot in as sibling modules.
 
 use readmeter_core::Envelope;
@@ -9,6 +9,8 @@ use readmeter_provider_api::json::{self, JsonTypeError};
 use readmeter_provider_api::{NormalizeContext, NormalizeError, Provider};
 use readmeter_rules::DetectorFactory;
 
+#[cfg(feature = "database")]
+pub mod database;
 #[cfg(feature = "firestore")]
 pub mod firestore;
 
@@ -24,6 +26,8 @@ impl Provider for FirebaseProvider {
 
     fn services(&self) -> &'static [&'static str] {
         &[
+            #[cfg(feature = "database")]
+            database::SERVICE_ID,
             #[cfg(feature = "firestore")]
             firestore::SERVICE_ID,
         ]
@@ -43,6 +47,8 @@ impl Provider for FirebaseProvider {
             Err(_) => return Err(NormalizeError::Invalid("`service`: wrong type".into())),
         };
         match service {
+            #[cfg(feature = "database")]
+            database::SERVICE_ID => database::normalize(database::RawCall::from_json(value)?, cx),
             #[cfg(feature = "firestore")]
             firestore::SERVICE_ID => {
                 firestore::normalize(firestore::RawCall::from_json(value)?, cx)
@@ -53,6 +59,8 @@ impl Provider for FirebaseProvider {
 
     fn detectors(&self) -> Vec<(&'static str, DetectorFactory)> {
         let mut out = Vec::new();
+        #[cfg(feature = "database")]
+        out.extend(database::detectors::all());
         #[cfg(feature = "firestore")]
         out.extend(firestore::detectors::all());
         out

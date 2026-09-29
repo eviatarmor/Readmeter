@@ -1,0 +1,17 @@
+{
+  "description": "orderByChild with limitToLast on posts. The missing-index warning is not on the snapshot, so the planned rule does not fire and the limited result stays under the other rules.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "database", "op": "query", "ts_ms": 1000, "call_id": 1,
+      "path": "posts",
+      "query": { "order_by": "created", "limit": 10, "limit_to_last": true },
+      "result": { "children": 10, "bytes": 1000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "download_bytes": 1000 } }
+  ],
+  "expect_findings": []
+}

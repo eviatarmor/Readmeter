@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCosts, type CostGroup } from "@/features/costs/queries";
 import { formatMoney } from "@/lib/format-value";
+import { ServiceName, serviceLabel } from "@/lib/services";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
 
 const groups: { id: CostGroup; label: string }[] = [
@@ -34,7 +35,10 @@ export function CostsPage({ slug, search }: { slug: string; search: WorkspaceSea
     return <QueryError message="Could not load costs" onRetry={() => void query.refetch()} />;
   }
   const data = query.data;
-  const points = data.items.map((item) => ({ key: item.key, cost: item.micros / 1_000_000 }));
+  const points = data.items.map((item) => ({
+    key: groupBy === "service" ? serviceLabel(item.key) : item.key,
+    cost: item.micros / 1_000_000,
+  }));
   return (
     <div className="grid gap-4">
       <PageHeader
@@ -101,7 +105,9 @@ export function CostsPage({ slug, search }: { slug: string; search: WorkspaceSea
           ) : (
             data.items.map((item) => (
               <TableRow key={item.key}>
-                <TableCell className="font-mono text-xs">{item.key}</TableCell>
+                <TableCell className={groupBy === "service" ? undefined : "font-mono text-xs"}>
+                  {groupBy === "service" ? <ServiceName service={item.key} /> : item.key}
+                </TableCell>
                 <TableCell className="text-right">{formatMoney(item.micros)}</TableCell>
               </TableRow>
             ))
@@ -154,7 +160,7 @@ export function CostsPage({ slug, search }: { slug: string; search: WorkspaceSea
               ) : (
                 data.billedBySku.map((row) => (
                   <TableRow key={`${row.service}/${row.sku}`}>
-                    <TableCell>{row.service}</TableCell>
+                    <TableCell><ServiceName service={row.service} /></TableCell>
                     <TableCell>{row.sku}</TableCell>
                     <TableCell className="text-right">
                       {row.usageAmount} {row.usageUnit}
@@ -185,10 +191,10 @@ function downloadCsv(data: {
 }) {
   const lines = [
     "kind,key,micros,usd",
-    ...data.items.map((item) => `estimate,${csv(item.key)},${item.micros},${(item.micros / 1_000_000).toFixed(6)}`),
+    ...data.items.map((item) => `estimate,${csv(serviceLabel(item.key))},${item.micros},${(item.micros / 1_000_000).toFixed(6)}`),
     ...data.billedBySku.map((row) => {
       const net = row.micros + row.creditsMicros;
-      return `billed,${csv(`${row.service} / ${row.sku}`)},${net},${(net / 1_000_000).toFixed(6)}`;
+      return `billed,${csv(`${serviceLabel(row.service)} / ${row.sku}`)},${net},${(net / 1_000_000).toFixed(6)}`;
     }),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });

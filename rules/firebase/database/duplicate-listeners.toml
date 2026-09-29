@@ -1,0 +1,40 @@
+id = "firebase.database/duplicate-listeners"
+title = "Duplicate listeners on one query"
+provider = "firebase"
+service = "database"
+severity = "medium"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "The same path and query is subscribed more than once at the same time from one session."
+
+description = """
+Each `onValue` or child listener keeps its own subscription. Two components
+that both listen to the same path download the same snapshots twice, and
+both downloads are billed. The extra listeners stay open until each one
+unsubscribes.
+"""
+
+fix = """
+Share one subscription (a module-level listener or a cache) and fan the
+snapshot out in memory. Unsubscribe in the effect cleanup.
+"""
+
+docs = ["https://firebase.google.com/docs/database/web/read-and-write"]
+
+[params]
+min_listeners = 3
+
+[[examples]]
+lang = "ts"
+bad = '''
+onValue(ref(db, "posts"), renderList);
+onValue(ref(db, "posts"), renderCount);
+onValue(ref(db, "posts"), renderBadge);
+'''
+good = '''
+const posts = createSharedListener(ref(db, "posts"));
+posts.subscribe(renderList);
+posts.subscribe(renderCount);
+posts.subscribe(renderBadge);
+'''

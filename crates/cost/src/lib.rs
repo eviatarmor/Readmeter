@@ -130,6 +130,12 @@ reads = { price = 0.03, per = 100000 }
             (t.provider.as_str(), t.service.as_str()),
             ("firebase", "firestore")
         );
+        let db =
+            PriceTable::from_toml(include_str!("../../../pricing/firebase/database.toml")).unwrap();
+        assert_eq!(
+            (db.provider.as_str(), db.service.as_str()),
+            ("firebase", "database")
+        );
     }
 
     #[test]

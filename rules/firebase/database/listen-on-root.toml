@@ -1,0 +1,35 @@
+id = "firebase.database/listen-on-root"
+title = "Large read of the root or a top-level path"
+provider = "firebase"
+service = "database"
+severity = "critical"
+category = "reads"
+evaluation = "local"
+status = "stable"
+summary = "A get or value listener on / or one top-level key downloads a node that grows with the database."
+
+description = """
+Realtime Database bills downloaded bytes. `get()` or `onValue()` on `/`,
+or on a single top-level key such as `users`, downloads that entire node.
+A database that is small today becomes a multi-megabyte download on every
+page load as children accumulate.
+"""
+
+fix = """
+Listen to the specific child the screen needs (`ref(db, "users/" + uid)`),
+or keep a small summary node and read that. Do not attach `onValue` to `/`.
+"""
+
+docs = ["https://firebase.google.com/docs/database/web/read-and-write"]
+
+[params]
+min_bytes = 1048576
+
+[[examples]]
+lang = "ts"
+bad = '''
+onValue(ref(db), (snap) => render(snap.val()));
+'''
+good = '''
+onValue(ref(db, `users/${uid}/profile`), (snap) => render(snap.val()));
+'''

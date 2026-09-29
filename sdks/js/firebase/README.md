@@ -1,6 +1,6 @@
 # @readmeter/firebase
 
-Record Cloud Firestore calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
+Record Cloud Firestore and Realtime Database calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
 
 ## Install
 

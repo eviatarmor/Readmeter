@@ -15,6 +15,7 @@ import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.t
 import { documentByteSize } from "../core/size.ts";
 import { flush } from "../index.ts";
 import type { RawQueryShape } from "../web/shape.ts";
+import { instrumentDatabase } from "./database.ts";
 import {
   classifyCommit,
   countResult,
@@ -636,6 +637,8 @@ function wrapRequestStream(original: AnyFn): AnyFn {
  * Records RPCs on this Firestore instance and returns it.
  * Safe to call more than once. Never throws.
  */
+export { instrumentDatabase };
+
 export function instrument<T>(firestore: T): T {
   try {
     if (!firestore || typeof firestore !== "object") return firestore;

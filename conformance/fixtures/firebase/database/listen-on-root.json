@@ -1,0 +1,19 @@
+{
+  "description": "A get of the database root returns 1 MiB. The same payload is also an oversized response.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "database", "op": "get", "ts_ms": 1000, "call_id": 1,
+      "path": "",
+      "result": { "children": 1, "bytes": 1048576 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "get", "template": "/", "units": { "download_bytes": 1048576 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.database/listen-on-root" },
+    { "rule": "generic/oversized-payload" }
+  ]
+}

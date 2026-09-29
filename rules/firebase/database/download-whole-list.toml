@@ -1,0 +1,35 @@
+id = "firebase.database/download-whole-list"
+title = "List read without a limit"
+provider = "firebase"
+service = "database"
+severity = "critical"
+category = "reads"
+evaluation = "local"
+status = "stable"
+summary = "A list read has no limitToFirst or limitToLast, so every child is downloaded."
+
+description = """
+Realtime Database bills the bytes of every child returned. `get()` or
+`onValue()` on a list with no `limitToFirst` / `limitToLast` downloads the
+whole list. The cost grows with how many children you have stored, not with
+how many the screen shows.
+"""
+
+fix = """
+Add `limitToFirst(n)` or `limitToLast(n)` and page with `startAt` / `endAt`.
+For a live list, prefer `onChildAdded` on that limited query.
+"""
+
+docs = ["https://firebase.google.com/docs/database/web/lists-of-data"]
+
+[params]
+min_children = 500
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await get(query(ref(db, "posts"), orderByChild("created")));
+'''
+good = '''
+const snap = await get(query(ref(db, "posts"), orderByChild("created"), limitToLast(25)));
+'''

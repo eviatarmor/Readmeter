@@ -1,0 +1,52 @@
+{
+  "description": "Twenty updates of counters/online from one session inside ten seconds.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "database", "op": "update", "ts_ms": 1000, "call_id": 1, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1100, "call_id": 2, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1200, "call_id": 3, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1300, "call_id": 4, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1400, "call_id": 5, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1500, "call_id": 6, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1600, "call_id": 7, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1700, "call_id": 8, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1800, "call_id": 9, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 1900, "call_id": 10, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2000, "call_id": 11, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2100, "call_id": 12, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2200, "call_id": 13, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2300, "call_id": 14, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2400, "call_id": 15, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2500, "call_id": 16, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2600, "call_id": 17, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2700, "call_id": 18, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2800, "call_id": 19, "path": "counters/online" },
+    { "service": "database", "op": "update", "ts_ms": 2900, "call_id": 20, "path": "counters/online" }
+  ],
+  "expect_envelopes": [
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} },
+    { "op": "update", "template": "counters/online", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.database/rtdb-write-hotspot" }
+  ]
+}

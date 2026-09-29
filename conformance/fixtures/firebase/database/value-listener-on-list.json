@@ -1,0 +1,72 @@
+{
+  "description": "onValue on chats/lobby/messages delivers 10 update snapshots of 100 KB within a minute. The path is nested so a root listener rule cannot match.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 1000, "call_id": 1,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 2000, "call_id": 2,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 3000, "call_id": 3,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 4000, "call_id": 4,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 5000, "call_id": 5,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 6000, "call_id": 6,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 7000, "call_id": 7,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 8000, "call_id": 8,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 9000, "call_id": 9,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    },
+    {
+      "service": "database", "op": "snapshot", "initial": false, "ts_ms": 10000, "call_id": 10,
+      "listener": 1, "path": "chats/lobby/messages",
+      "result": { "children": 20, "bytes": 102400 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } },
+    { "op": "snapshot", "template": "chats/lobby/messages", "units": { "download_bytes": 102400 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.database/value-listener-on-list" }
+  ]
+}

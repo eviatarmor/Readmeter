@@ -2,5 +2,5 @@ packages:
   - apps/*
   - packages/*
   - sdks/*/*
-  - examples/web-firestore
+  - examples/web
   - examples/e2e

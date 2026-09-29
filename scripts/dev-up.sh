@@ -37,7 +37,7 @@ pnpm --filter @readmeter/db exec tsx src/dev-project.ts
 source "$ENV_FILE"
 
 step "example env files"
-cat >"$root/examples/web-firestore/.env" <<EOF
+cat >"$root/examples/web/.env" <<EOF
 VITE_USE_EMULATOR=1
 VITE_FIREBASE_CONFIG={"apiKey":"demo","projectId":"demo-readmeter"}
 VITE_READMETER_API_KEY=$READMETER_API_KEY
@@ -133,7 +133,7 @@ cat <<EOF
 
 Next:
   cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter
-  pnpm --filter web-firestore dev
+  pnpm --filter web dev
   console http://localhost:5174
   login admin@readmeter.local / readmeter-dev
   workspace local, project demo_local

@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { eventKeys, useEvents } from "@/features/events/queries";
 import type { DataTableFeatures } from "@/lib/data-table-features";
 import { formatBytes, formatCount } from "@/lib/format-value";
+import { ServiceName, serviceOptions } from "@/lib/services";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
 
 export function EventsPage({ slug, search }: { slug: string; search: WorkspaceSearch }) {
@@ -36,7 +37,7 @@ export function EventsPage({ slug, search }: { slug: string; search: WorkspaceSe
         <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>{selected ? `${selected.op} ${selected.template}` : "Event"}</SheetTitle>
-            <SheetDescription>{selected?.service}</SheetDescription>
+            <SheetDescription>{selected ? <ServiceName service={selected.service} /> : null}</SheetDescription>
           </SheetHeader>
           {selected ? (
             <div className="grid gap-3 px-4 pb-6 text-sm">
@@ -93,8 +94,9 @@ function eventColumns(): ColumnDef<DataTableFeatures, TelemetryEvent>[] {
       id: "service",
       accessorKey: "service",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Service" />,
+      cell: ({ row }) => <ServiceName service={row.original.service} />,
       enableColumnFilter: true,
-      meta: { label: "Service", variant: "text" },
+      meta: { label: "Service", variant: "multiSelect", options: serviceOptions },
     },
     {
       id: "template",

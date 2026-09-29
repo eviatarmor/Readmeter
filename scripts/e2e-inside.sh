@@ -11,11 +11,11 @@ step "node scenarios and cloud functions"
 pnpm --filter readmeter-e2e exec tsx run.ts
 
 step "vite build"
-pnpm --filter web-firestore build
+pnpm --filter web build
 
 step "vite preview"
 start_detached "$root/target/dev/preview.pid" "$root/target/dev/preview.log" \
-  pnpm --filter web-firestore preview
+  pnpm --filter web preview
 if ! wait_http "http://127.0.0.1:5173" 60; then
   echo "preview log:" >&2
   tail -n 80 "$root/target/dev/preview.log" >&2 || true
@@ -23,11 +23,12 @@ if ! wait_http "http://127.0.0.1:5173" 60; then
 fi
 
 step "playwright"
-pnpm --filter web-firestore exec playwright test --reporter=line
+pnpm --filter web exec playwright test --reporter=line
 
 step "browser findings in postgres"
 pnpm --filter readmeter-e2e exec tsx run.ts --assert-only \
   firebase.firestore/unbounded-list \
-  firebase.firestore/offset-pagination
+  firebase.firestore/offset-pagination \
+  firebase.database/duplicate-listeners
 
 stop_pid "$root/target/dev/preview.pid"

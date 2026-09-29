@@ -21,6 +21,7 @@ import { ApiError, api } from "@/lib/api";
 import type { DataTableFeatures } from "@/lib/data-table-features";
 import type { QueryKeys } from "@/lib/data-table-types";
 import { canManage } from "@/lib/permissions";
+import { ServiceName, serviceOptions } from "@/lib/services";
 import { queryClient } from "@/lib/query-client";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
 import type { Role } from "@readmeter/console-api/contract";
@@ -103,8 +104,9 @@ function ruleColumns(manage: boolean): ColumnDef<DataTableFeatures, RuleRow>[] {
       id: "service",
       accessorKey: "service",
       header: "Service",
+      cell: ({ row }) => <ServiceName service={row.original.service} />,
       enableColumnFilter: true,
-      meta: { label: "Service", variant: "text" },
+      meta: { label: "Service", variant: "multiSelect", options: serviceOptions },
     },
     {
       id: "status",

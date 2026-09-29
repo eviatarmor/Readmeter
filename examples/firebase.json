@@ -2,6 +2,12 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "database": [
+    {
+      "instance": "demo-readmeter",
+      "rules": "database.rules.json"
+    }
+  ],
   "functions": [
     {
       "source": "functions",
@@ -18,6 +24,10 @@
     "functions": {
       "host": "127.0.0.1",
       "port": 5001
+    },
+    "database": {
+      "host": "127.0.0.1",
+      "port": 9000
     },
     "ui": {
       "enabled": false

@@ -1,6 +1,6 @@
 [package]
 name = "readmeter-provider-firebase"
-description = "Firebase provider: Firestore normalization, billing units and Firestore rules."
+description = "Firebase provider: Firestore and Realtime Database normalization, billing units and rules."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,7 @@ publish.workspace = true
 [features]
 default = ["firestore", "window"]
 firestore = []
+database = []
 window = ["readmeter-rules/window"]
 
 [dependencies]

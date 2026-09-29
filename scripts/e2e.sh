@@ -14,6 +14,7 @@ cleanup() {
   # emulators:exec owns these processes. On Windows the JVM can outlive it.
   node "$root/scripts/free-emulator-port.mjs" 8085 || true
   node "$root/scripts/free-emulator-port.mjs" 5001 || true
+  node "$root/scripts/free-emulator-port.mjs" 9000 || true
 }
 trap cleanup EXIT
 
@@ -24,17 +25,17 @@ export READMETER_SECRET_KEY="${READMETER_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM
 ./scripts/dev-up.sh
 
 step "typecheck examples"
-pnpm --filter web-firestore exec tsc -p . --noEmit
+pnpm --filter web exec tsc -p . --noEmit
 pnpm --filter readmeter-e2e exec tsc -p . --noEmit
 
 step "playwright chromium"
 # The browser check is required when the installer can run. A failed install fails the script.
-pnpm --filter web-firestore exec playwright install chromium
+pnpm --filter web exec playwright install chromium
 pnpm --filter console-web exec playwright install chromium
 
 # firebase-tools requires JDK 21 or newer. CI sets JAVA_HOME to 21.
 # JDK 17 is installed on some dev machines and must not be selected.
-step "java for the firestore emulator"
+step "java for the firebase emulators"
 java_line=$(java -version 2>&1 | tr -d '\r' | head -n 1 || true)
 java_major=$(printf '%s\n' "$java_line" | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p')
 if [[ ${java_major:-0} -lt 21 ]]; then
@@ -67,8 +68,9 @@ fi
 step "firebase emulators"
 node "$root/scripts/free-emulator-port.mjs" 8085
 node "$root/scripts/free-emulator-port.mjs" 5001
+node "$root/scripts/free-emulator-port.mjs" 9000
 npx -y firebase-tools@latest emulators:exec \
-  --only firestore,functions \
+  --only firestore,functions,database \
   --project demo-readmeter \
   --config "$root/examples/firebase.json" \
   "bash scripts/e2e-inside.sh"

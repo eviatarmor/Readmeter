@@ -1,0 +1,42 @@
+id = "firebase.database/rtdb-write-hotspot"
+title = "Many writes to one path"
+provider = "firebase"
+service = "database"
+severity = "medium"
+category = "hotspots"
+evaluation = "window"
+status = "stable"
+summary = "One session writes the same path many times in a short window."
+
+description = """
+Each `set`, `update`, `push`, or `remove` is a write, and a
+`runTransaction` reads the current value before it writes. A burst against
+one path — a presence flag, a counter, a cursor — multiplies those
+operations and the downloaded transaction payloads. This sees one session;
+many clients writing one path need a cross-session rule.
+"""
+
+fix = """
+Batch changes into one `update()` of several children, or slow the writer
+down. For a counter, write less often instead of once per event.
+"""
+
+docs = [
+  "https://firebase.google.com/docs/database/web/read-and-write",
+  "https://firebase.google.com/docs/database/usage/billing",
+]
+
+[params]
+min_writes = 20
+window_ms = 10000
+
+[[examples]]
+lang = "ts"
+bad = '''
+for (const id of ids) await update(ref(db, "presence/" + id), { at: Date.now() });
+'''
+good = '''
+const patch = {};
+for (const id of ids) patch[id + "/at"] = Date.now();
+await update(ref(db, "presence"), patch);
+'''

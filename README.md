@@ -72,16 +72,17 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
   `window` rules look at one session's recent calls and run on the backend
   (and in the SDK in dev mode). `aggregate` rules look across sessions
   (backend, planned).
-- **Capture.** Web: a drop-in wrapper around the modular Firestore SDK, plus
-  a `sink()` API for manual use. Cloud Functions / Node: interception of the
-  Admin SDK's RPC layer (`instrument(db)`), which sees every request exactly once.
+- **Capture.** Web: drop-in wrappers around the modular Firestore and Realtime
+  Database SDKs, plus a `sink()` API for manual use. Cloud Functions / Node:
+  interception of the Admin SDK (`instrument(db)` for Firestore,
+  `instrumentDatabase(db)` for Realtime Database).
 - **Never breaks your app.** The SDK never throws into your code, never
   changes what Firestore returns, drops old data when buffers fill, and does
   its work after your call has returned.
 
 Contributor and agent guide: [`AGENTS.md`](AGENTS.md).
 
-## Rules (46 active)
+## Rules (51 active)
 
 Severity is ranked by cost impact: `critical` grows without bound with data
 or traffic, `high` is a large multiplier, `medium` is measurable waste on a
@@ -90,12 +91,15 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | Rule | Severity | Tier | Detects |
 |---|---|---|---|
 | `firebase.firestore/unbounded-list` | critical | local | A list read has no limit(), so its cost grows with the collection. |
+| `firebase.database/listen-on-root` | critical | local | A get or value listener on / or a top-level key downloads a node that grows with the database. |
+| `firebase.database/download-whole-list` | critical | local | A list read has no limitToFirst or limitToLast, so every child is downloaded. |
 | `firebase.firestore/offset-pagination` | high | local | offset(n) bills every skipped document as a read. |
 | `firebase.firestore/missing-cursor` | high | window | Each "load more" re-reads every previous page because limit() grows instead of using a cursor. |
 | `firebase.firestore/count-via-fetch` | high | window | A query result was used only for .size; count() costs about 1/1000 as much. |
 | `firebase.firestore/oversized-limit` | high | local | A client query uses a limit() far larger than one page. |
 | `firebase.firestore/listener-per-item` | high | window | Many single-document listeners are open on one document template. |
 | `firebase.firestore/hot-listener` | high | window | A listener is billed for a large number of document changes per minute. |
+| `firebase.database/value-listener-on-list` | high | window | onValue on a list downloads every child again each time one child changes. |
 | `generic/listener-leak` | high | window | Open subscriptions from one callsite keep growing because they are never unsubscribed. |
 | `generic/subscription-churn` | high | window | The same subscription is closed and re-opened many times, re-billing its initial result. |
 | `firebase.firestore/overfetch` | high | window | A query returned many documents and the caller read only a small fraction of them. |
@@ -114,6 +118,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/transaction-contention` | medium | local | A transaction needed several attempts; each attempt re-reads and re-bills its documents. |
 | `firebase.firestore/unused-projection` | medium | local | A server-side query downloads large full documents where select() could fetch only needed fields. |
 | `firebase.firestore/write-hotspot` | medium | window | One document is updated faster than Firestore's sustained per-document write rate. |
+| `firebase.database/rtdb-write-hotspot` | medium | window | One session writes the same path many times in a short window. |
+| `firebase.database/duplicate-listeners` | medium | window | The same path and query is subscribed more than once at the same time from one session. |
 | `generic/duplicate-read` | medium | window | The exact same request is billed several times in a short window. |
 | `generic/n-plus-one` | medium | window | Many single-item reads on one path in a burst, usually one per item of an earlier list. |
 | `generic/oversized-payload` | medium | local | A response, or its average item, is far larger than a UI usually needs. |
@@ -136,9 +142,9 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/persistence-disabled` | low | local | The client SDK runs without a persistent cache, so every reload re-reads from the server. |
 | `firebase.firestore/fanout-writes` | info | local | One client commit writes or deletes many documents. |
 
-Seven more are on the roadmap: two that still need SDK signals, and five
-cross-session (aggregate) rules on the backend. The console lists these
-rules at `http://localhost:5174` on the Rules page.
+Six more are on the roadmap: three that still need an SDK signal, and three
+cross-session rules on the backend. The console lists these rules at
+`http://localhost:5174` on the Rules page.
 
 ## Quick start (local)
 
@@ -158,7 +164,7 @@ Try the demo against the Firebase emulators:
 
 ```sh
 cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter   # terminal 1
-pnpm --filter web-firestore dev                                                       # terminal 2, http://localhost:5173
+pnpm --filter web dev                                                                  # terminal 2, http://localhost:5173
 ```
 
 After clicking a few buttons, findings are in Postgres. Open `http://localhost:5174`, choose workspace `local` and project `demo_local`, and read them on Findings.
@@ -177,7 +183,7 @@ functions, and expose ingest with a tunnel if your app is deployed).
 
 | Path | What |
 |---|---|
-| `crates/` | Rust core: envelope and wire format, rules engine, Firestore provider, runtime, wasm and C bindings, server evaluator |
+| `crates/` | Rust core: envelope and wire format, rules engine, Firebase provider, runtime, wasm and C bindings, server evaluator |
 | `rules/` | Rule definitions (TOML) |
 | `sdks/js/firebase/` | `@readmeter/firebase`: web drop-in, `sink`, Admin/Cloud Functions instrumentation |
 | `apps/ingest/` | HTTP ingest (TypeScript, Hono) |
@@ -202,8 +208,10 @@ adding a rule, adding a provider).
 ## Privacy
 
 What leaves your app: path templates with ids replaced (`users/{id}/orders`),
-operation types, document counts, byte sizes, query shapes (field names and
+operation types, document or child counts, byte sizes, query shapes (field names and
 operators), timings, and keyed hashes of ids, filter values and callsites.
+Realtime Database sends the JSON byte size of a snapshot (capped) and a
+connection count from `goOnline`; that count is not priced.
 Writes can also send field and payload sizes, transform names (`increment`,
 `array_union`, and the others), and a payload hash. That hash is salted per
 session inside the process, so the same payload cannot be matched across

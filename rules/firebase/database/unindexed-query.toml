@@ -1,0 +1,39 @@
+id = "firebase.database/unindexed-query"
+title = "Query without an index"
+provider = "firebase"
+service = "database"
+severity = "high"
+category = "reads"
+evaluation = "local"
+status = "planned"
+default_enabled = false
+summary = "orderByChild on a path with no .indexOn makes the server scan and the client download extra data."
+
+description = """
+A query ordered by a child that is not declared with `.indexOn` is logged by
+the SDK as "Using an unspecified index". The server scans the whole location
+and can download more than the limit. That warning is emitted later, inside
+the connection's listen response (`no_index`), and is not attached to the
+query or the snapshot. Wrapping `console.warn` only while `query()` runs
+misses it, and a large `orderByChild` result is already covered by the
+unlimited-list rule. This stays planned until a shim can see that warning
+without guessing.
+"""
+
+fix = """
+Add `.indexOn` for the ordered child in Realtime Database rules, and keep
+`limitToFirst` or `limitToLast` on the query.
+"""
+
+docs = ["https://firebase.google.com/docs/database/security/indexing-data"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+// rules: { "rules": { "posts": { ".read": true } } }
+query(ref(db, "posts"), orderByChild("created"), limitToLast(25));
+'''
+good = '''
+// rules: { "rules": { "posts": { ".indexOn": "created", ".read": true } } }
+query(ref(db, "posts"), orderByChild("created"), limitToLast(25));
+'''

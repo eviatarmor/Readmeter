@@ -1,4 +1,5 @@
 import { init } from "@readmeter/firebase";
+import { get as getDb } from "@readmeter/firebase/database";
 import { getDocs } from "@readmeter/firebase/firestore";
 
 // Runtime flag so the bundler keeps both the dev and prod wasm branches.
@@ -12,3 +13,4 @@ init({
 });
 
 globalThis.__rmGetDocs = getDocs;
+globalThis.__rmGetDb = getDb;

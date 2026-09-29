@@ -10,6 +10,7 @@ publish.workspace = true
 [features]
 default = ["firebase", "window"]
 firebase = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/firestore"]
+database = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/database"]
 window = ["readmeter-rules/window", "readmeter-provider-firebase?/window"]
 
 [dependencies]

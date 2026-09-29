@@ -1,0 +1,32 @@
+{
+  "description": "Ten get() calls on posts/{id} inside one second, each a different numeric id and no callsite, so only the generic n-plus-one rule fires.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "database", "op": "get", "ts_ms": 1000, "call_id": 1, "path": "posts/1", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1050, "call_id": 2, "path": "posts/2", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1100, "call_id": 3, "path": "posts/3", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1150, "call_id": 4, "path": "posts/4", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1200, "call_id": 5, "path": "posts/5", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1250, "call_id": 6, "path": "posts/6", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1300, "call_id": 7, "path": "posts/7", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1350, "call_id": 8, "path": "posts/8", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1400, "call_id": 9, "path": "posts/9", "result": { "children": 0, "bytes": 32 } },
+    { "service": "database", "op": "get", "ts_ms": 1450, "call_id": 10, "path": "posts/10", "result": { "children": 0, "bytes": 32 } }
+  ],
+  "expect_envelopes": [
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } },
+    { "op": "get", "template": "posts/{id}", "units": { "download_bytes": 32 } }
+  ],
+  "expect_findings": [
+    { "rule": "generic/n-plus-one" }
+  ]
+}

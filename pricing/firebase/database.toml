@@ -1,0 +1,26 @@
+# Realtime Database, Blaze pay-as-you-go.
+# Verified 2026-09-30 against https://firebase.google.com/pricing.
+# Downloaded data is $1/GB after 360 MB/day (about 10 GB/month). Spark is
+# 10 GB/month downloaded and 1 GB stored; Blaze keeps that no-cost allotment
+# (360 MB/day downloaded, 1 GB stored).
+# Stored data is $5/GB after 1 GB. It is not a per-call unit, so it is not
+# in this table.
+# Simultaneous connections are a quota (Spark 100, Blaze 200,000 per
+# database), not a price. The `connections` unit stays unpriced.
+# The public page has no regional price split.
+# JSON sizes recorded by the SDK are a lower bound: the bill includes
+# protocol and encryption overhead. See
+# https://firebase.google.com/docs/database/usage/billing.
+
+provider = "firebase"
+service = "database"
+currency = "USD"
+source = "https://firebase.google.com/pricing"
+checked_on = "2026-09-30"
+default_region = "global"
+
+[regions.global]
+download_bytes = { price = 1.0, per = 1000000000 }
+
+[free_per_day]
+download_bytes = 360000000
