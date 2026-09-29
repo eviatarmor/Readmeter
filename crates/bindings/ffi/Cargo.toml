@@ -16,6 +16,7 @@ firebase = ["readmeter-runtime/firebase"]
 database = ["readmeter-runtime/database"]
 storage = ["readmeter-runtime/storage"]
 auth = ["readmeter-runtime/auth"]
+functions = ["readmeter-runtime/functions"]
 window = ["readmeter-runtime/window"]
 
 [dependencies]

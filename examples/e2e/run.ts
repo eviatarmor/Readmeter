@@ -9,6 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteApp, initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth } from "@readmeter/firebase/auth";
+import { connectFunctionsEmulator, getFunctions } from "@readmeter/firebase/functions";
 import { connectDatabaseEmulator, getDatabase } from "@readmeter/firebase/database";
 import { connectStorageEmulator, getStorage } from "@readmeter/firebase/storage";
 import {
@@ -17,6 +18,7 @@ import {
   idTokenRefreshStorm,
   memoryPersistence,
 } from "../web/src/auth.ts";
+import { callableInLoop, callableRetryStorm, largeCallablePayload } from "../web/src/functions.ts";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { findingRules } from "@readmeter/db";
 import { flush, init, shutdown } from "@readmeter/firebase";
@@ -102,6 +104,11 @@ const EXPECTED = [
   "firebase.auth/memory-persistence",
   "generic/listener-leak",
   "firebase.auth/server-list-users-in-request",
+  "firebase.functions/callable-in-loop",
+  "firebase.functions/large-callable-payload",
+  "generic/retry-storm",
+  "firebase.functions/cold-start-heavy",
+  "firebase.functions/reads-per-invocation",
 ];
 
 const COUNTER_RULE = "firebase.firestore/read-modify-write-counter";
@@ -223,6 +230,10 @@ async function drive(): Promise<void> {
   if (!authHost || authPort !== 9099) throw new Error(`bad FIREBASE_AUTH_EMULATOR_HOST ${rawAuth}`);
   const userAuth = getAuth(app);
   connectAuthEmulator(userAuth, `http://${authHost}:${authPort}`, { disableWarnings: true });
+  const fns = getFunctions(app, "us-central1");
+  connectFunctionsEmulator(fns, "127.0.0.1", 5001);
+  // coldStart has to be the first withFlush in the functions process.
+  await callFunction("coldStart");
   try {
     console.log(await seedData(db));
     console.log(await unboundedList(db));
@@ -256,13 +267,16 @@ async function drive(): Promise<void> {
     console.log(await anonymousUserChurn(userAuth));
     console.log(await idTokenRefreshStorm(userAuth));
     console.log(await authListenerLeak(userAuth));
+    console.log(await callableInLoop(fns));
+    console.log(await largeCallablePayload(fns));
+    console.log(await callableRetryStorm(fns));
     await flush();
   } finally {
     await shutdown();
     await deleteApp(app);
   }
 
-  for (const name of ["unboundedReport", "nPlusOne", "offsetPage", "fanout", "counterTx", "listUsersRequest"]) {
+  for (const name of ["readStorm", "unboundedReport", "nPlusOne", "offsetPage", "fanout", "counterTx", "listUsersRequest"]) {
     await callFunction(name);
   }
 }

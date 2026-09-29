@@ -29,9 +29,21 @@ test("console covers overview, findings, keys, invites, and the sidebar", async 
 
   await page.goto("/w/local/findings?project=demo_local&range=7d");
   await expect(page.getByRole("heading", { name: "Findings" })).toBeVisible();
-  await page.getByRole("button", { name: "Filter" }).click();
-  await page.getByRole("button", { name: "Add filter" }).click();
+  await expect(page.getByTestId("findings-table").getByText(/unbounded-list/)).toBeVisible();
+  await expect(async () => {
+    const popover = page.locator("[data-slot=popover-content]");
+    if (!(await popover.isVisible())) {
+      await page.getByRole("button", { name: "Filter" }).click();
+      await expect(popover).toBeVisible();
+    }
+    const severity = page.getByRole("button", { name: "Severity filter values" });
+    if (!(await severity.isVisible())) {
+      await page.getByRole("button", { name: "Add filter" }).click();
+      await expect(severity).toBeVisible();
+    }
+  }).toPass();
   await page.getByRole("button", { name: "Severity filter values" }).click();
+  await expect(page.getByRole("option", { name: "Critical" })).toBeVisible();
   await page.getByRole("option", { name: "Critical" }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("columnheader", { name: "Sessions" })).toBeVisible();

@@ -1,0 +1,43 @@
+id = "firebase.functions/trigger-cascade"
+title = "Function writes the collection that triggered it"
+provider = "firebase"
+service = "functions"
+severity = "high"
+category = "writes"
+evaluation = "window"
+status = "planned"
+default_enabled = false
+summary = "A Firestore-triggered function writes back to the collection that invoked it."
+
+description = """
+`onDocumentWritten` runs again for every document it writes in the
+collection named by its trigger. That loop bills a new invocation and
+the writes, and it can run away. The trigger path is stored on the
+function object returned by `onDocumentWritten`
+(`CloudFunction.__endpoint.eventTrigger`), not on the event handed to
+the handler `withFlush` wraps. The event's document path is the concrete
+id, which is not the trigger pattern and would leak that id if it were
+recorded. Until the handler can see the trigger path without that id,
+this rule stays planned.
+"""
+
+fix = """
+Write to a different collection, or guard the handler so a write made
+by the function itself does not match the trigger again.
+"""
+
+docs = ["https://firebase.google.com/docs/functions/firestore-events"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+export const cascade = onDocumentWritten("posts/{id}", withFlush(async (event) => {
+  await event.data?.after.ref.set({ touched: true }, { merge: true });
+}));
+'''
+good = '''
+export const cascade = onDocumentWritten("posts/{id}", withFlush(async (event) => {
+  const id = event.params.id;
+  await db.collection("postSummaries").doc(id).set({ touched: true });
+}));
+'''

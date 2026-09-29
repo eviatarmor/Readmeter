@@ -1,0 +1,37 @@
+id = "firebase.functions/large-callable-payload"
+title = "Callable payload is over 1 MiB"
+provider = "firebase"
+service = "functions"
+severity = "medium"
+category = "payload"
+evaluation = "local"
+status = "stable"
+summary = "A callable request or response is larger than 1 MiB."
+
+description = """
+`httpsCallable` sends the argument as JSON and downloads the JSON
+response. A payload over 1 MiB is slow to serialize, counts as egress
+on the way out, and is close to the callable size limit. The bytes are
+the JSON size of the data value, not the HTTP framing around it.
+"""
+
+fix = """
+Pass ids and let the function read the documents, or upload the blob
+to Cloud Storage and pass the path. Keep the callable payload small.
+"""
+
+docs = ["https://firebase.google.com/docs/functions/callable"]
+
+[params]
+max_bytes = 1048576
+
+[[examples]]
+lang = "ts"
+bad = '''
+const call = httpsCallable(functions, "echo");
+await call({ image: base64OfALargeFile });
+'''
+good = '''
+const call = httpsCallable(functions, "echo");
+await call({ path: "uploads/photo.jpg" });
+'''

@@ -222,10 +222,26 @@ export class CoreClient {
 
 let active = new CoreClient();
 let onWrote: () => void = () => {};
+let rawObserver: ((raw: unknown) => void) | undefined;
+
+/**
+ * Server tally hook. The admin SDK registers it. The browser bundle does not.
+ * An observer error is logged and does not drop the record.
+ */
+export function setRawObserver(observer: ((raw: unknown) => void) | undefined): void {
+  rawObserver = observer;
+}
 
 /** Entry the public API and the later sink use. Never throws. */
 export function recordRaw(raw: unknown): Finding[] {
   try {
+    if (rawObserver) {
+      try {
+        rawObserver(raw);
+      } catch (error) {
+        debugOnce(sdkDebug(), error);
+      }
+    }
     const result = active.record(raw);
     if (result.wrote) onWrote();
     return result.findings;

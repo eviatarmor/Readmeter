@@ -11,6 +11,14 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "test",
+      "runtime": "nodejs22",
+      "ignore": ["node_modules", ".git"]
+    }
+  ],
   "emulators": {
     "firestore": {
       "host": "127.0.0.1",
@@ -27,6 +35,10 @@
     "auth": {
       "host": "127.0.0.1",
       "port": 9099
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5001
     },
     "ui": {
       "enabled": false

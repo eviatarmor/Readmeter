@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Firestore (8085), Realtime Database (9000), Cloud Storage (9199), and Auth (9099) emulators. Java is required by firebase-tools.
+# Firestore (8085), Realtime Database (9000), Cloud Storage (9199), Auth (9099), and Functions (5001) emulators. Java is required by firebase-tools.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if ! command -v java >/dev/null 2>&1; then
@@ -10,4 +10,7 @@ fi
 # Separate processes so the two SDKs do not share prototype patches or the core client.
 # Admin keeps a gRPC channel open after deleteApp. --test-force-exit lets that process end
 # once the assertions have finished. Web exits on its own.
-exec npx -y firebase-tools@latest emulators:exec --only firestore,database,storage,auth --project demo-readmeter --config test/firebase.json "node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/database-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/database-admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 300000 test/emulator/storage-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/storage-admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/auth-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/auth-admin.test.ts"
+if [ ! -d test/functions/node_modules/firebase-functions ]; then
+  npm install --prefix test/functions --no-audit --no-fund
+fi
+exec npx -y firebase-tools@latest emulators:exec --only firestore,database,storage,auth,functions --project demo-readmeter --config test/firebase.json "node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/database-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/database-admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 300000 test/emulator/storage-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/storage-admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/auth-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/auth-admin.test.ts && node --import tsx --test --test-concurrency=1 --test-timeout 180000 test/emulator/functions-web.test.ts && node --import tsx --test --test-force-exit --test-concurrency=1 --test-timeout 180000 test/emulator/functions-admin.test.ts"

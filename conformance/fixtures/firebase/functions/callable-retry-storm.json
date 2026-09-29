@@ -1,0 +1,22 @@
+{
+  "description": "Five failed httpsCallable('fail') calls. generic/retry-storm already matches an error burst on one target, so Cloud Functions adds no detector of its own. Five is under callable-in-loop's minimum of ten.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "functions", "op": "callable", "name": "fail", "ts_ms": 1000, "call_id": 1, "callsite": "src/retry.ts:2:1", "error": "functions/unavailable", "response_bytes": 40 },
+    { "service": "functions", "op": "callable", "name": "fail", "ts_ms": 1200, "call_id": 2, "callsite": "src/retry.ts:2:1", "error": "unavailable", "response_bytes": 40 },
+    { "service": "functions", "op": "callable", "name": "fail", "ts_ms": 1400, "call_id": 3, "callsite": "src/retry.ts:2:1", "error": "unavailable", "response_bytes": 40 },
+    { "service": "functions", "op": "callable", "name": "fail", "ts_ms": 1600, "call_id": 4, "callsite": "src/retry.ts:2:1", "error": "unavailable", "response_bytes": 40 },
+    { "service": "functions", "op": "callable", "name": "fail", "ts_ms": 1800, "call_id": 5, "callsite": "src/retry.ts:2:1", "error": "unavailable", "response_bytes": 40 }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "functions/fail", "units": { "invocations": 1 } },
+    { "op": "other", "template": "functions/fail", "units": { "invocations": 1 } },
+    { "op": "other", "template": "functions/fail", "units": { "invocations": 1 } },
+    { "op": "other", "template": "functions/fail", "units": { "invocations": 1 } },
+    { "op": "other", "template": "functions/fail", "units": { "invocations": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "generic/retry-storm" }
+  ]
+}

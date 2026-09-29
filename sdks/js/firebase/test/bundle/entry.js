@@ -3,6 +3,7 @@ import { get as getDb } from "@readmeter/firebase/database";
 import { getDocs } from "@readmeter/firebase/firestore";
 import { getDownloadURL } from "@readmeter/firebase/storage";
 import { signInAnonymously } from "@readmeter/firebase/auth";
+import { httpsCallable } from "@readmeter/firebase/functions";
 
 // Runtime flag so the bundler keeps both the dev and prod wasm branches.
 const dev = globalThis.__RM_DEV__ === true;
@@ -18,3 +19,4 @@ globalThis.__rmGetDocs = getDocs;
 globalThis.__rmGetDb = getDb;
 globalThis.__rmGetDownloadURL = getDownloadURL;
 globalThis.__rmSignInAnonymously = signInAnonymously;
+globalThis.__rmHttpsCallable = httpsCallable;

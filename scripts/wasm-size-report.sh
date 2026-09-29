@@ -13,7 +13,7 @@ mkdir -p "$out"
 CARGO_PROFILE_RELEASE_SMALL_STRIP=false \
 RUSTFLAGS="${RUSTFLAGS:-} -C symbol-mangling-version=v0" \
   cargo build -p readmeter-wasm --target wasm32-unknown-unknown --profile release-small \
-  --no-default-features --features firebase,database,storage,auth >&2
+  --no-default-features --features firebase,database,storage,auth,functions >&2
 
 wasm-bindgen --target web --out-dir "$out" \
   target/wasm32-unknown-unknown/release-small/readmeter_wasm.wasm >&2

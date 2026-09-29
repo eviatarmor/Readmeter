@@ -1,0 +1,43 @@
+id = "firebase.functions/cold-start-heavy"
+title = "Cold start is slow"
+provider = "firebase"
+service = "functions"
+severity = "medium"
+category = "reliability"
+evaluation = "window"
+status = "stable"
+summary = "A cold invocation took more than 3 seconds before the handler finished."
+
+description = """
+The first invocation in a process loads the runtime and the dependencies.
+That time is billed as GB-seconds and CPU-seconds once the request is
+running, and the caller waits through it. One slow cold start is already
+the signal; later warm invocations of the same process are not.
+"""
+
+fix = """
+Set a minimum instance count on the function so a process is already
+warm, and move heavy imports inside the handler that needs them so a
+cold start does not load them for every function in the file.
+"""
+
+docs = ["https://firebase.google.com/docs/functions/manage-functions"]
+
+[params]
+min_cold_ms = 3000
+
+[[examples]]
+lang = "ts"
+bad = '''
+import { heavy } from "./heavy";
+
+export const report = onRequest(withFlush(async (_req, res) => {
+  res.json(heavy());
+}));
+'''
+good = '''
+export const report = onRequest({ minInstances: 1 }, withFlush(async (_req, res) => {
+  const { heavy } = await import("./heavy");
+  res.json(heavy());
+}));
+'''

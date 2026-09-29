@@ -1,0 +1,17 @@
+{
+  "description": "One callable sends 1048576 request bytes. The local rule fires. One call is under callable-in-loop's minimum of ten.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1000, "call_id": 1,
+      "callsite": "src/upload.ts:4:1", "request_bytes": 1048576, "response_bytes": 2
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.functions/large-callable-payload" }
+  ]
+}

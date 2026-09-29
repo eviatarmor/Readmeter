@@ -13,11 +13,9 @@ import { debugOnce } from "../core/log.ts";
 import { protoWriteSignal } from "../core/payload.ts";
 import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.ts";
 import { documentByteSize } from "../core/size.ts";
-import { flush } from "../index.ts";
 import type { RawQueryShape } from "../web/shape.ts";
 import { instrumentAuth } from "./auth.ts";
 import { instrumentDatabase } from "./database.ts";
-import { runInvocation } from "./invocation.ts";
 import { instrumentStorage } from "./storage.ts";
 import {
   classifyCommit,
@@ -657,16 +655,5 @@ export function instrument<T>(firestore: T): T {
   return firestore;
 }
 
-/**
- * Awaits `flush` after `handler` settles. A handler error is rethrown unchanged.
- */
-export function withFlush<A extends unknown[], R>(handler: (...args: A) => R): (...args: A) => Promise<Awaited<R>> {
-  return async (...args: A): Promise<Awaited<R>> => {
-    try {
-      return await runInvocation(() => handler(...args));
-    } finally {
-      await flush();
-    }
-  };
-}
+export { withFlush } from "./invoke.ts";
 

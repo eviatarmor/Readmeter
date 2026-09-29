@@ -1,0 +1,17 @@
+{
+  "description": "The first invocation in the process is cold and takes 3000ms at 256 MB. Compute is stored as milli-GiB-seconds: 3000ms * 256 / 1024 = 750.",
+  "platform": "server",
+  "evaluations": ["window"],
+  "calls": [
+    {
+      "service": "functions", "op": "invoke", "name": "coldStart", "ts_ms": 1000, "call_id": 1,
+      "duration_us": 3000000, "cold": true, "memory_mb": 256, "response_bytes": 12, "reads": 0
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "functions/coldStart", "units": { "egress_bytes": 12, "gb_seconds": 750, "invocations": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.functions/cold-start-heavy", "wasted": { "gb_seconds": 750 } }
+  ]
+}

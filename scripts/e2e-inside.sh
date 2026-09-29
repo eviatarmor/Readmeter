@@ -34,6 +34,7 @@ pnpm --filter readmeter-e2e exec tsx run.ts --assert-only \
   firebase.auth/anonymous-user-churn \
   firebase.auth/id-token-refresh-storm \
   firebase.auth/memory-persistence \
-  generic/listener-leak
+  generic/listener-leak \
+  firebase.functions/callable-in-loop
 
 stop_pid "$root/target/dev/preview.pid"

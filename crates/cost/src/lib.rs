@@ -160,6 +160,24 @@ reads = { price = 0.03, per = 100000 }
         assert!((other.total - 0.47).abs() < 1e-9);
         let sign_ins = auth.estimate(&Units::new().with("sign_ins", 1), None);
         assert_eq!(sign_ins.unpriced, ["sign_ins"]);
+        let functions =
+            PriceTable::from_toml(include_str!("../../../pricing/firebase/functions.toml"))
+                .unwrap();
+        assert_eq!(
+            (functions.provider.as_str(), functions.service.as_str()),
+            ("firebase", "functions")
+        );
+        assert_eq!(functions.checked_on, "2026-09-30");
+        assert_eq!(functions.default_region, "us-central1");
+        assert!(functions.free_per_day.is_empty());
+        let invocations = functions.estimate(&Units::new().with("invocations", 1_000_000), None);
+        assert!((invocations.total - 0.40).abs() < 1e-9);
+        let gb = functions.estimate(&Units::new().with("gb_seconds", 1000), None);
+        assert!((gb.total - 0.0000025).abs() < 1e-12);
+        let cpu = functions.estimate(&Units::new().with("cpu_seconds", 1000), None);
+        assert!((cpu.total - 0.000024).abs() < 1e-12);
+        let egress = functions.estimate(&Units::new().with("egress_bytes", 1_000_000_000), None);
+        assert!((egress.total - 0.12).abs() < 1e-9);
     }
 
     #[test]

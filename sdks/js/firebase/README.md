@@ -1,6 +1,6 @@
 # @readmeter/firebase
 
-Record Cloud Firestore, Realtime Database, Cloud Storage, and Authentication calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
+Record Cloud Firestore, Realtime Database, Cloud Storage, Authentication, and Cloud Functions calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
 
 ## Install
 
@@ -29,7 +29,7 @@ await flush();
 
 ## Web
 
-Change `from "firebase/firestore"` to `from "@readmeter/firebase/firestore"`. Change `from "firebase/storage"` to `from "@readmeter/firebase/storage"` and `from "firebase/auth"` to `from "@readmeter/firebase/auth"` the same way.
+Change `from "firebase/firestore"` to `from "@readmeter/firebase/firestore"`. Change `from "firebase/storage"` to `from "@readmeter/firebase/storage"`, `from "firebase/auth"` to `from "@readmeter/firebase/auth"`, and `from "firebase/functions"` to `from "@readmeter/firebase/functions"` the same way.
 
 ```ts
 import { init } from "@readmeter/firebase";
@@ -79,7 +79,18 @@ export const fn = onRequest(withFlush(async (req, res) => {
 }));
 ```
 
-`instrument` returns the same Firestore instance. `withFlush` awaits `flush()` after the handler settles, on success or error, and rethrows a handler error unchanged. On Node the SDK also flushes on `beforeExit` and `SIGTERM`.
+`instrument` returns the same Firestore instance. `withFlush` awaits `flush()` after the handler settles, on success or error, and rethrows a handler error unchanged. It also records the invocation: duration, whether this was the first call in the process, `FUNCTION_MEMORY_MB` when that variable is set, and the Firestore reads, Realtime Database download bytes, and Storage calls observed while the handler ran. On Node the SDK also flushes on `beforeExit` and `SIGTERM`.
+
+Web callables:
+
+```ts
+import { getFunctions, httpsCallable } from "@readmeter/firebase/functions";
+
+const echo = httpsCallable(getFunctions(app, "us-central1"), "echo");
+const result = await echo({ n: 1 });
+```
+
+`httpsCallable` and `httpsCallableFromURL` return the same callable type, including `.stream`. The function name is the last path segment of a URL when that segment is a safe name. A host with no path is recorded as `functions/unknown`.
 
 ## dev mode
 
@@ -87,7 +98,7 @@ export const fn = onRequest(withFlush(async (req, res) => {
 
 ## Privacy
 
-What leaves the process is a template (`users/{id}/orders`), a count, a size, or a keyed hash. Document data, filter values, and ids are not sent. Cloud Storage also sends an extension, a content-type major, a cache-control class, list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent. Authentication sends a method template, a safe provider id, a persistence kind, and page-token presence. Emails, phone numbers, uids, tokens, claims, and verification codes are not sent.
+What leaves the process is a template (`users/{id}/orders`), a count, a size, or a keyed hash. Document data, filter values, and ids are not sent. Cloud Storage also sends an extension, a content-type major, a cache-control class, list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent. Authentication sends a method template, a safe provider id, a persistence kind, and page-token presence. Emails, phone numbers, uids, tokens, claims, and verification codes are not sent. Cloud Functions sends the function-name template, an operation name (`callable` or `invoke`), request and response byte counts, duration, an allowlisted error code, a cold flag, the memory setting, and Firestore read, Realtime Database download-byte, and Storage call counts observed during a `withFlush` invocation. Payloads, URLs, project ids, tokens, and auth headers are not sent.
 
 ## Try it on your app
 

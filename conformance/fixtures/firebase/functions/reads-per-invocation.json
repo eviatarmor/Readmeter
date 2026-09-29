@@ -1,0 +1,17 @@
+{
+  "description": "One server invocation tallied 501 Firestore reads. The rule fires above 500. Duration is under the cold-start threshold and memory is absent, so compute is not billed.",
+  "platform": "server",
+  "evaluations": ["window"],
+  "calls": [
+    {
+      "service": "functions", "op": "invoke", "name": "readStorm", "ts_ms": 1000, "call_id": 1,
+      "duration_us": 100000, "reads": 501, "response_bytes": 10
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "functions/readStorm", "units": { "egress_bytes": 10, "invocations": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.functions/reads-per-invocation", "wasted": { "reads": 1 } }
+  ]
+}

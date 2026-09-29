@@ -13,6 +13,7 @@ firebase = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/fire
 database = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/database"]
 storage = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/storage"]
 auth = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/auth"]
+functions = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/functions"]
 window = ["readmeter-rules/window", "readmeter-provider-firebase?/window"]
 
 [dependencies]

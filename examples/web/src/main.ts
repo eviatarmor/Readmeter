@@ -4,6 +4,7 @@ import { connectDatabaseEmulator, getDatabase, type Database } from "@readmeter/
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "@readmeter/firebase/firestore";
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from "@readmeter/firebase/storage";
 import { connectAuthEmulator, getAuth, type Auth } from "@readmeter/firebase/auth";
+import { connectFunctionsEmulator, getFunctions, type Functions } from "@readmeter/firebase/functions";
 
 import {
   anonymousUserChurn,
@@ -12,6 +13,7 @@ import {
   memoryPersistence,
   phoneAuthRetry,
 } from "./auth.ts";
+import { callableInLoop, callableRetryStorm, largeCallablePayload } from "./functions.ts";
 import {
   downloadWholeList,
   duplicateListeners,
@@ -54,6 +56,7 @@ const actions = document.querySelector("#actions");
 const databaseActions = document.querySelector("#database");
 const storageActions = document.querySelector("#storage");
 const authActions = document.querySelector("#auth");
+const functionsActions = document.querySelector("#functions");
 const search = document.querySelector("#search");
 const draft = document.querySelector("#draft");
 
@@ -112,6 +115,12 @@ const authButtons: { label: string; rule: string; run: (auth: Auth) => Promise<s
   { label: "phone auth retry", rule: "firebase.auth/phone-auth-retry", run: phoneAuthRetry },
 ];
 
+const functionsButtons: { label: string; rule: string; run: (fns: Functions) => Promise<string> }[] = [
+  { label: "callable in loop", rule: "firebase.functions/callable-in-loop", run: callableInLoop },
+  { label: "large callable payload", rule: "firebase.functions/large-callable-payload", run: largeCallablePayload },
+  { label: "callable retry storm", rule: "generic/retry-storm", run: callableRetryStorm },
+];
+
 let sdkError = "";
 const report = console.error.bind(console);
 console.error = (...args: unknown[]) => {
@@ -149,11 +158,13 @@ const db = getFirestore(app);
 const rtdb = getDatabase(app, "https://demo-readmeter.firebaseio.com");
 const bucket = getStorage(app, "gs://demo-readmeter.appspot.com");
 const userAuth = getAuth(app);
+const fns = getFunctions(app, "us-central1");
 if (import.meta.env.VITE_USE_EMULATOR === "1") {
   connectFirestoreEmulator(db, "127.0.0.1", 8085);
   connectDatabaseEmulator(rtdb, "127.0.0.1", 9000);
   connectStorageEmulator(bucket, "127.0.0.1", 9199);
   connectAuthEmulator(userAuth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFunctionsEmulator(fns, "127.0.0.1", 5001);
 }
 
 const buttonEls: HTMLButtonElement[] = [];
@@ -186,6 +197,8 @@ const storageBar = requireEl<HTMLElement>(storageActions, "storage");
 for (const spec of storageButtons) addButton(storageBar, spec.label, spec.rule, () => spec.run(bucket));
 const authBar = requireEl<HTMLElement>(authActions, "auth");
 for (const spec of authButtons) addButton(authBar, spec.label, spec.rule, () => spec.run(userAuth));
+const functionsBar = requireEl<HTMLElement>(functionsActions, "functions");
+for (const spec of functionsButtons) addButton(functionsBar, spec.label, spec.rule, () => spec.run(fns));
 
 const searchInput = requireEl<HTMLInputElement>(search, "search");
 searchInput.addEventListener("input", () => {

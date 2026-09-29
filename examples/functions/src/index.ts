@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { init } from "@readmeter/firebase";
 import { instrument, instrumentAuth, withFlush } from "@readmeter/firebase/admin";
 
@@ -97,6 +97,46 @@ export const listUsersRequest = onRequest(
   withFlush(async (_req, res) => {
     const page = await adminAuth.listUsers(1000);
     res.json({ n: page.users.length });
+  }),
+);
+
+/** Returns a fixed object. The request body is not copied into the response or the record. */
+export const echo = onCall(
+  { region: "us-central1" },
+  withFlush(async () => ({ ok: true })),
+);
+
+/** Fails with an allowlisted code. The message is not recorded. */
+export const fail = onCall(
+  { region: "us-central1" },
+  withFlush(async () => {
+    throw new HttpsError("unavailable", "nope");
+  }),
+);
+
+/**
+ * First HTTP call in the demo. The sleep makes this withFlush both cold and
+ * slower than the cold-start rule. Later functions in this process are warm.
+ */
+export const coldStart = onRequest(
+  { region: "us-central1" },
+  withFlush(async (_req, res) => {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    res.json({ ok: true });
+  }),
+);
+
+/** 501 gets of one document. The seeded collection is smaller than the rule's max. */
+export const readStorm = onRequest(
+  { region: "us-central1" },
+  withFlush(async (_req, res) => {
+    let n = 0;
+    for (let start = 0; start < 501; start += 25) {
+      const count = Math.min(25, 501 - start);
+      const snaps = await Promise.all(Array.from({ length: count }, () => db.collection("posts").doc("p0").get()));
+      n += snaps.length;
+    }
+    res.json({ n });
   }),
 );
 

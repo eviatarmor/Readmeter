@@ -1,0 +1,41 @@
+# Cloud Functions for Firebase (2nd gen / Cloud Run functions).
+# Verified 2026-09-30 against https://firebase.google.com/pricing and the
+# Cloud Run request-based table it points at for current functions:
+# https://cloud.google.com/run/pricing (us-central1, active CPU and memory).
+#
+# Firebase no-cost tier, per month, not applied here (marginal cost):
+#   2,000,000 invocations
+#   400,000 GB-seconds
+#   200,000 CPU-seconds
+#   5 GB outbound networking
+# Cloud Run's own free tier is a different set of numbers. This file uses
+# the Firebase tier as the comment and the Cloud Run active rates as the
+# prices, which is where firebase.google.com/pricing sends GB-seconds and
+# CPU-seconds ("Then Google Cloud pricing").
+#
+# gb_seconds is milli-GiB-seconds (1000 = 1 GiB-second) so a sub-second
+# call is not stored as 0. cpu_seconds is milli-vCPU-seconds the same way.
+# Active time is rounded up to 100 ms before that conversion. Only
+# us-central1 request-based active rates are encoded. Idle min-instance
+# time is a different rate and is not encoded.
+#
+# Egress uses Firebase's $0.12 per GB and a decimal GB (1e9 bytes), the
+# same unit as Cloud Storage. Cloud Run quotes network egress per GiB at
+# the same dollar amount.
+#
+# Invocations: $0.40 per million. A request is billed when it reaches the
+# container, including a function error. IAM-denied requests never reach
+# it; the shim cannot tell those apart from a function error.
+
+provider = "firebase"
+service = "functions"
+currency = "USD"
+source = "https://firebase.google.com/pricing"
+checked_on = "2026-09-30"
+default_region = "us-central1"
+
+[regions.us-central1]
+invocations = { price = 0.40, per = 1000000 }
+gb_seconds = { price = 0.0000025, per = 1000 }
+cpu_seconds = { price = 0.000024, per = 1000 }
+egress_bytes = { price = 0.12, per = 1000000000 }

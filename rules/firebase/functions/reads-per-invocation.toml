@@ -1,0 +1,48 @@
+id = "firebase.functions/reads-per-invocation"
+title = "Too many Firestore reads in one invocation"
+provider = "firebase"
+service = "functions"
+severity = "high"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "One invocation billed more than 500 Firestore reads."
+
+description = """
+A function that reads a document per item, or a whole collection, bills
+every one of those reads on top of the invocation. The count is the
+Firestore read total recorded while the handler ran: one per get, at
+least one per query plus any offset, and aggregation reads from index
+entries. Five hundred is already a page of work that should not sit on
+the request path.
+"""
+
+fix = """
+Page the query, or write a summary document that the function can read
+in one get. Do not loop `get` once per id when a single query returns
+the same rows.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/best-practices"]
+
+[params]
+max_reads = 500
+
+[[examples]]
+lang = "ts"
+bad = '''
+export const report = onRequest(withFlush(async (_req, res) => {
+  let n = 0;
+  for (let i = 0; i < 501; i += 1) {
+    const snap = await db.collection("posts").doc(`p${i}`).get();
+    if (snap.exists) n += 1;
+  }
+  res.json({ n });
+}));
+'''
+good = '''
+export const report = onRequest(withFlush(async (_req, res) => {
+  const snap = await db.collection("posts").orderBy("createdAt").limit(50).get();
+  res.json({ n: snap.size });
+}));
+'''

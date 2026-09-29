@@ -24,5 +24,7 @@ test("seed, unbounded list, and offset pagination show local findings", async ({
   await expect(log).toContainText("firebase.auth/memory-persistence");
   await page.getByRole("button", { name: "auth listeners" }).click();
   await expect(log).toContainText("generic/listener-leak");
+  await page.getByRole("button", { name: "callable in loop" }).click();
+  await expect(log).toContainText("firebase.functions/callable-in-loop");
   expect(pageErrors, pageErrors.join("\n")).toEqual([]);
 });

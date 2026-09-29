@@ -27,6 +27,7 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      { find: "@readmeter/firebase/functions", replacement: path.join(pkg, "dist/web/functions.js") },
       { find: "@readmeter/firebase/auth", replacement: path.join(pkg, "dist/web/auth.js") },
       { find: "@readmeter/firebase/database", replacement: path.join(pkg, "dist/web/database.js") },
       { find: "@readmeter/firebase/storage", replacement: path.join(pkg, "dist/web/storage.js") },

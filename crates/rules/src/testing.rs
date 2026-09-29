@@ -131,6 +131,11 @@ impl EnvBuilder {
         self
     }
 
+    pub fn duration_us(mut self, us: u64) -> Self {
+        self.0.duration_us = Some(us);
+        self
+    }
+
     pub fn key(mut self, key: u64) -> Self {
         self.0.target.key = key;
         self

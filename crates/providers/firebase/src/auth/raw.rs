@@ -7,7 +7,9 @@ use readmeter_core::CacheKind;
 use readmeter_provider_api::NormalizeError;
 use readmeter_provider_api::json::{self, JsonTypeError, JsonValue};
 
-use super::error_codes::ERROR_CODES;
+#[cfg(test)]
+use super::error_codes::error_codes;
+use super::error_codes::is_error_code;
 
 /// Methods the shim may name. Anything else, including a string that
 /// contains `@`, becomes `unknown` and the raw text is dropped.
@@ -228,7 +230,7 @@ fn error_code(code: &str) -> String {
     {
         return "unknown".into();
     }
-    if ERROR_CODES.binary_search(&lower.as_str()).is_ok() {
+    if is_error_code(&lower) {
         lower
     } else {
         "unknown".into()
@@ -352,9 +354,16 @@ mod tests {
             prev = method;
         }
         prev = "";
-        for code in ERROR_CODES {
-            assert!(prev < *code, "{prev} before {code}");
+        let mut n = 0;
+        for code in error_codes() {
+            assert!(prev < code, "{prev} before {code}");
+            assert!(is_error_code(code));
             prev = code;
+            n += 1;
         }
+        assert_eq!(n, 177);
+        assert!(!is_error_code("user@host"));
+        assert!(!is_error_code("not-a-real-auth-code"));
+        assert!(is_error_code("wrong-password"));
     }
 }

@@ -83,7 +83,7 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
 
 Contributor and agent guide: [`AGENTS.md`](AGENTS.md).
 
-## Rules (62 active)
+## Rules (66 active)
 
 Severity is ranked by cost impact: `critical` grows without bound with data
 or traffic, `high` is a large multiplier, `medium` is measurable waste on a
@@ -106,6 +106,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.auth/anonymous-user-churn` | high | window | signInAnonymously runs more than once in one session, so each call creates another anonymous user. |
 | `firebase.auth/id-token-refresh-storm` | high | window | getIdToken(true) runs many times in one session. Each call asks the token service for a new ID token. |
 | `firebase.auth/phone-auth-retry` | high | window | Phone verification is sent several times in a short window, and each SMS is billed. |
+| `firebase.functions/callable-in-loop` | high | window | One callsite invokes the same callable many times in a few seconds. |
+| `firebase.functions/reads-per-invocation` | high | window | One invocation billed more than 500 Firestore reads. |
 | `generic/listener-leak` | high | window | Open subscriptions from one callsite keep growing because they are never unsubscribed. |
 | `generic/subscription-churn` | high | window | The same subscription is closed and re-opened many times, re-billing its initial result. |
 | `firebase.firestore/overfetch` | high | window | A query returned many documents and the caller read only a small fraction of them. |
@@ -130,6 +132,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.storage/original-size-images` | medium | local | A browser image download larger than 1 MiB bills class B and the full egress. |
 | `firebase.storage/unbounded-list-page` | medium | local | list() without maxResults takes the server's default page of up to 1000 objects. |
 | `firebase.auth/memory-persistence` | medium | local | Auth is initialized with in-memory persistence, so the user is signed out on every page load. |
+| `firebase.functions/large-callable-payload` | medium | local | A callable request or response is larger than 1 MiB. |
+| `firebase.functions/cold-start-heavy` | medium | window | A cold invocation took more than 3 seconds before the handler finished. |
 | `firebase.auth/server-list-users-in-request` | medium | window | listUsers runs inside a request handler and walks the user list on the request path. |
 | `generic/duplicate-read` | medium | window | The exact same request is billed several times in a short window. |
 | `generic/n-plus-one` | medium | window | Many single-item reads on one path in a burst, usually one per item of an earlier list. |
@@ -154,7 +158,7 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/persistence-disabled` | low | local | The client SDK runs without a persistent cache, so every reload re-reads from the server. |
 | `firebase.firestore/fanout-writes` | info | local | One client commit writes or deletes many documents. |
 
-Six more are on the roadmap: three that still need an SDK signal, and three
+Seven more are on the roadmap: four that still need an SDK signal, and three
 cross-session rules on the backend. The console lists these rules at
 `http://localhost:5174` on the Rules page.
 

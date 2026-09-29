@@ -1,0 +1,40 @@
+id = "firebase.functions/callable-in-loop"
+title = "Callable invoked in a loop"
+provider = "firebase"
+service = "functions"
+severity = "high"
+category = "hotspots"
+evaluation = "window"
+status = "stable"
+summary = "One callsite invokes the same callable many times in a few seconds."
+
+description = """
+Each `httpsCallable` invocation is its own request. A loop that calls
+the same function once per item pays an invocation every time, plus
+the function's memory time. One call that receives the whole list does
+the work in a single invocation.
+"""
+
+fix = """
+Batch the items into one callable. Keep the per-item work on the
+server, inside that single invocation.
+"""
+
+docs = ["https://firebase.google.com/docs/functions/callable"]
+
+[params]
+min_calls = 10
+window_ms = 5000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const call = httpsCallable(functions, "echo");
+for (const item of items) {
+  await call(item);
+}
+'''
+good = '''
+const call = httpsCallable(functions, "echo");
+await call({ items });
+'''

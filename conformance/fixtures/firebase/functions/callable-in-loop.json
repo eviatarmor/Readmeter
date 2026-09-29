@@ -1,0 +1,32 @@
+{
+  "description": "Ten httpsCallable('echo') calls from one callsite inside five seconds. Nine of the invocations are the ones to batch away.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1000, "call_id": 1, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1100, "call_id": 2, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1200, "call_id": 3, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1300, "call_id": 4, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1400, "call_id": 5, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1500, "call_id": 6, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1600, "call_id": 7, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1700, "call_id": 8, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1800, "call_id": 9, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 },
+    { "service": "functions", "op": "callable", "name": "echo", "ts_ms": 1900, "call_id": 10, "callsite": "src/loop.ts:1:1", "request_bytes": 2, "response_bytes": 2 }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } },
+    { "op": "other", "template": "functions/echo", "units": { "invocations": 1, "egress_bytes": 2 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.functions/callable-in-loop", "wasted": { "invocations": 9 } }
+  ]
+}
