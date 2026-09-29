@@ -100,6 +100,8 @@ jobs:
       - run: pnpm db:migrate
       - name: Migrations match the schema
         run: pnpm db:generate && git diff --exit-code packages/db/migrations
+      - name: GCP connector worker
+        run: pnpm --filter @readmeter/connector-gcp test
       - run: pnpm --filter "./apps/*" --filter "./packages/*" test
       - run: pnpm --filter console-web build
 

@@ -43,7 +43,9 @@ crates/
 apps/
   ingest/                  TypeScript (Hono): auth, core ingest, Postgres write, backpressure
   console-api/             TypeScript (Hono, Better Auth): workspaces, members, projects,
-                           API keys, findings, events, rules, costs
+                           API keys, findings, events, rules, costs, Google Cloud connection
+  console-web/             React console
+  connector-gcp/           Cloud Monitoring and billing-export sync
 packages/
   db/                      Drizzle schema, migrations, seed (shared by all TS services)
 docker-compose.yml         Local Postgres on host port 5442
@@ -57,10 +59,9 @@ scripts/                   build-wasm.sh (size gate), build-wasm-server.sh, smok
 ```
 
 Planned (see `.plans/0001-architecture.md` and `.plans/0007-console.md`):
-`apps/console-web` (React, shadcn/ui, Dice UI), `apps/connector-gcp` (Cloud Monitoring and
-billing export sync), more Firebase services (Realtime Database, Storage,
-Auth, Functions), `proto/` (if a non-Rust consumer of the wire format
-appears), `sdks/<lang>/<provider>/`, `infra/`.
+more Firebase services (Realtime Database, Storage, Auth, Functions), `proto/`
+(if a non-Rust consumer of the wire format appears), `sdks/<lang>/<provider>/`,
+`infra/`.
 
 ## Rules you must not break
 
@@ -184,12 +185,13 @@ pnpm db:up && pnpm db:migrate && pnpm db:seed    # local Postgres, proj_demo / r
 pnpm typecheck && DATABASE_URL=postgres://readmeter:readmeter@127.0.0.1:5442/readmeter pnpm test
 pnpm dev:ingest                                  # http://127.0.0.1:8090
 pnpm dev:console-api                             # http://127.0.0.1:8091
+pnpm dev:connector-gcp                           # Monitoring and billing sync loop
                                                  # seeded login admin@readmeter.local / readmeter-dev
 READMETER_INGEST_URL=http://127.0.0.1:8090 READMETER_API_KEY=rm_dev_key node scripts/smoke-wasm.mjs
 
 # Local demo loop. See docs/TESTING-WITH-YOUR-APP.md (Git Bash on Windows).
 ./scripts/dev-up.sh
-./scripts/dev-down.sh                            # stop ingest, console-api, and docker compose down (volume kept)
+./scripts/dev-down.sh                            # stop ingest, console-api, connector-gcp, console-web, and docker compose down (volume kept)
 ./scripts/e2e.sh                                 # emulators, Postgres findings, Playwright
 ```
 

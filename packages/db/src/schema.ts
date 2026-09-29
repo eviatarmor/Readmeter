@@ -9,9 +9,11 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -250,4 +252,80 @@ export const auditLog = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("audit_log_org_at_idx").on(t.orgId, t.at.desc())],
+);
+
+/**
+ * One Cloud connection per Readmeter project. The service-account JSON is
+ * AES-256-GCM ciphertext; routes never select it back out.
+ * `sync_requested_at` is a queue flag. The worker clears it when a pass finishes
+ * unless a newer request arrived while that pass was running.
+ */
+export const gcpConnections = pgTable(
+  "gcp_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    gcpProjectId: text("gcp_project_id").notNull(),
+    clientEmail: text("client_email").notNull(),
+    keyCiphertext: text("key_ciphertext").notNull(),
+    keyIv: text("key_iv"),
+    keyTag: text("key_tag"),
+    billingTable: text("billing_table"),
+    status: text("status").notNull().default("pending"),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    syncRequestedAt: timestamp("sync_requested_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("gcp_connections_project_idx").on(t.projectId),
+    index("gcp_connections_org_idx").on(t.orgId),
+    check("gcp_connections_status", sql`${t.status} in ('pending', 'ok', 'error')`),
+  ],
+);
+
+/** Daily Cloud Monitoring totals. `metric` is a Readmeter unit name. */
+export const usageDaily = pgTable(
+  "usage_daily",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    provider: text("provider").notNull(),
+    service: text("service").notNull(),
+    metric: text("metric").notNull(),
+    amount: numeric("amount").notNull(),
+    source: text("source").notNull().default("monitoring"),
+  },
+  (t) => [
+    uniqueIndex("usage_daily_key").on(t.projectId, t.day, t.provider, t.service, t.metric, t.source),
+    check("usage_daily_source", sql`${t.source} in ('monitoring')`),
+  ],
+);
+
+/** Daily Cloud Billing export rows. Net charge is cost_micros + credits_micros. */
+export const costDaily = pgTable(
+  "cost_daily",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    service: text("service").notNull(),
+    sku: text("sku").notNull(),
+    usageAmount: numeric("usage_amount").notNull(),
+    usageUnit: text("usage_unit").notNull(),
+    costMicros: bigint("cost_micros", { mode: "number" }).notNull(),
+    creditsMicros: bigint("credits_micros", { mode: "number" }).notNull().default(0),
+    currency: text("currency").notNull(),
+  },
+  (t) => [uniqueIndex("cost_daily_key").on(t.projectId, t.day, t.service, t.sku)],
 );

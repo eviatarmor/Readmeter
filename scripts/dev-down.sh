@@ -11,6 +11,7 @@ source "$root/scripts/dev-common.sh"
 step "stop ingest, console api, and console web"
 stop_pid "$root/target/dev/ingest.pid"
 stop_pid "$root/target/dev/console-api.pid"
+stop_pid "$root/target/dev/connector-gcp.pid"
 stop_pid "$root/target/dev/console-web.pid"
 stop_pid "$root/target/dev/preview.pid"
 

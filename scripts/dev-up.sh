@@ -79,6 +79,8 @@ fi
 echo "ingest healthy at http://127.0.0.1:8090"
 
 step "console api"
+# Dev-only key so the console can store a service account. A real deployment sets its own.
+export READMETER_SECRET_KEY="${READMETER_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
 stop_pid "$root/target/dev/console-api.pid"
 if port_open 8091; then
   echo "port 8091 is still in use after stopping the recorded console-api pid" >&2
@@ -92,6 +94,25 @@ if ! wait_http "http://127.0.0.1:8091/healthz" 90; then
   exit 1
 fi
 echo "console api healthy at http://127.0.0.1:8091"
+
+step "gcp connector"
+stop_pid "$root/target/dev/connector-gcp.pid"
+start_detached "$root/target/dev/connector-gcp.pid" "$root/target/dev/connector-gcp.log" \
+  pnpm --filter @readmeter/connector-gcp start
+ready=0
+for ((i = 1; i <= 30; i++)); do
+  if grep -q "connector started" "$root/target/dev/connector-gcp.log" 2>/dev/null; then
+    ready=1
+    break
+  fi
+  sleep 1
+done
+if [[ $ready -ne 1 ]]; then
+  echo "connector-gcp log:" >&2
+  tail -n 80 "$root/target/dev/connector-gcp.log" >&2 || true
+  exit 1
+fi
+echo "gcp connector started"
 
 step "console web"
 stop_pid "$root/target/dev/console-web.pid"

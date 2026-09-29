@@ -21,6 +21,10 @@ const groups: { id: CostGroup; label: string }[] = [
 ];
 
 const chartConfig = { cost: { label: "Estimated cost", color: "var(--chart-1)" } } satisfies ChartConfig;
+const compareConfig = {
+  estimated: { label: "Estimated", color: "var(--chart-1)" },
+  billed: { label: "Billed", color: "var(--chart-2)" },
+} satisfies ChartConfig;
 
 export function CostsPage({ slug, search }: { slug: string; search: WorkspaceSearch }) {
   const [groupBy, setGroupBy] = React.useState<CostGroup>("service");
@@ -35,11 +39,11 @@ export function CostsPage({ slug, search }: { slug: string; search: WorkspaceSea
     <div className="grid gap-4">
       <PageHeader
         title="Costs"
-        description="Prices come from the rules bundle. Billed cost arrives with a billing connection."
+        description="Estimates come from the rules bundle. Billed rows come from the Cloud Billing export when a connection has synced."
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="outline">{data.source === "billed" ? "Billed" : "Estimated"}</Badge>
-            <Button variant="outline" size="sm" onClick={() => downloadCsv(data.items)}>
+            <Button variant="outline" size="sm" onClick={() => downloadCsv(data)}>
               Export CSV
             </Button>
           </div>
@@ -104,12 +108,89 @@ export function CostsPage({ slug, search }: { slug: string; search: WorkspaceSea
           )}
         </TableBody>
       </Table>
+      {data.billedMicros != null ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Estimate and billed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={compareConfig} className="aspect-auto h-64 w-full">
+                <BarChart
+                  data={data.comparison.map((point) => ({
+                    day: point.day.slice(5),
+                    estimated: point.estimatedMicros / 1_000_000,
+                    billed: point.billedMicros / 1_000_000,
+                  }))}
+                >
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} minTickGap={24} />
+                  <YAxis tickLine={false} axisLine={false} width={48} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="estimated" fill="var(--color-estimated)" radius={4} />
+                  <Bar dataKey="billed" fill="var(--color-billed)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+          <Table data-testid="billed-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Service</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead className="text-right">Usage</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">Credits</TableHead>
+                <TableHead className="text-right">Net</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.billedBySku.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    No billed SKUs in this range.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.billedBySku.map((row) => (
+                  <TableRow key={`${row.service}/${row.sku}`}>
+                    <TableCell>{row.service}</TableCell>
+                    <TableCell>{row.sku}</TableCell>
+                    <TableCell className="text-right">
+                      {row.usageAmount} {row.usageUnit}
+                    </TableCell>
+                    <TableCell className="text-right">{formatMoney(row.micros)}</TableCell>
+                    <TableCell className="text-right">{formatMoney(row.creditsMicros)}</TableCell>
+                    <TableCell className="text-right">{formatMoney(row.micros + row.creditsMicros)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </>
+      ) : null}
+      {data.sdkCoverage ? (
+        <p data-testid="sdk-coverage" className="text-sm text-muted-foreground">
+          SDK coverage: {Math.round(data.sdkCoverage.ratio * 100)}% of billed Firestore reads (
+          {data.sdkCoverage.estimatedReads} estimated / {data.sdkCoverage.billedReads} billed).
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function downloadCsv(items: { key: string; micros: number }[]) {
-  const lines = ["key,micros,usd", ...items.map((item) => `${csv(item.key)},${item.micros},${(item.micros / 1_000_000).toFixed(6)}`)];
+function downloadCsv(data: {
+  items: { key: string; micros: number }[];
+  billedBySku: { service: string; sku: string; micros: number; creditsMicros: number }[];
+}) {
+  const lines = [
+    "kind,key,micros,usd",
+    ...data.items.map((item) => `estimate,${csv(item.key)},${item.micros},${(item.micros / 1_000_000).toFixed(6)}`),
+    ...data.billedBySku.map((row) => {
+      const net = row.micros + row.creditsMicros;
+      return `billed,${csv(`${row.service} / ${row.sku}`)},${net},${(net / 1_000_000).toFixed(6)}`;
+    }),
+  ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

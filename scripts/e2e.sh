@@ -17,6 +17,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Fixtures only. The connector and the console API both inherit this.
+export READMETER_GCP_FAKE=1
+export READMETER_GCP_POLL_MS=500
+export READMETER_SECRET_KEY="${READMETER_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
 ./scripts/dev-up.sh
 
 step "typecheck examples"

@@ -6,17 +6,23 @@ export function RelativeTime({
   value,
   className,
   compact = false,
+  testId,
 }: {
   value: string | null | undefined;
   className?: string;
   compact?: boolean;
+  testId?: string;
 }) {
   if (!value) return <span className="text-muted-foreground">—</span>;
   const label = compact ? formatRelativeCompact(value) : formatRelative(value);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <time dateTime={value} className={cn("text-muted-foreground", className ?? "whitespace-nowrap")}>
+        <time
+          dateTime={value}
+          data-testid={testId}
+          className={cn("text-muted-foreground", className ?? "whitespace-nowrap")}
+        >
           {label}
         </time>
       </TooltipTrigger>

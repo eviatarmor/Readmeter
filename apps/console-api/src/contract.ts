@@ -266,7 +266,16 @@ export interface OverviewPoint {
   events: number;
   billedUnits: number;
   estimatedCostMicros: number;
+  /** Net billed micros (cost + credits) for the day. 0 when that day has no invoice row. */
+  billedCostMicros: number;
   wastedMicros: number;
+}
+
+export interface SdkCoverage {
+  estimatedReads: number;
+  billedReads: number;
+  /** Estimated Firestore reads divided by billed Firestore reads. */
+  ratio: number;
 }
 
 export interface Overview {
@@ -276,12 +285,19 @@ export interface Overview {
     events: number;
     billedUnits: number;
     estimatedCostMicros: number;
+    /** "Billed" when cost_daily has rows in the range, otherwise "Estimated". */
+    costLabel: "Billed" | "Estimated";
+    /** The micros shown on the cost KPI: billed net when present, otherwise the estimate. */
+    costMicros: number;
+    /** Net billed micros in the range, or null when no invoice rows exist. */
+    billedCostMicros: number | null;
     wastedMicros: number;
     openFindings: number;
     /** Open issues: groups with at least one open finding. */
     openIssues: number;
   };
   series: OverviewPoint[];
+  sdkCoverage: SdkCoverage | null;
   topRules: { rule: string; title: string; wastedMicros: number }[];
   topTemplates: { template: string; events: number }[];
   topCallsites: { callsite: string | null; events: number }[];
@@ -294,12 +310,65 @@ export interface CostItem {
   units: Record<string, number>;
 }
 
+export interface BilledSku {
+  service: string;
+  sku: string;
+  /** Gross cost from the billing export, in micros. */
+  micros: number;
+  creditsMicros: number;
+  usageAmount: number;
+  usageUnit: string;
+}
+
+export interface CostComparisonPoint {
+  day: string;
+  estimatedMicros: number;
+  billedMicros: number;
+}
+
 export interface Costs {
   source: "estimate" | "billed" | string;
   currency: string;
   groupBy: "service" | "rule" | "template" | "day" | string;
   range: string;
   items: CostItem[];
+  /** Sum of the daily estimate, independent of groupBy. */
+  estimatedMicros: number;
+  /** Net billed micros (cost + credits), or null when the range has no invoice rows. */
+  billedMicros: number | null;
+  billedBySku: BilledSku[];
+  comparison: CostComparisonPoint[];
+  sdkCoverage: SdkCoverage | null;
+}
+
+export interface GcpRole {
+  role: string;
+  scope: string;
+  when: "always" | "billing";
+}
+
+export interface GcpConnection {
+  id: string;
+  projectId: string;
+  gcpProjectId: string;
+  clientEmail: string;
+  billingTable: string | null;
+  status: "pending" | "ok" | "error" | string;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GcpCheck {
+  name: string;
+  ok: boolean;
+  message: string;
+}
+
+export interface GcpConnectionResponse {
+  connection: GcpConnection | null;
+  roles: GcpRole[];
 }
 
 export interface AuditEntry {

@@ -21,10 +21,12 @@ import { useOverview } from "@/features/overview/queries";
 import { formatCount, formatMoney, halfDelta } from "@/lib/format-value";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
 
-const chartConfig = {
-  cost: { label: "Estimated cost", color: "var(--foreground)" },
-  waste: { label: "Wasted", color: "oklch(0.62 0.14 55)" },
-} satisfies ChartConfig;
+function costChartConfig(costLabel: string): ChartConfig {
+  return {
+    cost: { label: costLabel, color: "var(--foreground)" },
+    waste: { label: "Wasted", color: "oklch(0.62 0.14 55)" },
+  };
+}
 
 const severityBar: Record<(typeof SEVERITY_ORDER)[number], string> = {
   critical: "bg-red-600",
@@ -59,9 +61,12 @@ export function OverviewPage({ slug, search }: { slug: string; search: Workspace
     );
   }
   const data = query.data;
+  const billed = data.kpis.costLabel === "Billed";
+  const costLabel = billed ? "Billed" : "Estimated";
+  const chartConfig = costChartConfig(costLabel);
   const series = data.series.map((point) => ({
     day: point.day.slice(5),
-    cost: point.estimatedCostMicros / 1_000_000,
+    cost: (billed ? point.billedCostMicros : point.estimatedCostMicros) / 1_000_000,
     waste: point.wastedMicros / 1_000_000,
     events: point.events,
   }));
@@ -74,7 +79,11 @@ export function OverviewPage({ slug, search }: { slug: string; search: Workspace
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label="Events" value={formatCount(data.kpis.events)} delta={halfDelta(data.series.map((point) => point.events))} />
-        <Kpi label="Estimated cost" value={formatMoney(data.kpis.estimatedCostMicros)} delta={halfDelta(data.series.map((point) => point.estimatedCostMicros))} />
+        <Kpi
+          label={costLabel}
+          value={formatMoney(billed ? data.kpis.costMicros : data.kpis.estimatedCostMicros)}
+          delta={halfDelta(data.series.map((point) => (billed ? point.billedCostMicros : point.estimatedCostMicros)))}
+        />
         <Kpi label="Wasted" value={formatMoney(data.kpis.wastedMicros)} delta={halfDelta(data.series.map((point) => point.wastedMicros))} />
         <Card>
           <CardHeader className="pb-2">

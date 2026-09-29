@@ -2,21 +2,25 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const images = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/images");
 
-test("console covers overview, findings, keys, invites, and the sidebar", async ({ page }) => {
-  mkdirSync(images, { recursive: true });
+async function signIn(page: Page) {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill("admin@readmeter.local");
   await page.getByLabel("Password").fill("readmeter-dev");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
+}
+
+test("console covers overview, findings, keys, invites, and the sidebar", async ({ page }) => {
+  mkdirSync(images, { recursive: true });
+  await signIn(page);
 
   await page.goto("/w/local/overview?project=demo_local&range=7d");
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  for (const label of ["Events", "Estimated cost", "Wasted", "Open issues"]) {
+  for (const label of ["Events", "Estimated", "Wasted", "Open issues"]) {
     await expect(page.locator("[data-slot=card-title]", { hasText: label }).first()).toBeVisible();
   }
   await expect(page.getByTestId("severity-chart").getByText("Critical")).toBeVisible();
@@ -69,4 +73,56 @@ test("console covers overview, findings, keys, invites, and the sidebar", async 
   const overview = page.getByRole("link", { name: "Overview" });
   const box = await overview.boundingBox();
   expect(box?.width ?? 999).toBeLessThan(48);
+});
+
+test("gcp wizard shows a failed check, then billed costs", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/w/local/integrations?project=demo_local&range=7d");
+  await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
+  await page.getByTestId("gcp-connect").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByTestId("gcp-key").fill(
+    JSON.stringify({
+      type: "service_account",
+      client_email: "fail@readmeter.invalid",
+      private_key: "fake-private-key",
+      project_id: "demo-readmeter",
+    }),
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Billing export table").fill("demo-readmeter.billing.gcp_billing_export_v1");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Run test" }).click();
+  await expect(page.getByTestId("gcp-test-results")).toContainText("monitoring denied");
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByTestId("gcp-key").fill(
+    JSON.stringify({
+      type: "service_account",
+      client_email: "reader@demo-readmeter.iam.gserviceaccount.com",
+      private_key: "fake-private-key",
+      project_id: "demo-readmeter",
+    }),
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Run test" }).click();
+  await expect(page.getByText("The key is stored")).toBeVisible();
+  await page.getByRole("button", { name: "Done" }).click();
+
+  await page.getByTestId("gcp-sync").click();
+  await expect(page.getByText("Sync queued")).toBeVisible();
+  await page.goto("/w/local/costs?project=demo_local&range=7d");
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId("billed-table").getByText("Read Ops")).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByTestId("billed-table").getByText("$1.00")).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  await expect(page.locator("[data-slot=badge]", { hasText: "Billed" }).first()).toBeVisible();
+
+  await page.goto("/w/local/integrations?project=demo_local&range=7d");
+  await page.getByRole("button", { name: "Disconnect" }).click();
+  await page.getByRole("button", { name: "Remove connection" }).click();
+  await expect(page.getByText("Not connected")).toBeVisible();
 });

@@ -4,12 +4,15 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
+import { gcpDepsFromEnv, type GcpDeps } from "@readmeter/connector-gcp";
+
 import type { Auth } from "./auth.ts";
 import type { ServerCore } from "./core.ts";
 import type { ConsoleEnv } from "./env.ts";
 import { fail, type AppEnv, type Role } from "./http.ts";
 import { takeResetLink } from "./links.ts";
 import type { Mailer } from "./mail.ts";
+import { gcpRoutes } from "./routes/gcp.ts";
 import { projectRoutes } from "./routes/projects.ts";
 import { telemetryRoutes } from "./routes/telemetry.ts";
 import { workspaceRoutes } from "./routes/workspaces.ts";
@@ -20,11 +23,14 @@ export interface Deps {
   core: ServerCore;
   env: ConsoleEnv;
   mailer: Mailer;
+  /** Tests inject fake Google clients. The server uses env. */
+  gcp?: GcpDeps;
 }
 
 const ROLES = new Set<Role>(["owner", "admin", "member"]);
 
-export function createApp({ db, auth, core, env, mailer }: Deps) {
+export function createApp({ db, auth, core, env, mailer, gcp }: Deps) {
+  const gcpDeps = gcp ?? gcpDepsFromEnv();
   const app = new Hono();
   app.get("/healthz", (c) => c.text("ok"));
 
@@ -122,6 +128,7 @@ export function createApp({ db, auth, core, env, mailer }: Deps) {
   api.route("/", workspaceRoutes(db, auth, mailer));
   api.route("/", projectRoutes(db, env.ingestPublicUrl));
   api.route("/", telemetryRoutes(db, core));
+  api.route("/", gcpRoutes(db, gcpDeps));
   app.route("/api/v1", api);
 
   if (env.staticDir) {

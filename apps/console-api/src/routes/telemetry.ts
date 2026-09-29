@@ -395,7 +395,29 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
       groupBy === "rule"
         ? await costByRule(db, core, projectIds, window.from)
         : await costFromEvents(db, core, projectIds, window.from, groupBy);
-    return c.json({ source: "estimate", currency: "USD", groupBy, range, items });
+    const daily =
+      groupBy === "day" ? items : await costFromEvents(db, core, projectIds, window.from, "day");
+    const billed = await billedCosts(db, projectIds, window.from);
+    const days = dayKeys(window.from, window.days);
+    const estimatedByDay = new Map(daily.map((item) => [item.key, item.micros]));
+    const comparison = days.map((day) => ({
+      day,
+      estimatedMicros: estimatedByDay.get(day) ?? 0,
+      billedMicros: billed.byDay.get(day) ?? 0,
+    }));
+    const estimatedMicros = comparison.reduce((sum, point) => sum + point.estimatedMicros, 0);
+    return c.json({
+      source: billed.rows > 0 ? "billed" : "estimate",
+      currency: billed.currency,
+      groupBy,
+      range,
+      items,
+      estimatedMicros,
+      billedMicros: billed.rows > 0 ? billed.net : null,
+      billedBySku: billed.skus,
+      comparison,
+      sdkCoverage: await sdkCoverage(db, projectIds, window.from),
+    });
   });
 
   app.get("/workspaces/:slug/audit", requireRole("admin"), async (c) => {
@@ -714,13 +736,28 @@ async function overview(
   days: number,
   from: Date,
 ) {
-  const emptySeries = fillDays(core, from, days, new Map());
+  const emptySeries = fillDays(core, from, days, new Map()).map((point) => ({
+    ...point,
+    billedCostMicros: 0,
+    wastedMicros: 0,
+  }));
   if (projectIds.length === 0) {
     return {
       rangeDays: days,
       from,
-      kpis: { events: 0, billedUnits: 0, estimatedCostMicros: 0, wastedMicros: 0, openFindings: 0, openIssues: 0 },
+      kpis: {
+        events: 0,
+        billedUnits: 0,
+        estimatedCostMicros: 0,
+        costLabel: "Estimated" as const,
+        costMicros: 0,
+        billedCostMicros: null,
+        wastedMicros: 0,
+        openFindings: 0,
+        openIssues: 0,
+      },
       series: emptySeries,
+      sdkCoverage: null,
       topRules: [],
       topTemplates: [],
       topCallsites: [],
@@ -760,9 +797,11 @@ async function overview(
     byDay.set(day, slot);
   }
   const wastedByDay = await wastedBy(db, core, projectIds, from, "day");
+  const billed = await billedCosts(db, projectIds, from);
   const series = fillDays(core, from, days, byDay).map((point) => ({
     ...point,
     wastedMicros: wastedByDay.get(point.day) ?? 0,
+    billedCostMicros: billed.byDay.get(point.day) ?? 0,
   }));
   const eventTotal = [...byDay.values()].reduce((sum, slot) => sum + slot.events, 0);
   const billedUnits = rangeUnits.reduce((sum, row) => sum + Number(row.amount), 0);
@@ -775,6 +814,7 @@ async function overview(
       amount: Number(row.amount),
     })),
   );
+  const hasBilled = billed.rows > 0;
   const wastedMicrosTotal = [...wastedByDay.values()].reduce((sum, value) => sum + value, 0);
   const open = await db.execute<{ severity: string; n: string }>(sql`
     select ${schema.findings.severity} as severity, count(*)::int as n
@@ -831,11 +871,15 @@ async function overview(
       events: eventTotal,
       billedUnits,
       estimatedCostMicros,
+      costLabel: hasBilled ? ("Billed" as const) : ("Estimated" as const),
+      costMicros: hasBilled ? billed.net : estimatedCostMicros,
+      billedCostMicros: hasBilled ? billed.net : null,
       wastedMicros: wastedMicrosTotal,
       openFindings,
       openIssues,
     },
     series,
+    sdkCoverage: await sdkCoverage(db, projectIds, from),
     topRules,
     topTemplates: templates,
     topCallsites: callsites,
@@ -945,6 +989,113 @@ async function costByRule(db: Db, core: ServerCore, projectIds: string[], from: 
   return [...totals.entries()]
     .map(([key, micros]) => ({ key, micros, units: {} }))
     .sort((a, b) => b.micros - a.micros);
+}
+
+function dayKeys(from: Date, days: number): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < days; i += 1) {
+    const day = new Date(from);
+    day.setUTCDate(from.getUTCDate() + i);
+    keys.push(isoDay(day));
+  }
+  return keys;
+}
+
+interface BilledRollup {
+  rows: number;
+  net: number;
+  currency: string;
+  byDay: Map<string, number>;
+  skus: { service: string; sku: string; micros: number; creditsMicros: number; usageAmount: number; usageUnit: string }[];
+}
+
+async function billedCosts(db: Db, projectIds: string[], from: Date): Promise<BilledRollup> {
+  const empty: BilledRollup = { rows: 0, net: 0, currency: "USD", byDay: new Map(), skus: [] };
+  if (projectIds.length === 0) return empty;
+  const day = from.toISOString().slice(0, 10);
+  const daily = await db.execute<{ day: string; net: string; n: string; currency: string }>(sql`
+    select ${schema.costDaily.day}::text as day,
+           sum(${schema.costDaily.costMicros} + ${schema.costDaily.creditsMicros})::float8 as net,
+           count(*)::int as n,
+           max(${schema.costDaily.currency}) as currency
+    from ${schema.costDaily}
+    where ${inArray(schema.costDaily.projectId, projectIds)}
+      and ${schema.costDaily.day} >= ${day}::date
+    group by 1
+  `);
+  const byDay = new Map<string, number>();
+  let rows = 0;
+  let net = 0;
+  let currency = "USD";
+  for (const row of rowsOf(daily)) {
+    const amount = Number(row.net);
+    byDay.set(isoDay(row.day), amount);
+    net += amount;
+    rows += Number(row.n);
+    if (row.currency) currency = row.currency;
+  }
+  const skuRows = await db.execute<{
+    service: string;
+    sku: string;
+    micros: string;
+    credits: string;
+    usage_amount: string;
+    usage_unit: string;
+  }>(sql`
+    select ${schema.costDaily.service} as service,
+           ${schema.costDaily.sku} as sku,
+           sum(${schema.costDaily.costMicros})::float8 as micros,
+           sum(${schema.costDaily.creditsMicros})::float8 as credits,
+           sum(${schema.costDaily.usageAmount})::float8 as usage_amount,
+           max(${schema.costDaily.usageUnit}) as usage_unit
+    from ${schema.costDaily}
+    where ${inArray(schema.costDaily.projectId, projectIds)}
+      and ${schema.costDaily.day} >= ${day}::date
+    group by 1, 2
+    order by sum(${schema.costDaily.costMicros} + ${schema.costDaily.creditsMicros}) desc
+  `);
+  return {
+    rows,
+    net,
+    currency,
+    byDay,
+    skus: rowsOf(skuRows).map((row) => ({
+      service: row.service,
+      sku: row.sku,
+      micros: Number(row.micros),
+      creditsMicros: Number(row.credits),
+      usageAmount: Number(row.usage_amount),
+      usageUnit: row.usage_unit,
+    })),
+  };
+}
+
+/** Estimated SDK Firestore reads divided by billed reads, when both are present. */
+async function sdkCoverage(db: Db, projectIds: string[], from: Date) {
+  if (projectIds.length === 0) return null;
+  const day = from.toISOString().slice(0, 10);
+  const estimated = await db.execute<{ reads: string }>(sql`
+    select coalesce(sum((${schema.events.units}->>'reads')::numeric), 0)::float8 as reads
+    from ${schema.events}
+    where ${inArray(schema.events.projectId, projectIds)}
+      and ${schema.events.ts} >= ${from.toISOString()}::timestamptz
+      and ${schema.events.provider} = 'firebase'
+      and ${schema.events.service} = 'firestore'
+  `);
+  const billed = await db.execute<{ reads: string }>(sql`
+    select coalesce(sum(${schema.usageDaily.amount}), 0)::float8 as reads
+    from ${schema.usageDaily}
+    where ${inArray(schema.usageDaily.projectId, projectIds)}
+      and ${schema.usageDaily.day} >= ${day}::date
+      and ${schema.usageDaily.provider} = 'firebase'
+      and ${schema.usageDaily.service} = 'firestore'
+      and ${schema.usageDaily.metric} = 'reads'
+      and ${schema.usageDaily.source} = 'monitoring'
+  `);
+  const estimatedReads = Number(rowsOf(estimated)[0]?.reads ?? 0);
+  const billedReads = Number(rowsOf(billed)[0]?.reads ?? 0);
+  if (!(estimatedReads > 0) || !(billedReads > 0)) return null;
+  return { estimatedReads, billedReads, ratio: estimatedReads / billedReads };
 }
 
 function rowsOf<T>(result: readonly T[] | { rows: T[] }): T[] {

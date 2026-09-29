@@ -15,6 +15,7 @@
     "db:seed": "pnpm --filter @readmeter/db seed",
     "dev:ingest": "pnpm --filter @readmeter/ingest dev",
     "dev:console-api": "pnpm --filter @readmeter/console-api dev",
+    "dev:connector-gcp": "pnpm --filter @readmeter/connector-gcp dev",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "sdk:build": "pnpm --filter @readmeter/firebase build",
