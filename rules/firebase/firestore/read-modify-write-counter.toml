@@ -1,0 +1,38 @@
+id = "firebase.firestore/read-modify-write-counter"
+title = "Counter updated with a transaction"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "writes"
+evaluation = "window"
+status = "stable"
+summary = "A counter is incremented by reading one document inside a transaction and writing it back."
+
+description = """
+A transaction that reads a document and writes it back bills the read on
+every attempt, and concurrent callers retry each other. A counter does not
+need that read. `increment()` applies the delta on the server in one write
+with no contention.
+"""
+
+fix = """
+Replace the transaction with `updateDoc(ref, { count: increment(1) })`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/transactions"]
+
+[params]
+window_ms = 600000
+min_transactions = 3
+
+[[examples]]
+lang = "ts"
+bad = '''
+await runTransaction(db, async (tx) => {
+  const snap = await tx.get(ref);
+  tx.update(ref, { count: (snap.data().count ?? 0) + 1 });
+});
+'''
+good = '''
+await updateDoc(ref, { count: increment(1) });
+'''

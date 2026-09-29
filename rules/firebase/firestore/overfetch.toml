@@ -1,0 +1,38 @@
+id = "firebase.firestore/overfetch"
+title = "Most of a query result is unused"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "A query returned many documents and the caller read only a small fraction of them."
+
+description = """
+`getDocs()` bills one read per document returned and downloads every field.
+Filtering or slicing that result in the client still pays for the documents
+that were never shown. A limit or a `where()` on the server returns only
+the rows the screen uses.
+"""
+
+fix = """
+Move the client-side filter into `where()`, or `limit()` the query to the
+number of documents the screen shows.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/queries"]
+
+[params]
+min_docs = 20
+max_used_ratio = 0.25
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(query(collection(db, "messages"), where("read", "==", false), limit(100)));
+const preview = snap.docs.slice(0, 5).map((item) => item.data());
+'''
+good = '''
+const snap = await getDocs(query(collection(db, "messages"), where("read", "==", false), limit(5)));
+const preview = snap.docs.map((item) => item.data());
+'''

@@ -1,0 +1,45 @@
+{
+  "description": "Search prefetches three post queries and never reads the snapshots. Usage is reported about a second later.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "posts",
+      "query": { "filters": [{ "field": "createdAt", "op": "==", "value": 1 }], "limit": 5 },
+      "result": { "docs": 1, "bytes": 100 }, "callsite": "src/Search.tsx:14:3"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1100, "call_id": 2, "path": "posts",
+      "query": { "filters": [{ "field": "createdAt", "op": "==", "value": 2 }], "limit": 5 },
+      "result": { "docs": 1, "bytes": 100 }, "callsite": "src/Search.tsx:14:3"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1200, "call_id": 3, "path": "posts",
+      "query": { "filters": [{ "field": "createdAt", "op": "==", "value": 3 }], "limit": 5 },
+      "result": { "docs": 1, "bytes": 100 }, "callsite": "src/Search.tsx:14:3"
+    },
+    {
+      "service": "firestore", "op": "usage", "ts_ms": 2000, "call_id": 1, "path": "posts",
+      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0 }
+    },
+    {
+      "service": "firestore", "op": "usage", "ts_ms": 2100, "call_id": 2, "path": "posts",
+      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0 }
+    },
+    {
+      "service": "firestore", "op": "usage", "ts_ms": 2200, "call_id": 3, "path": "posts",
+      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "reads": 1, "egress_bytes": 100 } },
+    { "op": "query", "template": "posts", "units": { "reads": 1, "egress_bytes": 100 } },
+    { "op": "query", "template": "posts", "units": { "reads": 1, "egress_bytes": 100 } },
+    { "op": "usage", "template": "posts", "units": {} },
+    { "op": "usage", "template": "posts", "units": {} },
+    { "op": "usage", "template": "posts", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "generic/unused-result", "wasted": { "reads": 3, "egress_bytes": 300 } }
+  ]
+}

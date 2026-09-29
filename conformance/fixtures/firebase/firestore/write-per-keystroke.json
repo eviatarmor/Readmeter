@@ -6,27 +6,27 @@
     {
       "service": "firestore", "op": "update", "ts_ms": 1000, "call_id": 1, "path": "drafts/d1",
       "callsite": "src/Editor.tsx:44:3",
-      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "0000000000000000" }
+      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "1111111111111111" }
     },
     {
       "service": "firestore", "op": "update", "ts_ms": 1400, "call_id": 2, "path": "drafts/d1",
       "callsite": "src/Editor.tsx:44:3",
-      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "0000000000000000" }
+      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "2222222222222222" }
     },
     {
       "service": "firestore", "op": "update", "ts_ms": 1800, "call_id": 3, "path": "drafts/d1",
       "callsite": "src/Editor.tsx:44:3",
-      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "0000000000000000" }
+      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "3333333333333333" }
     },
     {
       "service": "firestore", "op": "update", "ts_ms": 2200, "call_id": 4, "path": "drafts/d1",
       "callsite": "src/Editor.tsx:44:3",
-      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "0000000000000000" }
+      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "4444444444444444" }
     },
     {
       "service": "firestore", "op": "update", "ts_ms": 2600, "call_id": 5, "path": "drafts/d1",
       "callsite": "src/Editor.tsx:44:3",
-      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "0000000000000000" }
+      "write": { "max_field_bytes": 7, "payload_bytes": 7, "transforms": [], "digest": "5555555555555555" }
     }
   ],
   "expect_envelopes": [

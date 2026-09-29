@@ -1,0 +1,42 @@
+{
+  "description": "A like button runs a transaction that reads accounts/acc_1 and writes it back, three times, each more than a minute apart.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "get", "ts_ms": 1000, "call_id": 1, "path": "accounts/acc_1",
+      "result": { "docs": 1, "bytes": 200 }, "transaction": 1
+    },
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 1100, "call_id": 2, "path": "accounts/acc_1",
+      "commit": { "writes": 1, "deletes": 0, "transactional": true }, "transaction": 1
+    },
+    {
+      "service": "firestore", "op": "get", "ts_ms": 62000, "call_id": 3, "path": "accounts/acc_1",
+      "result": { "docs": 1, "bytes": 200 }, "transaction": 2
+    },
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 62100, "call_id": 4, "path": "accounts/acc_1",
+      "commit": { "writes": 1, "deletes": 0, "transactional": true }, "transaction": 2
+    },
+    {
+      "service": "firestore", "op": "get", "ts_ms": 123000, "call_id": 5, "path": "accounts/acc_1",
+      "result": { "docs": 1, "bytes": 200 }, "transaction": 3
+    },
+    {
+      "service": "firestore", "op": "commit", "ts_ms": 123100, "call_id": 6, "path": "accounts/acc_1",
+      "commit": { "writes": 1, "deletes": 0, "transactional": true }, "transaction": 3
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "get", "template": "accounts/{id}", "units": { "reads": 1, "egress_bytes": 200 } },
+    { "op": "commit", "template": "accounts/{id}", "units": { "writes": 1 } },
+    { "op": "get", "template": "accounts/{id}", "units": { "reads": 1, "egress_bytes": 200 } },
+    { "op": "commit", "template": "accounts/{id}", "units": { "writes": 1 } },
+    { "op": "get", "template": "accounts/{id}", "units": { "reads": 1, "egress_bytes": 200 } },
+    { "op": "commit", "template": "accounts/{id}", "units": { "writes": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/read-modify-write-counter", "wasted": { "reads": 3 } }
+  ]
+}

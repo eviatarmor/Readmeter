@@ -1,0 +1,43 @@
+id = "generic/activity-while-hidden"
+title = "Work continues while the tab is hidden"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "realtime"
+evaluation = "window"
+status = "stable"
+summary = "Listeners or queries keep billing after the tab has been hidden for a while."
+
+description = """
+A hidden tab is not on screen, but its listeners still download every
+change and its polls still re-read the same queries. Each of those results
+is billed. Pausing that work until the tab is visible again drops the cost
+to zero for the time the user is away.
+"""
+
+fix = """
+Unsubscribe listeners and stop timers when `document.visibilityState === "hidden"`,
+and resubscribe when it becomes `"visible"`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/listen"]
+
+[params]
+min_hidden_ms = 60000
+min_items = 50
+
+[[examples]]
+lang = "ts"
+bad = '''
+const unsub = onSnapshot(query(collection(db, "inbox"), limit(50)), render);
+'''
+good = '''
+let unsub = () => {};
+function sync() {
+  unsub();
+  if (document.visibilityState === "hidden") return;
+  unsub = onSnapshot(query(collection(db, "inbox"), limit(50)), render);
+}
+document.addEventListener("visibilitychange", sync);
+sync();
+'''

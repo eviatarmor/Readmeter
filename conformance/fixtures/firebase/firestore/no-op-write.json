@@ -1,0 +1,30 @@
+{
+  "description": "A save button calls setDoc three times with the same draft body, spaced further apart than a keystroke burst.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "set", "ts_ms": 1000, "call_id": 1, "path": "drafts/noop",
+      "callsite": "src/Draft.tsx:18:3",
+      "write": { "max_field_bytes": 10, "payload_bytes": 10, "transforms": [], "digest": "0000000000000000" }
+    },
+    {
+      "service": "firestore", "op": "set", "ts_ms": 8000, "call_id": 2, "path": "drafts/noop",
+      "callsite": "src/Draft.tsx:18:3",
+      "write": { "max_field_bytes": 10, "payload_bytes": 10, "transforms": [], "digest": "0000000000000000" }
+    },
+    {
+      "service": "firestore", "op": "set", "ts_ms": 15000, "call_id": 3, "path": "drafts/noop",
+      "callsite": "src/Draft.tsx:18:3",
+      "write": { "max_field_bytes": 10, "payload_bytes": 10, "transforms": [], "digest": "0000000000000000" }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "set", "template": "drafts/{id}", "units": { "writes": 1 } },
+    { "op": "set", "template": "drafts/{id}", "units": { "writes": 1 } },
+    { "op": "set", "template": "drafts/{id}", "units": { "writes": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/no-op-write", "wasted": { "writes": 2 } }
+  ]
+}

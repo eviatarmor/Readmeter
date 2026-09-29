@@ -1,0 +1,40 @@
+id = "generic/unused-result"
+title = "Result fetched and never read"
+provider = "*"
+service = "*"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "A billed result was never accessed by the caller."
+
+description = """
+A query or get that nothing reads still bills every document it returned.
+Prefetching a screen the user never opens, or awaiting a snapshot and then
+ignoring it, pays for those reads. The SDK reports usage about a second
+after the result arrives, so a result read later than that counts as unused.
+"""
+
+fix = """
+Remove the read, or fetch it when the screen actually needs the documents
+(`getDocs()` / `getDoc()` on demand, not ahead of time).
+"""
+
+[params]
+window_ms = 600000
+min_unused = 3
+
+[[examples]]
+lang = "ts"
+bad = '''
+await getDocs(query(collection(db, "posts"), where("createdAt", "==", 1), limit(5)));
+await getDocs(query(collection(db, "posts"), where("createdAt", "==", 2), limit(5)));
+await getDocs(query(collection(db, "posts"), where("createdAt", "==", 3), limit(5)));
+'''
+good = '''
+const term = submittedQuery();
+if (term !== null) {
+  const snap = await getDocs(query(collection(db, "posts"), where("createdAt", "==", term), limit(5)));
+  render(snap.docs.map((item) => item.data()));
+}
+'''

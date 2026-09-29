@@ -8,6 +8,8 @@ use readmeter_core::Envelope;
 use crate::detector::Registry;
 
 #[cfg(feature = "window")]
+pub mod activity_while_hidden;
+#[cfg(feature = "window")]
 pub mod duplicate_read;
 #[cfg(feature = "window")]
 pub mod listener_leak;
@@ -24,8 +26,12 @@ pub mod react_double_mount;
 pub mod retry_storm;
 #[cfg(feature = "window")]
 pub mod subscription_churn;
+#[cfg(feature = "window")]
+pub mod unused_result;
 
 pub fn register(r: &mut Registry) {
+    #[cfg(feature = "window")]
+    r.register(activity_while_hidden::ID, activity_while_hidden::build);
     #[cfg(feature = "window")]
     r.register(duplicate_read::ID, duplicate_read::build);
     #[cfg(feature = "window")]
@@ -43,6 +49,8 @@ pub fn register(r: &mut Registry) {
     r.register(retry_storm::ID, retry_storm::build);
     #[cfg(feature = "window")]
     r.register(subscription_churn::ID, subscription_churn::build);
+    #[cfg(feature = "window")]
+    r.register(unused_result::ID, unused_result::build);
 }
 
 /// The call succeeded and was served by the backend, so it was billed.

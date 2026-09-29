@@ -173,6 +173,10 @@ async function seed(db: fb.Firestore): Promise<void> {
   items.push({ ref: fb.doc(db, "users", "u2"), data: { name: "abcdef" } });
   items.push({ ref: fb.doc(db, "drafts", "d1"), data: { body: "" } });
   items.push({ ref: fb.doc(db, "accounts", "acc_1"), data: { balance: 1 } });
+  items.push({
+    ref: fb.doc(db, "profiles", "p1"),
+    data: { blob: "x".repeat(262144), tags: [] as string[] },
+  });
 
   let batch = fb.writeBatch(db);
   let pending = 0;
@@ -290,6 +294,66 @@ test("web drop-in matches the firestore fixtures", { timeout: 180_000 }, async (
       await batch.commit();
       assertCalls(raw.slice(), loadFixture("transaction-and-batch"));
       assertRule("firebase.firestore/transaction-contention");
+    });
+
+    await scenario(async () => {
+      const snap = await rm.getDocs(
+        fb.query(fb.collection(db, "messages"), fb.where("read", "==", false), fb.limit(100)),
+      );
+      for (const item of snap.docs.slice(0, 5)) item.data();
+      await flush();
+      assertCalls(raw.slice(), loadFixture("overfetch"));
+      assertRule("firebase.firestore/overfetch");
+    });
+
+    await scenario(async () => {
+      const latest = fb.query(fb.collection(db, "posts"), fb.limit(1));
+      for (let i = 0; i < 3; i += 1) await rm.getDocsFromServer(latest);
+      assertCalls(raw.slice(), loadFixture("force-server-read"));
+      assertRule("firebase.firestore/force-server-read");
+    });
+
+    await scenario(async () => {
+      const draft = fb.doc(db, "drafts", "noop");
+      for (let i = 0; i < 3; i += 1) await rm.setDoc(draft, { body: "same" });
+      assertCalls(raw.slice(), loadFixture("no-op-write"));
+      assertRule("firebase.firestore/no-op-write");
+    });
+
+    await scenario(async () => {
+      const account = fb.doc(db, "accounts", "acc_1");
+      for (let i = 0; i < 3; i += 1) {
+        await rm.runTransaction(db, async (tx) => {
+          const snap = await tx.get(account);
+          tx.update(account, { balance: (snap.data()?.balance ?? 0) + 1 });
+        });
+      }
+      assertCalls(raw.slice(), loadFixture("read-modify-write-counter"));
+      assertRule("firebase.firestore/read-modify-write-counter");
+    });
+
+    await scenario(async () => {
+      const posts = fb.collection(db, "posts");
+      for (const createdAt of [1, 2, 3]) {
+        await rm.getDocs(fb.query(posts, fb.where("createdAt", "==", createdAt), fb.limit(5)));
+      }
+      await flush();
+      assertCalls(raw.slice(), loadFixture("unused-result"));
+      assertRule("generic/unused-result");
+    });
+
+    await scenario(async () => {
+      const profile = fb.doc(db, "profiles", "p1");
+      await rm.updateDoc(profile, { tags: fb.arrayUnion("a") });
+      const snap = await rm.getDoc(profile);
+      const blob = snap.data()?.blob;
+      assert.equal(typeof blob, "string");
+      assert.ok((blob as string).length >= 262144);
+      const got = raw.find((call) => call.op === "get");
+      const bytes = (got?.result as { bytes?: number } | undefined)?.bytes ?? 0;
+      assert.ok(bytes >= 262144, `growing-document estimated ${bytes} bytes`);
+      assertCalls(raw.slice(), loadFixture("growing-document"));
+      assertRule("firebase.firestore/growing-document");
     });
 
     if (deviations.length > 0) console.log(deviations.join("\n"));

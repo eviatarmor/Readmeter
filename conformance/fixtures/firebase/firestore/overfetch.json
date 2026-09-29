@@ -1,0 +1,23 @@
+{
+  "description": "Inbox preview calls getDocs on unread messages with limit(100), then reads data() of the first 5 documents.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "messages",
+      "query": { "filters": [{ "field": "read", "op": "==", "value": false }], "limit": 100 },
+      "result": { "docs": 100, "bytes": 20000 }, "callsite": "src/Inbox.tsx:12:3"
+    },
+    {
+      "service": "firestore", "op": "usage", "ts_ms": 2000, "call_id": 1, "path": "messages",
+      "usage": { "read_items": true, "read_size": false, "read_empty": false, "items_used": 5 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "messages", "units": { "reads": 100, "egress_bytes": 20000 } },
+    { "op": "usage", "template": "messages", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/overfetch", "wasted": { "reads": 95 } }
+  ]
+}

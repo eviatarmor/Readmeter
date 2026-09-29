@@ -1,0 +1,33 @@
+{
+  "description": "A widget refreshes the latest post with getDocsFromServer() three times in a minute.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "posts",
+      "source": "server",
+      "query": { "limit": 1 },
+      "result": { "docs": 1, "bytes": 200 }, "callsite": "src/Latest.tsx:9:3"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 5000, "call_id": 2, "path": "posts",
+      "source": "server",
+      "query": { "limit": 1 },
+      "result": { "docs": 1, "bytes": 200 }, "callsite": "src/Latest.tsx:9:3"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 9000, "call_id": 3, "path": "posts",
+      "source": "server",
+      "query": { "limit": 1 },
+      "result": { "docs": 1, "bytes": 200 }, "callsite": "src/Latest.tsx:9:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "reads": 1, "egress_bytes": 200 } },
+    { "op": "query", "template": "posts", "units": { "reads": 1, "egress_bytes": 200 } },
+    { "op": "query", "template": "posts", "units": { "reads": 1, "egress_bytes": 200 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/force-server-read", "wasted": { "reads": 2 } }
+  ]
+}

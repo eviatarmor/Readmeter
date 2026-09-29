@@ -1,0 +1,37 @@
+id = "firebase.firestore/growing-document"
+title = "Document keeps growing"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "payload"
+evaluation = "window"
+status = "stable"
+summary = "A large document still grows through arrayUnion(), so every later read downloads the whole array."
+
+description = """
+Firestore sends the entire document on every get and on every listener
+update. `arrayUnion()` appends to a field in place, so a comment list, a
+tag set, or an event log stored in one document gets more expensive on
+every read as it grows. A document is also capped at 1 MiB.
+"""
+
+fix = """
+Store each list item as its own document in a subcollection and query that
+subcollection with `limit()`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/structure-data"]
+
+[params]
+window_ms = 600000
+min_doc_bytes = 262144
+
+[[examples]]
+lang = "ts"
+bad = '''
+await updateDoc(doc(db, "profiles", uid), { tags: arrayUnion(tag) });
+'''
+good = '''
+await addDoc(collection(db, "profiles", uid, "tags"), { tag });
+const page = await getDocs(query(collection(db, "profiles", uid, "tags"), limit(20)));
+'''

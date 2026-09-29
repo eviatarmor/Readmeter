@@ -16,9 +16,13 @@ pub mod emptiness_check_without_limit;
 pub mod expensive_aggregation;
 pub mod fanout_writes;
 #[cfg(feature = "window")]
+pub mod force_server_read;
+#[cfg(feature = "window")]
 pub mod get_then_listen;
 #[cfg(feature = "window")]
 pub mod get_while_listening;
+#[cfg(feature = "window")]
+pub mod growing_document;
 #[cfg(feature = "window")]
 pub mod hot_listener;
 #[cfg(feature = "window")]
@@ -34,7 +38,11 @@ pub mod missing_cursor;
 #[cfg(feature = "window")]
 pub mod monotonic_document_ids;
 pub mod multi_tab_without_shared_cache;
+#[cfg(feature = "window")]
+pub mod no_op_write;
 pub mod offset_pagination;
+#[cfg(feature = "window")]
+pub mod overfetch;
 pub mod oversized_limit;
 pub mod persistence_disabled;
 #[cfg(feature = "window")]
@@ -43,6 +51,8 @@ pub mod polled_aggregation;
 pub mod query_per_keystroke;
 #[cfg(feature = "window")]
 pub mod read_after_write;
+#[cfg(feature = "window")]
+pub mod read_modify_write_counter;
 #[cfg(feature = "window")]
 pub mod tiny_batches;
 pub mod transaction_contention;
@@ -70,9 +80,13 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (expensive_aggregation::ID, expensive_aggregation::build),
         (fanout_writes::ID, fanout_writes::build),
         #[cfg(feature = "window")]
+        (force_server_read::ID, force_server_read::build),
+        #[cfg(feature = "window")]
         (get_then_listen::ID, get_then_listen::build),
         #[cfg(feature = "window")]
         (get_while_listening::ID, get_while_listening::build),
+        #[cfg(feature = "window")]
+        (growing_document::ID, growing_document::build),
         #[cfg(feature = "window")]
         (hot_listener::ID, hot_listener::build),
         #[cfg(feature = "window")]
@@ -91,8 +105,12 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
             multi_tab_without_shared_cache::ID,
             multi_tab_without_shared_cache::build,
         ),
+        #[cfg(feature = "window")]
+        (no_op_write::ID, no_op_write::build),
         (offset_pagination::ID, offset_pagination::build),
         (oversized_limit::ID, oversized_limit::build),
+        #[cfg(feature = "window")]
+        (overfetch::ID, overfetch::build),
         (persistence_disabled::ID, persistence_disabled::build),
         #[cfg(feature = "window")]
         (polled_aggregation::ID, polled_aggregation::build),
@@ -100,6 +118,11 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (query_per_keystroke::ID, query_per_keystroke::build),
         #[cfg(feature = "window")]
         (read_after_write::ID, read_after_write::build),
+        #[cfg(feature = "window")]
+        (
+            read_modify_write_counter::ID,
+            read_modify_write_counter::build,
+        ),
         #[cfg(feature = "window")]
         (tiny_batches::ID, tiny_batches::build),
         (transaction_contention::ID, transaction_contention::build),

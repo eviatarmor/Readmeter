@@ -165,6 +165,20 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
     console.debug = (...args: unknown[]) => {
       if (args[0] === "[readmeter] raw" && typeof args[1] === "string") logged.push(args[1]);
     };
+    const listeners: Array<() => void> = [];
+    const fakeDocument = {
+      visibilityState: "visible",
+      addEventListener(_type: string, listener: () => void) {
+        listeners.push(listener);
+      },
+      removeEventListener(_type: string, listener: () => void) {
+        const at = listeners.indexOf(listener);
+        if (at >= 0) listeners.splice(at, 1);
+      },
+    };
+    const host = globalThis as { document?: typeof fakeDocument };
+    const previousDocument = host.document;
+    host.document = fakeDocument;
     try {
       init({
         apiKey: "rm_test",
@@ -195,8 +209,27 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
       assert.equal(recorded.path, "posts");
       assert.equal(recorded.duration_us, undefined);
       assert.deepEqual(recorded.query, {});
+
+      logged.length = 0;
+      fakeDocument.visibilityState = "hidden";
+      for (const listener of [...listeners]) listener();
+      fakeDocument.visibilityState = "visible";
+      for (const listener of [...listeners]) listener();
+      assert.equal(logged.length, 2);
+      const hidden = JSON.parse(logged[0] ?? "{}") as { op?: string; visible?: boolean; ts_ms?: unknown; call_id?: unknown };
+      const shown = JSON.parse(logged[1] ?? "{}") as { op?: string; visible?: boolean; ts_ms?: unknown; call_id?: unknown };
+      assert.equal(hidden.op, "page");
+      assert.equal(hidden.visible, false);
+      assert.equal(typeof hidden.ts_ms, "number");
+      assert.equal(typeof hidden.call_id, "number");
+      assert.equal(shown.op, "page");
+      assert.equal(shown.visible, true);
+      assert.equal(typeof shown.ts_ms, "number");
+      assert.equal(typeof shown.call_id, "number");
     } finally {
       console.debug = original;
+      if (previousDocument === undefined) delete host.document;
+      else host.document = previousDocument;
       await shutdown();
     }
   } finally {

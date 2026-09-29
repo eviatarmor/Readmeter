@@ -1,0 +1,42 @@
+id = "firebase.firestore/client-side-aggregation"
+title = "Sum computed from fetched documents"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "reads"
+evaluation = "window"
+status = "planned"
+default_enabled = false
+summary = "Documents were fetched only to sum or average a field on the client."
+
+description = """
+Reading every document to add up one field bills one read per document and
+downloads the whole result. `sum()` and `average()` bill about one read per
+1,000 index entries and return the aggregate without the documents. Needs
+field-access tracking across a query result, which this build does not
+record yet.
+"""
+
+fix = """
+Replace the client loop with `getAggregateFromServer(q, { total: sum("amount") })`
+(web) or `q.aggregate({ total: sum("amount") }).get()` (server SDKs).
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/aggregation-queries"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(query(collection(db, "orders"), where("status", "==", "open")));
+let total = 0;
+snap.forEach((item) => {
+  total += item.data().amount;
+});
+'''
+good = '''
+const total = (
+  await getAggregateFromServer(query(collection(db, "orders"), where("status", "==", "open")), {
+    total: sum("amount"),
+  })
+).data().total;
+'''

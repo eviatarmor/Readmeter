@@ -1,4 +1,4 @@
-use readmeter_core::{Envelope, Units};
+use readmeter_core::{Envelope, ReadSource, Units};
 
 use super::billed;
 use crate::config::{ParamError, Params};
@@ -26,6 +26,10 @@ struct DuplicateRead {
 impl Detector for DuplicateRead {
     fn observe(&mut self, env: &Envelope, out: &mut Emitter<'_>) {
         if !env.op.is_read() || !billed(env) {
+            return;
+        }
+        // Forced server reads are reported by firebase.firestore/force-server-read.
+        if env.source == ReadSource::Server {
             return;
         }
         let group = (env.ctx.session, env.target.key);
@@ -80,6 +84,23 @@ mod tests {
         let envs = (0..3)
             .map(|i| EnvBuilder::query("posts").key(i).items(1).build())
             .chain((0..3).map(|_| EnvBuilder::query("posts").cached().build()));
+        assert!(run(&mut e, envs).is_empty());
+    }
+
+    #[test]
+    fn forced_server_reads_are_not_duplicates() {
+        let mut e = single_rule_engine(
+            ID,
+            build,
+            &[("window_ms", int(60_000)), ("min_repeats", int(3))],
+        );
+        let envs = (0..3).map(|i| {
+            EnvBuilder::query("posts")
+                .source(readmeter_core::ReadSource::Server)
+                .items(20)
+                .at(i * 1_000)
+                .build()
+        });
         assert!(run(&mut e, envs).is_empty());
     }
 

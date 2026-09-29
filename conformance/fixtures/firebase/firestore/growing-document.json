@@ -1,0 +1,24 @@
+{
+  "description": "A profile document already holds a large field. The app appends a tag with arrayUnion(), then reads the document back.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "update", "ts_ms": 1000, "call_id": 1, "path": "profiles/p1",
+      "callsite": "src/Profile.tsx:22:3",
+      "write": { "max_field_bytes": 5, "payload_bytes": 5, "transforms": ["array_union"] }
+    },
+    {
+      "service": "firestore", "op": "get", "ts_ms": 5000, "call_id": 2, "path": "profiles/p1",
+      "result": { "docs": 1, "bytes": 262144 }, "callsite": "src/Profile.tsx:28:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "update", "template": "profiles/{id}", "units": { "writes": 1 } },
+    { "op": "get", "template": "profiles/{id}", "units": { "reads": 1, "egress_bytes": 262144 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/growing-document" },
+    { "rule": "generic/oversized-payload" }
+  ]
+}

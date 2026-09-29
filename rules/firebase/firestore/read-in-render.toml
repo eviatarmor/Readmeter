@@ -1,0 +1,45 @@
+id = "firebase.firestore/read-in-render"
+title = "Read issued during render"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "reads"
+evaluation = "window"
+status = "planned"
+default_enabled = false
+summary = "A read runs in the component body, so every render bills it again."
+
+description = """
+A `getDoc`, `getDocs`, or `getCountFromServer` call in the render path
+runs again on every render, and each call is billed. React state updates
+and parent renders multiply that cost. Needs render ids from the callsite,
+which this build does not record yet.
+"""
+
+fix = """
+Move the read into `useEffect` (or a cache such as TanStack Query) so it
+runs when its inputs change, not on every render.
+"""
+
+[[examples]]
+lang = "ts"
+bad = '''
+function Badge(db: Firestore) {
+  const [n, setN] = useState(0);
+  getCountFromServer(query(collection(db, "messages"), where("read", "==", false))).then((snap) => {
+    setN(snap.data().count);
+  });
+  return n;
+}
+'''
+good = '''
+function Badge(db: Firestore) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    getCountFromServer(query(collection(db, "messages"), where("read", "==", false))).then((snap) => {
+      setN(snap.data().count);
+    });
+  }, [db]);
+  return n;
+}
+'''

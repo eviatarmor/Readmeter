@@ -1,0 +1,20 @@
+{
+  "description": "The tab is hidden, and a minute later a query of 50 inbox items is still billed.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    { "op": "page", "ts_ms": 1000, "call_id": 1, "visible": false },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 61000, "call_id": 2, "path": "inbox",
+      "query": { "limit": 50 },
+      "result": { "docs": 50, "bytes": 5000 }, "callsite": "src/Inbox.tsx:40:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "page", "template": "", "units": {} },
+    { "op": "query", "template": "inbox", "units": { "reads": 50, "egress_bytes": 5000 } }
+  ],
+  "expect_findings": [
+    { "rule": "generic/activity-while-hidden" }
+  ]
+}

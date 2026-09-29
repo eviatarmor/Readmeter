@@ -1,0 +1,39 @@
+id = "firebase.firestore/force-server-read"
+title = "Repeated reads that skip the cache"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "The same target is read from the server several times with getDocsFromServer()."
+
+description = """
+`getDocsFromServer()` and `getDocFromServer()` skip the local cache, so
+every call is billed even when the documents have not changed. Repeating
+that read pays for the same result again. The cache or a listener serves
+later reads without a full billed download.
+"""
+
+fix = """
+Use `getDocs()` or `getDoc()` so the cache can answer, `onSnapshot()` when
+the screen should stay current, or `getDocsFromCache()` when fresh server
+data is not required.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/get-data"]
+
+[params]
+window_ms = 60000
+min_reads = 3
+
+[[examples]]
+lang = "ts"
+bad = '''
+await getDocsFromServer(query(collection(db, "posts"), limit(1)));
+await getDocsFromServer(query(collection(db, "posts"), limit(1)));
+await getDocsFromServer(query(collection(db, "posts"), limit(1)));
+'''
+good = '''
+onSnapshot(query(collection(db, "posts"), limit(1)), (snap) => render(snap));
+'''

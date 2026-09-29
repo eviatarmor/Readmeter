@@ -1,0 +1,40 @@
+id = "firebase.firestore/no-op-write"
+title = "Write identical to the previous one"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "writes"
+evaluation = "window"
+status = "stable"
+summary = "The same document is written again with a payload identical to the previous write."
+
+description = """
+Every `setDoc` and `updateDoc` is one billed write, including a write that
+stores the same field values the client just sent. Saving on a timer, on
+blur of an unchanged form, or from a retry that repeats the last payload
+pays a write for no change.
+"""
+
+fix = """
+Compare with the current value, or with a local copy of the last write,
+before calling `setDoc()` or `updateDoc()`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/add-data"]
+
+[params]
+window_ms = 600000
+min_repeats = 2
+
+[[examples]]
+lang = "ts"
+bad = '''
+await setDoc(doc(db, "drafts", draftId), { body });
+await setDoc(doc(db, "drafts", draftId), { body });
+'''
+good = '''
+if (body !== lastSaved) {
+  await setDoc(doc(db, "drafts", draftId), { body });
+  lastSaved = body;
+}
+'''
