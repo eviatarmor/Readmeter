@@ -4,6 +4,7 @@
 use readmeter_core::Envelope;
 use readmeter_rules::DetectorFactory;
 
+pub mod blob_in_document;
 #[cfg(feature = "window")]
 pub mod client_side_bulk_delete;
 #[cfg(feature = "window")]
@@ -32,8 +33,10 @@ pub mod manual_ttl_cleanup;
 pub mod missing_cursor;
 #[cfg(feature = "window")]
 pub mod monotonic_document_ids;
+pub mod multi_tab_without_shared_cache;
 pub mod offset_pagination;
 pub mod oversized_limit;
+pub mod persistence_disabled;
 #[cfg(feature = "window")]
 pub mod polled_aggregation;
 #[cfg(feature = "window")]
@@ -52,6 +55,7 @@ pub mod write_per_keystroke;
 
 pub fn all() -> Vec<(&'static str, DetectorFactory)> {
     vec![
+        (blob_in_document::ID, blob_in_document::build),
         #[cfg(feature = "window")]
         (client_side_bulk_delete::ID, client_side_bulk_delete::build),
         #[cfg(feature = "window")]
@@ -83,8 +87,13 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (missing_cursor::ID, missing_cursor::build),
         #[cfg(feature = "window")]
         (monotonic_document_ids::ID, monotonic_document_ids::build),
+        (
+            multi_tab_without_shared_cache::ID,
+            multi_tab_without_shared_cache::build,
+        ),
         (offset_pagination::ID, offset_pagination::build),
         (oversized_limit::ID, oversized_limit::build),
+        (persistence_disabled::ID, persistence_disabled::build),
         #[cfg(feature = "window")]
         (polled_aggregation::ID, polled_aggregation::build),
         #[cfg(feature = "window")]

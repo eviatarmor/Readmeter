@@ -1,0 +1,33 @@
+id = "firebase.firestore/multi-tab-without-shared-cache"
+title = "Persistent cache without a shared tab manager"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "realtime"
+evaluation = "local"
+status = "stable"
+summary = "Each tab keeps its own persistent cache, so every tab bills its own listener reads."
+
+description = """
+With a single-tab persistent cache, only one tab owns IndexedDB. Other
+tabs fall back to memory, and every tab opens its own listeners.
+Firestore bills those listener reads once per tab. A multi-tab manager
+shares one cache and one set of listeners across tabs.
+"""
+
+fix = """
+`initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/manage-data/enable-offline"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+'''
+good = '''
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
+'''

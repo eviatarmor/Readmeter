@@ -5,14 +5,14 @@ service = "firestore"
 severity = "low"
 category = "reads"
 evaluation = "local"
-status = "planned"
-default_enabled = false
+status = "stable"
 summary = "The client SDK runs without a persistent cache, so every reload re-reads from the server."
 
 description = """
-With persistent local cache enabled, repeated reads and listener
-resumes can be served locally. Without it, every page load re-bills
-everything it reads. Needs an SDK init event (cache settings) from shims.
+A memory-only cache is discarded when the page unloads. The next load
+reads every document and every listener result from the server again,
+and Firestore bills each of those reads. A persistent cache can serve
+unchanged documents locally.
 """
 
 fix = """
@@ -21,3 +21,12 @@ default persistence on mobile.
 """
 
 docs = ["https://firebase.google.com/docs/firestore/manage-data/enable-offline"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+const db = initializeFirestore(app, { localCache: memoryLocalCache() });
+'''
+good = '''
+const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+'''

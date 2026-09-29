@@ -1,0 +1,26 @@
+{
+  "description": "A browser app calls initializeFirestore(app, { localCache: persistentLocalCache() }) so each tab has its own persistent cache, then getDocs(query(collection(db, 'posts'), limit(10))).",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "init", "ts_ms": 1000, "call_id": 1,
+      "path": "projects/demo-readmeter/databases/(default)",
+      "setup": { "cache": "persistent", "shared_tabs": false }
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1100, "call_id": 2,
+      "path": "posts",
+      "query": { "limit": 10 },
+      "result": { "docs": 10, "bytes": 2000 },
+      "callsite": "src/Posts.tsx:8:3"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "init", "template": "projects/{id}/databases/{id}", "units": {} },
+    { "op": "query", "template": "posts", "units": { "reads": 10, "egress_bytes": 2000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/multi-tab-without-shared-cache" }
+  ]
+}

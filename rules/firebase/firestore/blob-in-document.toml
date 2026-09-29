@@ -1,0 +1,39 @@
+id = "firebase.firestore/blob-in-document"
+title = "Large field written into a document"
+provider = "firebase"
+service = "firestore"
+severity = "medium"
+category = "payload"
+evaluation = "local"
+status = "stable"
+summary = "A single field is large enough that every read of the document downloads it."
+
+description = """
+Firestore downloads the whole document on every read and on every listener
+update, and bills egress for those bytes. A large field, such as an image
+or a file stored inline, is paid for again on each of those reads. A
+document is also limited to 1 MiB, so a growing field eventually fails writes.
+"""
+
+fix = """
+Upload the file to Cloud Storage with `uploadBytes` and store its path
+or download URL in the document.
+"""
+
+docs = [
+  "https://firebase.google.com/docs/firestore/quotas",
+  "https://firebase.google.com/docs/storage/web/upload-files",
+]
+
+[params]
+min_field_bytes = 65536
+
+[[examples]]
+lang = "ts"
+bad = '''
+await setDoc(doc(db, "profiles", uid), { avatar: hugeBase64 });
+'''
+good = '''
+const stored = await uploadBytes(ref(storage, `avatars/${uid}`), file);
+await setDoc(doc(db, "profiles", uid), { avatarUrl: await getDownloadURL(stored.ref) });
+'''
