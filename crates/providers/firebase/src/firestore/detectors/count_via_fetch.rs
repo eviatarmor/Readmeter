@@ -74,6 +74,7 @@ mod tests {
                     read_size: true,
                     read_items,
                     read_empty: false,
+                    items_used: None,
                 },
             )
             .build()

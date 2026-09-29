@@ -2,9 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::units::Units;
 
-/// Version of the envelope/batch schema. Bump on any breaking change to the
-/// serialized shape; ingest must keep decoding every version still in the wild.
-pub const SCHEMA_VERSION: u16 = 1;
+/// Version of the envelope/batch schema.
+///
+/// Nothing has shipped yet, so ingest decodes only this version and rejects
+/// every other one with [`crate::WireError::UnsupportedVersion`]. Bump on any
+/// breaking change to the serialized shape.
+pub const SCHEMA_VERSION: u16 = 2;
 
 /// One normalized backend call. This is the only shape rules and the backend
 /// ever see. It never contains document contents or filter values, only
@@ -23,6 +26,12 @@ pub struct Envelope {
     pub result: Option<ResultStats>,
     /// Only set when `op` is [`Op::Usage`].
     pub usage: Option<ResultUsage>,
+    /// How the read was routed. [`ReadSource::Default`] unless the host forced a source.
+    pub source: ReadSource,
+    /// Only on single writes (`Create`, `Set`, `Update`) when the SDK saw the payload.
+    pub write: Option<WriteStats>,
+    /// Only set when `op` is [`Op::Init`].
+    pub setup: Option<ClientSetup>,
     pub outcome: Outcome,
     pub duration_us: Option<u64>,
     pub ctx: CallContext,
@@ -76,6 +85,12 @@ pub enum Op {
     /// Report of how the host consumed the result of an earlier call
     /// (`ctx.call_id` refers to that call).
     Usage,
+    /// The client was configured (cache, tabs). One per client instance.
+    Init,
+    /// The host page became visible or hidden (browser SDKs).
+    Page {
+        visible: bool,
+    },
     /// Provider-specific operation without a generic equivalent.
     Other(String),
 }
@@ -183,6 +198,9 @@ pub struct ResultUsage {
     pub read_size: bool,
     /// Read the emptiness flag (`empty`).
     pub read_empty: bool,
+    /// Distinct returned items whose contents were read (`data()`, `get()`),
+    /// when the SDK can observe it. `None`: not tracked.
+    pub items_used: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,6 +229,9 @@ pub struct CallContext {
     pub callsite: Option<u64>,
     /// Subscription id for Subscribe/Snapshot/Unsubscribe.
     pub listener: Option<u64>,
+    /// Per-session id of the transaction this call belongs to.
+    /// A counter, not a hash: equal ids are the same transaction.
+    pub transaction: Option<u64>,
     /// UI component mount id (e.g. from `@readmeter/react`).
     pub mount: Option<u64>,
     pub platform: Platform,
@@ -218,6 +239,52 @@ pub struct CallContext {
     pub attempt: u32,
     /// Host is running a development build.
     pub dev: bool,
+}
+
+/// How a read was routed. [`Default`](ReadSource::Default) is the SDK's normal
+/// cache-aware path; the others are host-forced.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadSource {
+    #[default]
+    Default,
+    Server,
+    Cache,
+}
+
+/// Sizes and a keyed digest of one single-document write payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WriteStats {
+    /// Estimated stored size of the largest top-level field, in bytes.
+    pub max_field_bytes: u64,
+    /// Estimated stored size of the whole payload, in bytes.
+    pub payload_bytes: u64,
+    /// Field transforms used: `increment`, `array_union`, `array_remove`,
+    /// `server_timestamp`, `delete_field`, `maximum`, `minimum`. Sorted, unique.
+    pub transforms: Vec<String>,
+    /// Keyed hash of the payload values, salted per session. Equal within
+    /// one session means "the same data was written". `None` when the
+    /// payload has transforms or could not be read.
+    pub payload_key: Option<u64>,
+}
+
+/// Where the client keeps documents between server reads.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CacheKind {
+    #[default]
+    Unknown,
+    Memory,
+    Persistent,
+}
+
+/// Cache configuration captured once per client instance.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientSetup {
+    pub cache: CacheKind,
+    /// Tabs share one persistent cache (multi-tab manager). Only meaningful
+    /// when `cache` is [`CacheKind::Persistent`].
+    pub shared_tabs: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

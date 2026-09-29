@@ -131,6 +131,7 @@ export const events = pgTable(
     attempt: integer("attempt").notNull().default(0),
     dev: boolean("dev").notNull().default(false),
     units: jsonb("units").$type<Record<string, number>>().notNull(),
+    signals: jsonb("signals").$type<Record<string, unknown> | null>(),
   },
   (t) => [
     index("events_project_ts_idx").on(t.projectId, t.ts),

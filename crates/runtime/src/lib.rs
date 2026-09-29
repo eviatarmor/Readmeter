@@ -12,6 +12,7 @@ use readmeter_rules::{Bundle, BundleError, CatalogError, Engine, EngineError, Re
 
 pub mod config;
 mod findings_json;
+mod page;
 
 pub use config::ClientConfig;
 
@@ -92,7 +93,14 @@ impl Client {
     /// Records one raw call. Returns findings from local rules so the host
     /// can surface them (e.g. `console.warn` in dev).
     pub fn record(&mut self, raw_json: &[u8]) -> Result<Vec<Finding>, ClientError> {
-        let env = self.provider.normalize(raw_json, &self.cx)?;
+        let value = json::parse(raw_json)?;
+        // Page visibility is host state, not a provider call. It is recognized
+        // here so providers stay free of it.
+        let env = if page::is_page(&value) {
+            page::normalize(&value, &self.cx)?
+        } else {
+            self.provider.normalize_value(&value, &self.cx)?
+        };
         let findings = self.engine.observe(&env);
         if self.sampled {
             self.buffer.push_event(env);

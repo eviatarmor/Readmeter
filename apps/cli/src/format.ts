@@ -120,6 +120,7 @@ export interface EventView {
   template: string;
   items: number;
   units: Record<string, number>;
+  signals: Record<string, unknown> | null;
 }
 
 export function formatEvents(rows: EventView[]): string {
@@ -137,6 +138,7 @@ export function eventsJson(rows: EventView[]): string {
       template: row.template,
       items: row.items,
       units: row.units,
+      signals: row.signals,
     })),
     null,
     2,

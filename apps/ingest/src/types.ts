@@ -38,6 +38,8 @@ export interface EventRow {
   attempt: number;
   dev: boolean;
   units: Units;
+  /** Present signals only. `null` when the call carries none. */
+  signals: Record<string, unknown> | null;
 }
 
 export interface FindingRow {

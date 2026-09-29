@@ -53,6 +53,7 @@ function normalize(call: Record<string, unknown>, check: boolean): Record<string
     }
   }
   for (const key of VOLATILE) delete copy[key];
+  freezeSignals(copy, check);
   const result = copy.result;
   if (result && typeof result === "object") {
     const bytes = (result as { bytes?: unknown }).bytes;
@@ -63,6 +64,23 @@ function normalize(call: Record<string, unknown>, check: boolean): Record<string
     if (bytes !== undefined) delete (result as { bytes?: unknown }).bytes;
   }
   return copy;
+}
+
+function freezeSignals(copy: Record<string, unknown>, check: boolean): void {
+  if ("transaction" in copy) {
+    if (check) {
+      assert.equal(typeof copy.transaction, "number");
+      assert.equal(Number.isInteger(copy.transaction), true);
+      assert.ok((copy.transaction as number) >= 1);
+    }
+    copy.transaction = 1;
+  }
+  const write = copy.write;
+  if (write && typeof write === "object" && "digest" in write) {
+    const digest = (write as { digest?: unknown }).digest;
+    if (check) assert.match(String(digest), /^[0-9a-f]{16}$/);
+    (write as { digest: string }).digest = "0000000000000000";
+  }
 }
 
 function assertCalls(actual: Record<string, unknown>[], fixture: Fixture, ignoreOps: string[] = []): void {

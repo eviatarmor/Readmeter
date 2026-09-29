@@ -1,6 +1,6 @@
 use readmeter_core::{
     CallContext, Envelope, FilterShape, HashBuilder, IdShape, Op, OrderShape, Outcome, QueryShape,
-    ResultStats, Target,
+    ReadSource, ResultStats, Target, WriteStats,
 };
 use readmeter_provider_api::{NormalizeContext, NormalizeError, hash_json};
 
@@ -14,32 +14,45 @@ const ID: &str = "{id}";
 
 pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, NormalizeError> {
     let segments: Vec<&str> = raw.path.split('/').filter(|s| !s.is_empty()).collect();
-    if segments.is_empty() {
+    // An init with no database path is the only empty-path call. Its key is
+    // fixed so every such client hashes the same way.
+    let init_root = raw.op == RawOp::Init && segments.is_empty();
+    if segments.is_empty() && !init_root {
         return Err(NormalizeError::Invalid("empty path".into()));
     }
-    let template = template(&segments, raw.collection_group);
-    // Firestore paths alternate collection/document: even length = document.
-    let id_shape = (!raw.collection_group && segments.len() % 2 == 0)
-        .then(|| segments.last().map_or(IdShape::Other, |id| classify_id(id)));
 
-    let base = cx
-        .hasher
-        .start()
-        .str(SERVICE_ID)
-        .bool(raw.collection_group)
-        .str(&segments.join("/"));
-    let (key, query) = match &raw.query {
-        Some(q) => {
-            let base = hash_query_base(base, q);
-            // Aggregations stay out of base_key but in the target key, so a
-            // count and a fetch of the same query do not collapse into one read.
-            let key = hash_paging(hash_aggregations(base.clone(), q), q).finish();
-            (
-                key,
-                Some(shape(q, base.finish(), fingerprint(cx, &template, q))),
-            )
-        }
-        None => (base.finish(), None),
+    let (template, id_shape, key, query) = if init_root {
+        (
+            String::new(),
+            None,
+            cx.hasher.start().str(SERVICE_ID).str("init").finish(),
+            None,
+        )
+    } else {
+        let template = template(&segments, raw.collection_group);
+        // Firestore paths alternate collection/document: even length = document.
+        let id_shape = (!raw.collection_group && segments.len() % 2 == 0)
+            .then(|| segments.last().map_or(IdShape::Other, |id| classify_id(id)));
+        let base = cx
+            .hasher
+            .start()
+            .str(SERVICE_ID)
+            .bool(raw.collection_group)
+            .str(&segments.join("/"));
+        let (key, query) = match &raw.query {
+            Some(q) => {
+                let base = hash_query_base(base, q);
+                // Aggregations stay out of base_key but in the target key, so a
+                // count and a fetch of the same query do not collapse into one read.
+                let key = hash_paging(hash_aggregations(base.clone(), q), q).finish();
+                (
+                    key,
+                    Some(shape(q, base.finish(), fingerprint(cx, &template, q))),
+                )
+            }
+            None => (base.finish(), None),
+        };
+        (template, id_shape, key, query)
     };
 
     let op = match raw.op {
@@ -66,6 +79,41 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
         },
         RawOp::Unsubscribe => Op::Unsubscribe,
         RawOp::Usage => Op::Usage,
+        RawOp::Init => Op::Init,
+    };
+
+    let setup = if raw.op == RawOp::Init {
+        Some(
+            raw.setup
+                .ok_or_else(|| NormalizeError::Invalid("init requires setup".into()))?,
+        )
+    } else {
+        None
+    };
+    // Source is only meaningful on a single get or a query. A present but
+    // unknown string already failed while parsing.
+    let source = if matches!(raw.op, RawOp::Get | RawOp::Query) {
+        raw.source.unwrap_or_default()
+    } else {
+        ReadSource::Default
+    };
+    let write = if matches!(raw.op, RawOp::Create | RawOp::Set | RawOp::Update) {
+        raw.write.map(|w| {
+            let payload_key = match w.digest {
+                Some(digest) if w.transforms.is_empty() => {
+                    Some(cx.hasher.start().str("payload").u64(digest).finish())
+                }
+                _ => None,
+            };
+            WriteStats {
+                max_field_bytes: w.max_field_bytes,
+                payload_bytes: w.payload_bytes,
+                transforms: w.transforms,
+                payload_key,
+            }
+        })
+    } else {
+        None
     };
 
     let mut env = Envelope {
@@ -91,6 +139,9 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
         } else {
             None
         },
+        source,
+        write,
+        setup,
         outcome: match raw.error {
             Some(code) => Outcome::Error { code },
             None => Outcome::Ok,
@@ -101,6 +152,7 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             call_id: raw.call_id,
             callsite: raw.callsite.as_deref().map(|c| cx.hasher.hash_str(c)),
             listener: raw.listener,
+            transaction: raw.transaction,
             mount: raw.mount,
             platform: cx.platform,
             attempt: raw.attempt.max(1),
@@ -436,11 +488,177 @@ mod tests {
             json!({"op": "get", "ts_ms": 1, "path": "a", "query": {"limit": -1}}),
             json!({"op": "get", "ts_ms": 1}),
             json!({"op": "nope", "ts_ms": 1, "path": "a"}),
+            json!({"op": "get", "ts_ms": 1, "path": "a", "source": 1}),
+            json!({"op": "get", "ts_ms": 1, "path": "a", "source": "disk"}),
+            json!({"op": "get", "ts_ms": 1, "path": "a", "transaction": "1"}),
+            json!({"op": "get", "ts_ms": 1, "path": "a", "transaction": -1}),
+            json!({"op": "set", "ts_ms": 1, "path": "a/b", "write": []}),
+            json!({"op": "set", "ts_ms": 1, "path": "a/b", "write": {"transforms": []}}),
+            json!({"op": "set", "ts_ms": 1, "path": "a/b", "write": {
+                "max_field_bytes": 1, "payload_bytes": 1, "digest": "0123456789ABCDEF"
+            }}),
+            json!({"op": "set", "ts_ms": 1, "path": "a/b", "write": {
+                "max_field_bytes": 1, "payload_bytes": 1, "digest": "0123456789abcde"
+            }}),
+            json!({"op": "set", "ts_ms": 1, "path": "a/b", "write": {
+                "max_field_bytes": 1, "payload_bytes": 1, "digest": 1
+            }}),
+            json!({"op": "usage", "ts_ms": 1, "path": "a", "usage": {"items_used": -1}}),
+            json!({"op": "usage", "ts_ms": 1, "path": "a", "usage": {"items_used": true}}),
+            json!({"op": "init", "ts_ms": 1, "path": "", "setup": {"cache": "disk"}}),
+            json!({"op": "init", "ts_ms": 1, "path": "", "setup": []}),
         ];
         for v in bad {
             let bytes = serde_json::to_vec(&v).unwrap();
             let parsed = readmeter_provider_api::json::parse(&bytes).unwrap();
             assert!(RawCall::from_json(&parsed).is_err(), "{v}");
         }
+    }
+
+    #[test]
+    fn new_fields_normalize() {
+        let sourced = norm(json!({
+            "op": "get", "ts_ms": 1, "path": "users/u1",
+            "source": "server", "transaction": 7,
+        }));
+        assert_eq!(sourced.source, ReadSource::Server);
+        assert_eq!(sourced.ctx.transaction, Some(7));
+
+        let cached = norm(json!({
+            "op": "query", "ts_ms": 1, "path": "users", "source": "cache", "query": {},
+        }));
+        assert_eq!(cached.source, ReadSource::Cache);
+
+        let ignored = norm(json!({
+            "op": "delete", "ts_ms": 1, "path": "users/u1",
+            "source": "server",
+            "write": {"max_field_bytes": 4, "payload_bytes": 4, "digest": "0123456789abcdef"},
+            "setup": {"cache": "memory", "shared_tabs": true},
+        }));
+        assert_eq!(ignored.source, ReadSource::Default);
+        assert!(ignored.write.is_none());
+        assert!(ignored.setup.is_none());
+
+        let used = norm(json!({
+            "op": "usage", "ts_ms": 1, "path": "users",
+            "usage": {"read_items": true, "items_used": 3},
+        }));
+        assert_eq!(used.usage.unwrap().items_used, Some(3));
+
+        let init = norm(json!({
+            "op": "init", "ts_ms": 1, "path": "",
+            "setup": {"cache": "persistent", "shared_tabs": true},
+        }));
+        assert_eq!(init.op, Op::Init);
+        assert_eq!(init.target.template, "");
+        assert_eq!(init.target.id_shape, None);
+        assert!(init.units.is_empty());
+        assert_eq!(
+            init.setup,
+            Some(readmeter_core::ClientSetup {
+                cache: readmeter_core::CacheKind::Persistent,
+                shared_tabs: true,
+            })
+        );
+        let keyed = cx().hasher.start().str(SERVICE_ID).str("init").finish();
+        assert_eq!(init.target.key, keyed);
+
+        let named = norm(json!({
+            "op": "init", "ts_ms": 1, "path": "projects/p/databases/d",
+            "setup": {"cache": "memory"},
+        }));
+        assert_eq!(named.target.template, "projects/{id}/databases/{id}");
+        assert!(named.setup.is_some());
+        assert!(
+            normalize(
+                raw_call(json!({"op": "init", "ts_ms": 1, "path": ""})),
+                &cx()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn payload_key_is_keyed_and_does_not_copy_the_digest() {
+        let digest = "0123456789abcdef";
+        let body = |key: (u64, u64)| {
+            let mut cx = cx();
+            cx.hasher = KeyedHasher::new(key.0, key.1);
+            normalize(
+                raw_call(json!({
+                    "op": "set", "ts_ms": 1, "path": "users/u1",
+                    "transaction": 4,
+                    "write": {
+                        "max_field_bytes": 7,
+                        "payload_bytes": 7,
+                        "transforms": ["nope", "increment", "increment"],
+                        "digest": digest,
+                    }
+                })),
+                &cx,
+            )
+            .unwrap()
+        };
+        let with_transform = body((11, 22));
+        let write = with_transform.write.unwrap();
+        assert_eq!(write.transforms, vec!["increment".to_owned()]);
+        assert_eq!(write.payload_key, None, "transforms suppress the key");
+        assert_eq!(with_transform.ctx.transaction, Some(4));
+
+        let plain = |key: (u64, u64)| {
+            let mut cx = cx();
+            cx.hasher = KeyedHasher::new(key.0, key.1);
+            normalize(
+                raw_call(json!({
+                    "op": "update", "ts_ms": 1, "path": "users/u1",
+                    "write": {
+                        "max_field_bytes": 7,
+                        "payload_bytes": 7,
+                        "transforms": ["not-a-transform"],
+                        "digest": digest,
+                    }
+                })),
+                &cx,
+            )
+            .unwrap()
+            .write
+            .unwrap()
+            .payload_key
+            .unwrap()
+        };
+        let a = plain((11, 22));
+        let b = plain((1, 2));
+        assert_ne!(a, b, "two hash keys must not agree");
+        assert_ne!(a, u64::from_str_radix(digest, 16).unwrap());
+        let dumped = format!("{a:x} {b:x}");
+        assert!(
+            !dumped.contains(digest),
+            "keyed digest leaked into payload_key: {dumped}"
+        );
+
+        let leaked = norm(json!({
+            "op": "set", "ts_ms": 1, "path": "users/secret-user/orders",
+            "callsite": "src/secret/File.tsx:1",
+            "transaction": 4,
+            "write": {
+                "max_field_bytes": 1,
+                "payload_bytes": 1,
+                "digest": digest,
+            }
+        }));
+        let dump = format!("{leaked:?}");
+        assert!(!dump.contains(digest), "{dump}");
+        assert!(!dump.contains("secret"), "{dump}");
+        assert!(dump.contains("transaction: Some(4)"), "{dump}");
+        let encoded = serde_json::to_string(&leaked).unwrap();
+        assert!(
+            !encoded.contains(digest),
+            "digest leaked into the encoded envelope: {encoded}"
+        );
+        let raw = u64::from_str_radix(digest, 16).unwrap().to_string();
+        assert!(
+            !encoded.contains(&raw),
+            "digest integer leaked into the encoded envelope: {encoded}"
+        );
     }
 }

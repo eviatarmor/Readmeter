@@ -6,7 +6,8 @@
 import { callsite } from "../core/callsite.ts";
 import { recordRaw, sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
-import { nextCallId, nextListenerId } from "../core/session.ts";
+import type { WriteSignal } from "../core/payload.ts";
+import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.ts";
 import { scheduleUsage } from "../core/usage.ts";
 import type { WriteOp } from "../types.ts";
 import {
@@ -24,7 +25,8 @@ import {
   type RawQueryShape,
   type TargetShape,
 } from "./shape.ts";
-import { installUsage, type UsageFlags } from "./usage.ts";
+import { maybeRecordInit } from "./setup.ts";
+import { installDocumentUsage, installUsage, type UsageFlags } from "./usage.ts";
 
 export interface Timing {
   ts: number;
@@ -52,6 +54,11 @@ interface Emit {
   aggregations?: string[];
   /** Usage calls keep the query's call id and carry no callsite. */
   usageCall?: boolean;
+  source?: "server" | "cache";
+  write?: WriteSignal;
+  transaction?: number;
+  /** Firestore instance owner, used to emit one init per instance. */
+  instance?: unknown;
 }
 
 const WRITES = new Set<WriteOp>(["set", "update", "create", "delete"]);
@@ -85,7 +92,18 @@ function queryOf(input: Emit): RawQueryShape | undefined {
   return input.shape.query ? query : undefined;
 }
 
+function usageBody(flags: UsageFlags): UsageFlags {
+  const usage: UsageFlags = {
+    read_items: flags.read_items,
+    read_size: flags.read_size,
+    read_empty: flags.read_empty,
+  };
+  if (typeof flags.items_used === "number") usage.items_used = flags.items_used;
+  return usage;
+}
+
 function emit(input: Emit): number {
+  if (input.instance) maybeRecordInit(input.instance);
   const callId = input.timing.callId ?? nextCallId();
   const raw: Record<string, unknown> = {
     service: "firestore",
@@ -113,7 +131,18 @@ function emit(input: Emit): number {
     raw.result = result;
   }
   if (input.commit) raw.commit = input.commit;
-  if (input.usage) raw.usage = input.usage;
+  if (input.usage) raw.usage = usageBody(input.usage);
+  if (input.source) raw.source = input.source;
+  if (input.write) {
+    const write: Record<string, unknown> = {
+      max_field_bytes: input.write.max_field_bytes,
+      payload_bytes: input.write.payload_bytes,
+      transforms: input.write.transforms,
+    };
+    if (input.write.digest !== undefined) write.digest = input.write.digest;
+    raw.write = write;
+  }
+  if (input.transaction !== undefined) raw.transaction = input.transaction;
   recordRaw(raw);
   return callId;
 }
@@ -127,7 +156,7 @@ function shapeOf(target: unknown): TargetShape | undefined {
   }
 }
 
-export function recordQueryResult(target: unknown, snap: unknown, timing: Timing, trackUsage: boolean): void {
+export function recordQueryResult(target: unknown, snap: unknown, timing: Timing, trackUsage: boolean, source?: "server" | "cache"): void {
   try {
     const shape = shapeOf(target);
     if (!shape || !snap || typeof snap !== "object") return;
@@ -135,7 +164,7 @@ export function recordQueryResult(target: unknown, snap: unknown, timing: Timing
     const docs = docCount(snap, "query");
     const cache = fromCache(snap);
     const flags = trackUsage ? installUsage(snap) : undefined;
-    const callId = emit({ op: "query", shape, timing, withResult: true, docs, bytes, cache });
+    const callId = emit({ op: "query", shape, timing, withResult: true, docs, bytes, cache, source, instance: target });
     if (!flags) return;
     scheduleUsage(() => {
       try {
@@ -143,11 +172,7 @@ export function recordQueryResult(target: unknown, snap: unknown, timing: Timing
           op: "usage",
           shape,
           timing: { ts: Date.now(), callId },
-          usage: {
-            read_items: flags.read_items,
-            read_size: flags.read_size,
-            read_empty: flags.read_empty,
-          },
+          usage: usageBody(flags),
           usageCall: true,
         });
       } catch (error) {
@@ -159,11 +184,12 @@ export function recordQueryResult(target: unknown, snap: unknown, timing: Timing
   }
 }
 
-export function recordGetResult(target: unknown, snap: unknown, timing: Timing): void {
+export function recordGetResult(target: unknown, snap: unknown, timing: Timing, source?: "server" | "cache", trackUsage = false): void {
   try {
     const shape = shapeOf(target);
     if (!shape) return;
-    emit({
+    const flags = trackUsage && snap && typeof snap === "object" ? installDocumentUsage(snap) : undefined;
+    const callId = emit({
       op: "get",
       shape,
       timing,
@@ -171,6 +197,22 @@ export function recordGetResult(target: unknown, snap: unknown, timing: Timing):
       docs: docCount(snap, "document"),
       bytes: resultByteSize(snap),
       cache: fromCache(snap),
+      source,
+      instance: target,
+    });
+    if (!flags) return;
+    scheduleUsage(() => {
+      try {
+        emit({
+          op: "usage",
+          shape,
+          timing: { ts: Date.now(), callId },
+          usage: usageBody(flags),
+          usageCall: true,
+        });
+      } catch (error) {
+        debugOnce(sdkDebug(), error);
+      }
     });
   } catch (error) {
     debugOnce(sdkDebug(), error);
@@ -193,42 +235,51 @@ export function recordAggregateResult(target: unknown, snap: unknown, aggregatio
       bytes: resultByteSize(snap),
       cache: fromCache(snap),
       index,
+      instance: target,
     });
   } catch (error) {
     debugOnce(sdkDebug(), error);
   }
 }
 
-export function recordWrite(op: string, target: unknown, timing: Timing): void {
+export function recordWrite(op: string, target: unknown, timing: Timing, write?: WriteSignal): void {
   try {
     const shape = shapeOf(target);
     if (!shape) return;
-    emit({ op, shape, timing });
+    emit({ op, shape, timing, write, instance: target });
   } catch (error) {
     debugOnce(sdkDebug(), error);
   }
 }
 
-export function recordCreated(path: string, timing: Timing): void {
+export function recordCreated(ref: unknown, timing: Timing, write?: WriteSignal): void {
   try {
-    if (!path) return;
-    emit({ op: "create", shape: { kind: "document", path }, timing });
+    const path = ref && typeof ref === "object" ? (ref as { path?: unknown }).path : undefined;
+    if (typeof path !== "string" || path.length === 0) return;
+    emit({ op: "create", shape: { kind: "document", path }, timing, write, instance: ref });
   } catch (error) {
     debugOnce(sdkDebug(), error);
   }
 }
 
-export function recordFailure(op: string, target: unknown, error: unknown, timing: Timing): void {
+export function recordFailure(op: string, target: unknown, error: unknown, timing: Timing, write?: WriteSignal): void {
   try {
     const shape = shapeOf(target);
     if (!shape?.path) return;
-    emit({ op, shape, timing, error: errorCode(error) });
+    emit({ op, shape, timing, error: errorCode(error), write, instance: target });
   } catch (inner) {
     debugOnce(sdkDebug(), inner);
   }
 }
 
-function recordCommit(stats: { writes: number; deletes: number; paths: string[] } | undefined, timing: Timing, error: unknown, transactional: boolean): void {
+function recordCommit(
+  stats: { writes: number; deletes: number; paths: string[] } | undefined,
+  timing: Timing,
+  error: unknown,
+  transactional: boolean,
+  transaction?: number,
+  instance?: unknown,
+): void {
   const path = commitPath(stats?.paths ?? []);
   if (!path) return;
   emit({
@@ -241,6 +292,8 @@ function recordCommit(stats: { writes: number; deletes: number; paths: string[] 
       deletes: stats?.deletes ?? 0,
       transactional,
     },
+    transaction,
+    instance,
   });
 }
 
@@ -280,6 +333,7 @@ interface GetNote {
   snap: unknown;
   site?: string;
   ts: number;
+  target: unknown;
 }
 
 interface Bucket {
@@ -288,6 +342,7 @@ interface Bucket {
   writes: number;
   deletes: number;
   paths: string[];
+  instance?: unknown;
 }
 
 export interface TransactionRun {
@@ -305,13 +360,14 @@ function patchTransaction(tx: object, bucket: Bucket): void {
       value(this: unknown, ...args: unknown[]) {
         const result = (orig as (...a: unknown[]) => unknown).apply(this, args);
         try {
+          if (!bucket.instance && args[0] && typeof args[0] === "object") bucket.instance = args[0];
           const path = readTarget(args[0])?.path;
           if (kind === "get") {
             const site = callsite();
             const ts = Date.now();
             void Promise.resolve(result).then(
               (snap) => {
-                if (path) bucket.gets.push({ path, snap, site, ts });
+                if (path) bucket.gets.push({ path, snap, site, ts, target: args[0] });
               },
               () => undefined,
             );
@@ -341,6 +397,7 @@ function patchTransaction(tx: object, bucket: Bucket): void {
 export function instrumentUpdate(updateFunction: (tx: object) => unknown): TransactionRun {
   let attempts = 0;
   let success: Bucket | undefined;
+  const transaction = nextTransactionId();
   return {
     run(tx) {
       attempts += 1;
@@ -364,7 +421,7 @@ export function instrumentUpdate(updateFunction: (tx: object) => unknown): Trans
       try {
         const attempt = success?.attempt ?? attempts;
         if (error) {
-          recordCommit(success, { ...timing, attempt }, error, true);
+          recordCommit(success, { ...timing, attempt }, error, true, transaction, success?.instance);
           return;
         }
         if (!success) return;
@@ -378,9 +435,11 @@ export function instrumentUpdate(updateFunction: (tx: object) => unknown): Trans
             docs: docCount(get.snap, "document"),
             bytes: resultByteSize(get.snap),
             cache: fromCache(get.snap),
+            transaction,
+            instance: get.target,
           });
         }
-        recordCommit(success, stamped, undefined, true);
+        recordCommit(success, stamped, undefined, true, transaction, success.instance);
       } catch (inner) {
         debugOnce(sdkDebug(), inner);
       }
@@ -425,6 +484,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
               docs: changedDocs(snap, kind, first),
               bytes: resultByteSize(snap),
               cache: fromCache(snap),
+              instance: target,
             });
             initial = false;
           } catch (error) {
@@ -441,6 +501,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
               timing: at ?? { ts: Date.now() },
               listener: id,
               error: errorCode(error),
+              instance: target,
             });
           } catch (inner) {
             debugOnce(sdkDebug(), inner);
@@ -449,7 +510,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
       },
       open(timing) {
         try {
-          emit({ op: "subscribe", shape, timing, listener: id });
+          emit({ op: "subscribe", shape, timing, listener: id, instance: target });
         } catch (error) {
           debugOnce(sdkDebug(), error);
         }
@@ -458,7 +519,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
       },
       close(timing) {
         try {
-          emit({ op: "unsubscribe", shape, timing, listener: id });
+          emit({ op: "unsubscribe", shape, timing, listener: id, instance: target });
         } catch (error) {
           debugOnce(sdkDebug(), error);
         }

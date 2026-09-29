@@ -3,10 +3,11 @@
   "platform": "server",
   "evaluations": ["local"],
   "calls": [
-    { "service": "firestore", "op": "get", "ts_ms": 1000, "call_id": 1, "attempt": 4, "path": "accounts/acc_1", "result": { "docs": 1, "bytes": 200 } },
+    { "service": "firestore", "op": "get", "ts_ms": 1000, "call_id": 1, "attempt": 4, "path": "accounts/acc_1", "result": { "docs": 1, "bytes": 200 }, "transaction": 1 },
     {
       "service": "firestore", "op": "commit", "ts_ms": 1010, "call_id": 2, "attempt": 4, "path": "accounts/acc_1",
-      "commit": { "writes": 1, "deletes": 0, "transactional": true }
+      "commit": { "writes": 1, "deletes": 0, "transactional": true },
+      "transaction": 1
     },
     {
       "service": "firestore", "op": "commit", "ts_ms": 2000, "call_id": 3, "path": "audit",

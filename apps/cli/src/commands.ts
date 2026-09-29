@@ -236,6 +236,7 @@ async function listEvents(db: Db, command: Extract<Command, { kind: "events" }>)
       template: schema.events.template,
       items: schema.events.items,
       units: schema.events.units,
+      signals: schema.events.signals,
     })
     .from(schema.events)
     .where(command.project ? eq(schema.events.projectId, command.project) : undefined)
@@ -247,6 +248,7 @@ async function listEvents(db: Db, command: Extract<Command, { kind: "events" }>)
     template: row.template,
     items: row.items,
     units: asUnits(row.units),
+    signals: row.signals,
   }));
   return command.json ? eventsJson(views) : formatEvents(views);
 }

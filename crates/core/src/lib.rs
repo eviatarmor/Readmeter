@@ -15,8 +15,8 @@ pub mod wire;
 
 pub use buffer::{Buffer, BufferConfig, Sampler};
 pub use envelope::{
-    CallContext, Envelope, FilterShape, IdShape, Op, OrderShape, Outcome, Platform, QueryShape,
-    ResultStats, ResultUsage, SCHEMA_VERSION, Target,
+    CacheKind, CallContext, ClientSetup, Envelope, FilterShape, IdShape, Op, OrderShape, Outcome,
+    Platform, QueryShape, ReadSource, ResultStats, ResultUsage, SCHEMA_VERSION, Target, WriteStats,
 };
 pub use finding::{Finding, Scalar, Severity};
 pub use hash::{HashBuilder, KeyedHasher};

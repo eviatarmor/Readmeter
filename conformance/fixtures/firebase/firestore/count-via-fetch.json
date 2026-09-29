@@ -10,7 +10,7 @@
     },
     {
       "service": "firestore", "op": "usage", "ts_ms": 1002, "call_id": 7, "path": "messages",
-      "usage": { "read_items": false, "read_size": true, "read_empty": false }
+      "usage": { "read_items": false, "read_size": true, "read_empty": false, "items_used": 0 }
     }
   ],
   "expect_envelopes": [

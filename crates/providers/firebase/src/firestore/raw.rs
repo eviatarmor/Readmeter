@@ -4,7 +4,7 @@
 //! values and cursor values. None of that survives normalization. Unknown
 //! fields are ignored so newer shims work with older cores.
 
-use readmeter_core::ResultUsage;
+use readmeter_core::{CacheKind, ClientSetup, ReadSource, ResultUsage};
 use readmeter_provider_api::NormalizeError;
 use readmeter_provider_api::json::{self, JsonTypeError, JsonValue};
 
@@ -20,6 +20,14 @@ pub struct RawCall {
     pub result: Option<RawResult>,
     /// For `usage`: how the result of `call_id` was consumed.
     pub usage: Option<ResultUsage>,
+    /// Host-forced read route. Unknown strings are an error.
+    pub source: Option<ReadSource>,
+    /// Per-session transaction counter. Not hashed.
+    pub transaction: Option<u64>,
+    /// Single-document write sizes. Ignored unless the op is create/set/update.
+    pub write: Option<RawWrite>,
+    /// Client cache setup. Required when `op` is `init`.
+    pub setup: Option<ClientSetup>,
     /// For `commit`.
     pub commit: Option<RawCommit>,
     /// For `snapshot`: first snapshot of the listener.
@@ -49,6 +57,10 @@ impl RawCall {
             query: opt_with(value, "query", RawQuery::from_json)?,
             result: opt_with(value, "result", RawResult::from_json)?,
             usage: opt_with(value, "usage", usage_from)?,
+            source: opt_source(value)?,
+            transaction: opt_u64(value, "transaction")?,
+            write: opt_with(value, "write", write_from)?,
+            setup: opt_with(value, "setup", setup_from)?,
             commit: opt_with(value, "commit", RawCommit::from_json)?,
             initial: def_bool(value, "initial", false)?,
             error: opt_string(value, "error")?,
@@ -76,6 +88,7 @@ pub enum RawOp {
     Snapshot,
     Unsubscribe,
     Usage,
+    Init,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -343,7 +356,96 @@ fn usage_from(value: &JsonValue) -> Result<ResultUsage, NormalizeError> {
         read_items: def_bool(value, "read_items", false)?,
         read_size: def_bool(value, "read_size", false)?,
         read_empty: def_bool(value, "read_empty", false)?,
+        items_used: opt_u32(value, "items_used")?,
     })
+}
+
+/// Transforms the SDK is allowed to name. Anything else is dropped.
+const KNOWN_TRANSFORMS: &[&str] = &[
+    "array_remove",
+    "array_union",
+    "delete_field",
+    "increment",
+    "maximum",
+    "minimum",
+    "server_timestamp",
+];
+
+/// Sizes and an optional payload digest for one write.
+#[derive(Debug, Clone)]
+pub struct RawWrite {
+    pub max_field_bytes: u64,
+    pub payload_bytes: u64,
+    pub transforms: Vec<String>,
+    /// Parsed 16-char lowercase hex digest. `None` when the field is absent.
+    pub digest: Option<u64>,
+}
+
+fn write_from(value: &JsonValue) -> Result<RawWrite, NormalizeError> {
+    expect_object(value)?;
+    let mut transforms: Vec<String> = string_vec(value, "transforms")?
+        .into_iter()
+        .filter(|name| KNOWN_TRANSFORMS.contains(&name.as_str()))
+        .collect();
+    transforms.sort();
+    transforms.dedup();
+    let digest = match opt_string(value, "digest")? {
+        None => None,
+        Some(s) => Some(parse_digest(&s)?),
+    };
+    Ok(RawWrite {
+        max_field_bytes: req_u64(value, "max_field_bytes")?,
+        payload_bytes: req_u64(value, "payload_bytes")?,
+        transforms,
+        digest,
+    })
+}
+
+/// Exactly 16 lowercase hex digits. Uppercase, a short string, or a `0x` prefix is an error.
+fn parse_digest(s: &str) -> Result<u64, NormalizeError> {
+    let bytes = s.as_bytes();
+    let hex = bytes.len() == 16
+        && bytes
+            .iter()
+            .all(|b| b.is_ascii_digit() || (*b >= b'a' && *b <= b'f'));
+    if !hex {
+        return Err(NormalizeError::Invalid(
+            "`digest`: expected 16 lowercase hex".into(),
+        ));
+    }
+    u64::from_str_radix(s, 16)
+        .map_err(|_| NormalizeError::Invalid("`digest`: expected 16 lowercase hex".into()))
+}
+
+fn setup_from(value: &JsonValue) -> Result<ClientSetup, NormalizeError> {
+    expect_object(value)?;
+    let cache = match req_str(value, "cache")?.as_str() {
+        "unknown" => CacheKind::Unknown,
+        "memory" => CacheKind::Memory,
+        "persistent" => CacheKind::Persistent,
+        _ => return Err(NormalizeError::Invalid("unknown `cache`".into())),
+    };
+    Ok(ClientSetup {
+        cache,
+        shared_tabs: def_bool(value, "shared_tabs", false)?,
+    })
+}
+
+fn opt_source(value: &JsonValue) -> Result<Option<ReadSource>, NormalizeError> {
+    match json::get(value, "source").map_err(|e| map_ty("source", e))? {
+        None | Some(JsonValue::Null) => Ok(None),
+        Some(JsonValue::Str(s)) => Ok(Some(parse_source(s)?)),
+        Some(_) => Err(map_ty("source", JsonTypeError::WrongType)),
+    }
+}
+
+fn parse_source(s: &str) -> Result<ReadSource, NormalizeError> {
+    match s {
+        "default" => Ok(ReadSource::Default),
+        "server" => Ok(ReadSource::Server),
+        "cache" => Ok(ReadSource::Cache),
+        _ => Err(NormalizeError::Invalid("unknown `source`".into())),
+    }
 }
 
 fn parse_op(s: &str) -> Result<RawOp, NormalizeError> {
@@ -360,6 +462,7 @@ fn parse_op(s: &str) -> Result<RawOp, NormalizeError> {
         "snapshot" => RawOp::Snapshot,
         "unsubscribe" => RawOp::Unsubscribe,
         "usage" => RawOp::Usage,
+        "init" => RawOp::Init,
         _ => return Err(NormalizeError::Invalid("unknown `op`".into())),
     })
 }

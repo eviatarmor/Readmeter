@@ -67,13 +67,13 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
   const emptyFlags = installUsage(empty);
   assert.ok(emptyFlags);
   assert.equal(empty.empty, true);
-  assert.deepEqual(emptyFlags, { read_items: false, read_size: false, read_empty: true });
+  assert.deepEqual(emptyFlags, { read_items: false, read_size: false, read_empty: true, items_used: 0 });
 
   const sized = new Snap(4);
   const sizeFlags = installUsage(sized);
   assert.ok(sizeFlags);
   assert.equal(sized.size, 4);
-  assert.deepEqual(sizeFlags, { read_items: false, read_size: true, read_empty: false });
+  assert.deepEqual(sizeFlags, { read_items: false, read_size: true, read_empty: false, items_used: 0 });
   assert.deepEqual(sized.docs, [1]);
   assert.equal(sizeFlags.read_items, true);
 
@@ -178,9 +178,11 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
       logged.length = 0;
       const ref = doc(db, "posts", "p01");
       for (const op of ["set", "set"] as const) sinkWrite(ref, op);
-      assert.equal(logged.length, 2);
-      const first = JSON.parse(logged[0] ?? "{}") as { callsite?: string; op?: string; path?: string; duration_us?: unknown };
-      const second = JSON.parse(logged[1] ?? "{}") as { callsite?: string };
+      assert.equal(logged.length, 3);
+      const initCall = JSON.parse(logged[0] ?? "{}") as { op?: string };
+      assert.equal(initCall.op, "init");
+      const first = JSON.parse(logged[1] ?? "{}") as { callsite?: string; op?: string; path?: string; duration_us?: unknown };
+      const second = JSON.parse(logged[2] ?? "{}") as { callsite?: string };
       assert.equal(first.op, "set");
       assert.equal(first.path, "posts/p01");
       assert.equal(first.duration_us, undefined);

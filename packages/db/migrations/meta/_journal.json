@@ -15,6 +15,13 @@
       "when": 1790651047867,
       "tag": "0001_sdk_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790687530958,
+      "tag": "0002_signals",
+      "breakpoints": true
     }
   ]
 }

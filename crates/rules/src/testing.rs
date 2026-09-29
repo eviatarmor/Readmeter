@@ -2,8 +2,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use readmeter_core::{
-    CallContext, Envelope, Finding, IdShape, Op, Outcome, Platform, QueryShape, ResultStats,
-    ResultUsage, Severity, Target, Units, VecMap,
+    CallContext, ClientSetup, Envelope, Finding, IdShape, Op, Outcome, Platform, QueryShape,
+    ReadSource, ResultStats, ResultUsage, Severity, Target, Units, VecMap, WriteStats,
 };
 
 use crate::catalog::Catalog;
@@ -98,6 +98,9 @@ impl EnvBuilder {
             query: None,
             result: None,
             usage: None,
+            source: ReadSource::default(),
+            write: None,
+            setup: None,
             outcome: Outcome::Ok,
             duration_us: None,
             ctx: CallContext {
@@ -182,6 +185,43 @@ impl EnvBuilder {
         self.0.op = Op::Usage;
         self.0.ctx.call_id = of_call;
         self.0.usage = Some(usage);
+        self
+    }
+
+    pub fn source(mut self, source: ReadSource) -> Self {
+        self.0.source = source;
+        self
+    }
+
+    pub fn write(mut self, write: WriteStats) -> Self {
+        self.0.write = Some(write);
+        self
+    }
+
+    pub fn transaction(mut self, id: u64) -> Self {
+        self.0.ctx.transaction = Some(id);
+        self
+    }
+
+    /// Sets `op` to [`Op::Init`] and records the client setup.
+    pub fn init(mut self, setup: ClientSetup) -> Self {
+        self.0.op = Op::Init;
+        self.0.setup = Some(setup);
+        self
+    }
+
+    /// Sets `op` to a page-visibility event.
+    pub fn page(mut self, visible: bool) -> Self {
+        self.0.op = Op::Page { visible };
+        self
+    }
+
+    /// Sets `usage.items_used`, inserting a default usage report when absent.
+    pub fn items_used(mut self, n: u32) -> Self {
+        self.0
+            .usage
+            .get_or_insert_with(ResultUsage::default)
+            .items_used = Some(n);
         self
     }
 

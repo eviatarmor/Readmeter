@@ -10,7 +10,8 @@ import { Transform, type Readable } from "node:stream";
 import { callsite } from "../core/callsite.ts";
 import { recordRaw, sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
-import { nextCallId, nextListenerId } from "../core/session.ts";
+import { protoWriteSignal } from "../core/payload.ts";
+import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.ts";
 import { documentByteSize } from "../core/size.ts";
 import { flush } from "../index.ts";
 import type { RawQueryShape } from "../web/shape.ts";
@@ -47,6 +48,7 @@ const GRPC: Record<number, string> = {
 };
 
 interface TxState {
+  id: number;
   attempt: number;
   pending: Record<string, unknown>[];
   emitted: boolean;
@@ -167,6 +169,8 @@ function base(op: string, path: string, at: Timing, extra: Record<string, unknow
   };
   if (at.site) call.callsite = at.site;
   if (at.attempt !== undefined && at.attempt > 1) call.attempt = at.attempt;
+  const tx = txState();
+  if (tx) call.transaction = tx.id;
   for (const [key, value] of Object.entries(extra)) {
     if (value !== undefined) call[key] = value;
   }
@@ -197,6 +201,10 @@ function noteCommit(request: unknown, at: Timing, error: unknown): void {
     const extra: Record<string, unknown> = {};
     if (classified.commit) extra.commit = classified.commit;
     if (error) extra.error = errorCode(error);
+    if (classified.op === "set" || classified.op === "update" || classified.op === "create") {
+      const stats = protoWriteSignal(method);
+      if (stats) extra.write = stats;
+    }
     const buffer = isTxn(request);
     publish(base(classified.op, classified.path, at, extra), buffer);
     if (buffer && !error) settleTx(txState());
@@ -517,7 +525,7 @@ function callsiteWrap(original: AnyFn): AnyFn {
 function transactionWrap(original: AnyFn): AnyFn {
   return function (this: unknown, updateFunction: unknown, ...rest: unknown[]) {
     const parent = als.getStore();
-    const tx: TxState = { attempt: 0, pending: [], emitted: false };
+    const tx: TxState = { id: nextTransactionId(), attempt: 0, pending: [], emitted: false };
     const site = callsite() ?? parent?.site;
     const wrapped =
       typeof updateFunction === "function"

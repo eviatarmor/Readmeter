@@ -4,10 +4,10 @@ import {
   loadPackagedBundle,
   refreshBundle,
 } from "./core/bundle.ts";
-import { CoreClient, configJson, disableRecording, handoff } from "./core/client.ts";
+import { CoreClient, configJson, disableRecording, handoff, recordRaw } from "./core/client.ts";
 import { detectPlatform } from "./core/env.ts";
 import { debugOnce, errorMessage } from "./core/log.ts";
-import { newSessionId, resetIds } from "./core/session.ts";
+import { newSessionId, nextCallId, resetIds } from "./core/session.ts";
 import { Transport } from "./core/transport.ts";
 import { flushPendingUsage } from "./core/usage.ts";
 import { loadWasm } from "./core/wasm.ts";
@@ -37,6 +37,52 @@ let transport: Transport | undefined;
 let ready: Promise<void> = Promise.resolve();
 let generation = 0;
 let debug = false;
+
+interface PageHost {
+  visibilityState?: string;
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
+}
+
+let pageHost: PageHost | undefined;
+let pageHandler: (() => void) | undefined;
+
+function unwatchPage(): void {
+  if (pageHost && pageHandler) {
+    try {
+      pageHost.removeEventListener?.("visibilitychange", pageHandler);
+    } catch (error) {
+      debugOnce(debug, error);
+    }
+  }
+  pageHost = undefined;
+  pageHandler = undefined;
+}
+
+function watchPage(): void {
+  unwatchPage();
+  try {
+    const host = (globalThis as { document?: PageHost }).document;
+    if (!host || typeof host.addEventListener !== "function") return;
+    const handler = () => {
+      try {
+        recordRaw({
+          op: "page",
+          ts_ms: Date.now(),
+          call_id: nextCallId(),
+          visible: host.visibilityState === "visible",
+        });
+      } catch (error) {
+        debugOnce(debug, error);
+      }
+    };
+    host.addEventListener("visibilitychange", handler);
+    pageHost = host;
+    pageHandler = handler;
+  } catch (error) {
+    debugOnce(debug, error);
+  }
+}
 
 function validate(options: InitOptions): Validated {
   if (options === null || typeof options !== "object") throw new Error("init options must be an object");
@@ -89,6 +135,7 @@ function validate(options: InitOptions): Validated {
 
 function fail(gen: number, error: unknown): void {
   if (gen !== generation) return;
+  unwatchPage();
   disableRecording();
   const current = transport;
   transport = undefined;
@@ -172,6 +219,7 @@ async function boot(
  * ready are queued.
  */
 export function init(options: InitOptions): void {
+  unwatchPage();
   let opts: Validated;
   try {
     opts = validate(options);
@@ -207,6 +255,7 @@ export function init(options: InitOptions): void {
   });
   transport = created;
   created.start();
+  watchPage();
   const session = newSessionId();
   ready = boot(gen, opts, client, session, previous, previousTransport);
 }
@@ -223,6 +272,7 @@ export async function flush(): Promise<void> {
 
 /** Flushes, then stops timers and exit hooks. */
 export async function shutdown(): Promise<void> {
+  unwatchPage();
   const pending = ready;
   const gen = generation;
   try {

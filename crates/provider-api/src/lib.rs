@@ -38,11 +38,23 @@ pub trait Provider: Send + Sync {
 
     fn services(&self) -> &'static [&'static str];
 
-    /// Normalizes one raw call. The raw call is JSON so every host language
-    /// can produce it without codegen. Raw calls may carry filter values and
-    /// concrete ids; the returned envelope must not.
-    fn normalize(&self, raw_json: &[u8], cx: &NormalizeContext)
-    -> Result<Envelope, NormalizeError>;
+    /// Normalizes one already-parsed raw call. The raw call may carry filter
+    /// values and concrete ids; the returned envelope must not.
+    fn normalize_value(
+        &self,
+        raw: &JsonValue,
+        cx: &NormalizeContext,
+    ) -> Result<Envelope, NormalizeError>;
+
+    /// Parses `raw_json` and calls [`Provider::normalize_value`].
+    fn normalize(
+        &self,
+        raw_json: &[u8],
+        cx: &NormalizeContext,
+    ) -> Result<Envelope, NormalizeError> {
+        let value = json::parse(raw_json)?;
+        self.normalize_value(&value, cx)
+    }
 
     /// Detectors for this provider's rules.
     fn detectors(&self) -> Vec<(&'static str, DetectorFactory)>;

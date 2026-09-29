@@ -19,7 +19,7 @@ export interface Store {
   write(project: string, receivedAt: Date, ingested: Ingested): Promise<void>;
 }
 
-// Postgres caps a statement at 65535 bind parameters; events have ~28 columns.
+// Postgres caps a statement at 65535 bind parameters; events have ~29 columns.
 const EVENT_CHUNK = 1_000;
 const KEY_CACHE_TTL_MS = 30_000;
 const KEY_CACHE_MAX = 10_000;
@@ -129,6 +129,7 @@ export class PgStore implements Store {
             attempt: e.attempt,
             dev: e.dev,
             units: e.units,
+            signals: e.signals,
           })),
         );
       }

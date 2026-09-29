@@ -29,13 +29,12 @@ impl Provider for FirebaseProvider {
         ]
     }
 
-    fn normalize(
+    fn normalize_value(
         &self,
-        raw_json: &[u8],
+        value: &readmeter_provider_api::JsonValue,
         cx: &NormalizeContext,
     ) -> Result<Envelope, NormalizeError> {
-        let value = json::parse(raw_json)?;
-        let service = match json::get_str(&value, "service") {
+        let service = match json::get_str(value, "service") {
             Ok(Some(s)) => s,
             Ok(None) => return Err(NormalizeError::Invalid("missing `service`".into())),
             Err(JsonTypeError::NotObject) => {
@@ -46,7 +45,7 @@ impl Provider for FirebaseProvider {
         match service {
             #[cfg(feature = "firestore")]
             firestore::SERVICE_ID => {
-                firestore::normalize(firestore::RawCall::from_json(&value)?, cx)
+                firestore::normalize(firestore::RawCall::from_json(value)?, cx)
             }
             other => Err(NormalizeError::UnknownService(other.to_owned())),
         }

@@ -100,12 +100,30 @@ mod tests {
                 from_cache: false,
                 index_entries: None,
             }),
-            usage: None,
+            usage: Some(ResultUsage {
+                read_items: true,
+                items_used: Some(2),
+                ..ResultUsage::default()
+            }),
+            source: ReadSource::Server,
+            write: Some(WriteStats {
+                max_field_bytes: 4,
+                payload_bytes: 8,
+                transforms: vec!["increment".into()],
+                payload_key: None,
+            }),
+            setup: Some(ClientSetup {
+                cache: CacheKind::Persistent,
+                shared_tabs: true,
+            }),
             outcome: Outcome::Error {
                 code: "aborted".into(),
             },
             duration_us: Some(1500),
-            ctx: CallContext::default(),
+            ctx: CallContext {
+                transaction: Some(3),
+                ..CallContext::default()
+            },
             units: Units::new().with("reads", 10),
         };
         let mut evidence = crate::map::VecMap::new();
@@ -155,6 +173,19 @@ mod tests {
         assert!(matches!(
             Batch::decode(b"RM\x09\x00"),
             Err(WireError::UnsupportedVersion(9))
+        ));
+    }
+
+    /// Nothing has shipped, so a version-1 header is rejected even when the
+    /// body was produced by this crate.
+    #[test]
+    fn rejects_schema_v1() {
+        let mut bytes = sample().encode().expect("encode");
+        bytes[2] = 1;
+        bytes[3] = 0;
+        assert!(matches!(
+            Batch::decode(&bytes),
+            Err(WireError::UnsupportedVersion(1))
         ));
     }
 

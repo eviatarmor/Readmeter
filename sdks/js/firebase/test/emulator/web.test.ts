@@ -53,6 +53,7 @@ function normalize(call: Record<string, unknown>, check: boolean): Record<string
     }
   }
   for (const key of VOLATILE) delete copy[key];
+  freezeSignals(copy, check);
   const result = copy.result;
   if (result && typeof result === "object") {
     const bytes = (result as { bytes?: unknown }).bytes;
@@ -65,11 +66,31 @@ function normalize(call: Record<string, unknown>, check: boolean): Record<string
   return copy;
 }
 
+function freezeSignals(copy: Record<string, unknown>, check: boolean): void {
+  if ("transaction" in copy) {
+    if (check) {
+      assert.equal(typeof copy.transaction, "number");
+      assert.equal(Number.isInteger(copy.transaction), true);
+      assert.ok((copy.transaction as number) >= 1);
+    }
+    copy.transaction = 1;
+  }
+  const write = copy.write;
+  if (write && typeof write === "object" && "digest" in write) {
+    const digest = (write as { digest?: unknown }).digest;
+    if (check) assert.match(String(digest), /^[0-9a-f]{16}$/);
+    (write as { digest: string }).digest = "0000000000000000";
+  }
+}
+
 function assertCalls(actual: Record<string, unknown>[], fixture: Fixture, ignoreOps: string[] = []): void {
   const skip = new Set(ignoreOps);
   // `usage` calls fire on a 1 s timer, so on a slow machine they can land
   // before the comparison. Only compare them when the fixture lists them.
   if (!fixture.calls.some((want) => want.op === "usage")) skip.add("usage");
+  // Init is one raw call per Firestore instance. Fixtures that do not list it
+  // are not asserting client setup.
+  if (!fixture.calls.some((want) => want.op === "init")) skip.add("init");
   const got = actual.filter((call) => !skip.has(String(call.op)));
   const unexpected = got.filter((call) => !fixture.calls.some((want) => want.op === call.op));
   assert.deepEqual(

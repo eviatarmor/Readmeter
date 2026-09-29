@@ -6,9 +6,12 @@
 import { callsite } from "../core/callsite.ts";
 import { sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
+import { writeSignal } from "../core/payload.ts";
 import {
   addDoc as realAddDoc,
   deleteDoc as realDeleteDoc,
+  enableIndexedDbPersistence as realEnableIndexedDbPersistence,
+  enableMultiTabIndexedDbPersistence as realEnableMultiTabIndexedDbPersistence,
   getAggregateFromServer as realGetAggregateFromServer,
   getCountFromServer as realGetCountFromServer,
   getDoc as realGetDoc,
@@ -17,12 +20,15 @@ import {
   getDocs as realGetDocs,
   getDocsFromCache as realGetDocsFromCache,
   getDocsFromServer as realGetDocsFromServer,
+  initializeFirestore as realInitializeFirestore,
   onSnapshot as realOnSnapshot,
+  persistentLocalCache as realPersistentLocalCache,
   runTransaction as realRunTransaction,
   setDoc as realSetDoc,
   updateDoc as realUpdateDoc,
   writeBatch as realWriteBatch,
 } from "firebase/firestore";
+import { noteCacheShared, notePersistence, sharedTabs } from "./setup.ts";
 import { aggregationsFromSpec } from "./shape.ts";
 import {
   bindBatch,
@@ -77,35 +83,35 @@ export const getDocs: typeof realGetDocs = ((...args: unknown[]) =>
 export const getDocsFromServer: typeof realGetDocsFromServer = ((...args: unknown[]) =>
   traced(
     () => call(realGetDocsFromServer as AnyFn, args),
-    (snap, at) => recordQueryResult(args[0], snap, at, true),
+    (snap, at) => recordQueryResult(args[0], snap, at, true, "server"),
     (error, at) => recordFailure("query", args[0], error, at),
   )) as typeof realGetDocsFromServer;
 
 export const getDocsFromCache: typeof realGetDocsFromCache = ((...args: unknown[]) =>
   traced(
     () => call(realGetDocsFromCache as AnyFn, args),
-    (snap, at) => recordQueryResult(args[0], snap, at, true),
+    (snap, at) => recordQueryResult(args[0], snap, at, true, "cache"),
     (error, at) => recordFailure("query", args[0], error, at),
   )) as typeof realGetDocsFromCache;
 
 export const getDoc: typeof realGetDoc = ((...args: unknown[]) =>
   traced(
     () => call(realGetDoc as AnyFn, args),
-    (snap, at) => recordGetResult(args[0], snap, at),
+    (snap, at) => recordGetResult(args[0], snap, at, undefined, true),
     (error, at) => recordFailure("get", args[0], error, at),
   )) as typeof realGetDoc;
 
 export const getDocFromServer: typeof realGetDocFromServer = ((...args: unknown[]) =>
   traced(
     () => call(realGetDocFromServer as AnyFn, args),
-    (snap, at) => recordGetResult(args[0], snap, at),
+    (snap, at) => recordGetResult(args[0], snap, at, "server", true),
     (error, at) => recordFailure("get", args[0], error, at),
   )) as typeof realGetDocFromServer;
 
 export const getDocFromCache: typeof realGetDocFromCache = ((...args: unknown[]) =>
   traced(
     () => call(realGetDocFromCache as AnyFn, args),
-    (snap, at) => recordGetResult(args[0], snap, at),
+    (snap, at) => recordGetResult(args[0], snap, at, "cache", true),
     (error, at) => recordFailure("get", args[0], error, at),
   )) as typeof realGetDocFromCache;
 
@@ -129,15 +135,15 @@ export const getAggregateFromServer: typeof realGetAggregateFromServer = ((...ar
 export const setDoc: typeof realSetDoc = ((...args: unknown[]) =>
   traced(
     () => call(realSetDoc as AnyFn, args),
-    (_value, at) => recordWrite("set", args[0], at),
-    (error, at) => recordFailure("set", args[0], error, at),
+    (_value, at) => recordWrite("set", args[0], at, writeSignal("set", args[1], args[2])),
+    (error, at) => recordFailure("set", args[0], error, at, writeSignal("set", args[1], args[2])),
   )) as typeof realSetDoc;
 
 export const updateDoc: typeof realUpdateDoc = ((...args: unknown[]) =>
   traced(
     () => call(realUpdateDoc as AnyFn, args),
-    (_value, at) => recordWrite("update", args[0], at),
-    (error, at) => recordFailure("update", args[0], error, at),
+    (_value, at) => recordWrite("update", args[0], at, writeSignal("update", args.slice(1))),
+    (error, at) => recordFailure("update", args[0], error, at, writeSignal("update", args.slice(1))),
   )) as typeof realUpdateDoc;
 
 export const deleteDoc: typeof realDeleteDoc = ((...args: unknown[]) =>
@@ -150,9 +156,65 @@ export const deleteDoc: typeof realDeleteDoc = ((...args: unknown[]) =>
 export const addDoc: typeof realAddDoc = ((...args: unknown[]) =>
   traced(
     () => call(realAddDoc as AnyFn, args) as Promise<{ path?: string }>,
-    (ref, at) => recordCreated(typeof ref?.path === "string" ? ref.path : "", at),
-    (error, at) => recordFailure("create", args[0], error, at),
+    (ref, at) => recordCreated(ref, at, writeSignal("create", args[1])),
+    (error, at) => recordFailure("create", args[0], error, at, writeSignal("create", args[1])),
   )) as typeof realAddDoc;
+
+export const initializeFirestore: typeof realInitializeFirestore = ((...args: unknown[]) => {
+  const db = (realInitializeFirestore as AnyFn)(...args);
+  try {
+    if (db && typeof db === "object") {
+      const settings = args[1];
+      const localCache = settings && typeof settings === "object" ? (settings as { localCache?: unknown }).localCache : undefined;
+      if (localCache && typeof localCache === "object") {
+        const kind = (localCache as { kind?: unknown }).kind;
+        if (kind === "memory") notePersistence(db, { cache: "memory", shared_tabs: false });
+        else if (kind === "persistent") notePersistence(db, { cache: "persistent", shared_tabs: sharedTabs(localCache) });
+        else notePersistence(db, { cache: "unknown", shared_tabs: false });
+      }
+    }
+  } catch (error) {
+    debugOnce(sdkDebug(), error);
+  }
+  return db;
+}) as typeof realInitializeFirestore;
+
+export const persistentLocalCache: typeof realPersistentLocalCache = ((...args: unknown[]) => {
+  const cache = (realPersistentLocalCache as AnyFn)(...args);
+  try {
+    const settings = args[0] as { tabManager?: { kind?: unknown } } | undefined;
+    const shared = !!settings && typeof settings === "object" && settings.tabManager?.kind === "PersistentMultipleTab";
+    if (cache && typeof cache === "object") noteCacheShared(cache, shared);
+  } catch (error) {
+    debugOnce(sdkDebug(), error);
+  }
+  return cache;
+}) as typeof realPersistentLocalCache;
+
+function rememberPersistence(args: unknown[], shared: boolean): void {
+  const db = args[0];
+  if (db && typeof db === "object") notePersistence(db, { cache: "persistent", shared_tabs: shared });
+}
+
+export const enableIndexedDbPersistence: typeof realEnableIndexedDbPersistence = ((...args: unknown[]) => {
+  const result = (realEnableIndexedDbPersistence as AnyFn)(...args);
+  try {
+    rememberPersistence(args, false);
+  } catch (error) {
+    debugOnce(sdkDebug(), error);
+  }
+  return result;
+}) as typeof realEnableIndexedDbPersistence;
+
+export const enableMultiTabIndexedDbPersistence: typeof realEnableMultiTabIndexedDbPersistence = ((...args: unknown[]) => {
+  const result = (realEnableMultiTabIndexedDbPersistence as AnyFn)(...args);
+  try {
+    rememberPersistence(args, true);
+  } catch (error) {
+    debugOnce(sdkDebug(), error);
+  }
+  return result;
+}) as typeof realEnableMultiTabIndexedDbPersistence;
 
 export const writeBatch: typeof realWriteBatch = ((...args: unknown[]) => {
   const batch = (realWriteBatch as AnyFn)(...args);

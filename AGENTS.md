@@ -55,10 +55,13 @@ scripts/                   build-wasm.sh (size gate), build-wasm-server.sh, smok
 .plans/                    Architecture and implementation plans
 ```
 
-Planned (see `.plans/0001-architecture.md`): `proto/` (if a non-Rust consumer
-of the wire format appears), `sdks/<lang>/<provider>/`,
-`apps/console-web` (frontend), `apps/console-api` (TypeScript + Drizzle:
-auth, orgs, projects, API keys, billing), `apps/connectors/<provider>`, `infra/`.
+Planned (see `.plans/0001-architecture.md` and `.plans/0007-console.md`):
+`apps/console-api` (TypeScript, Hono, Better Auth, Drizzle: workspaces,
+members, projects, API keys, findings, rules, costs), `apps/console-web`
+(React, shadcn/ui, Dice UI), `apps/connector-gcp` (Cloud Monitoring and
+billing export sync), more Firebase services (Realtime Database, Storage,
+Auth, Functions), `proto/` (if a non-Rust consumer of the wire format
+appears), `sdks/<lang>/<provider>/`, `infra/`.
 
 ## Rules you must not break
 
@@ -196,9 +199,10 @@ If you touched the SDK path, also run the size gate. If you touched
 
 ## Out of scope right now
 
-- The console UI (`apps/console-web`): design only, do not implement.
 - Storing telemetry in Firestore, or in any database other than Postgres.
 - Non-Firebase providers: keep the seams open, but do not build them yet.
+- A CLI. The console (`apps/console-web` + `apps/console-api`) replaces it
+  (`.plans/0007-console.md`).
 
 ## Plans
 
