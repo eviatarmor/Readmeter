@@ -2,6 +2,7 @@ import { flush, init, type Finding } from "@readmeter/firebase";
 import { initializeApp } from "firebase/app";
 import { connectDatabaseEmulator, getDatabase, type Database } from "@readmeter/firebase/database";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "@readmeter/firebase/firestore";
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from "@readmeter/firebase/storage";
 
 import {
   downloadWholeList,
@@ -11,6 +12,14 @@ import {
   valueListenerOnList,
   writeHotspot,
 } from "./database.ts";
+import {
+  downloadUrlPerRender,
+  listAllLargePrefix,
+  originalSizeImage,
+  redownloadWithoutCache,
+  unboundedStorageList,
+  uploadWithoutResumable,
+} from "./storage.ts";
 import {
   countViaFetch,
   getThenListen,
@@ -35,6 +44,7 @@ import {
 const logEl = document.querySelector("#log");
 const actions = document.querySelector("#actions");
 const databaseActions = document.querySelector("#database");
+const storageActions = document.querySelector("#storage");
 const search = document.querySelector("#search");
 const draft = document.querySelector("#draft");
 
@@ -76,6 +86,15 @@ const databaseButtons: { label: string; rule: string; run: (db: Database) => Pro
   { label: "unindexed query", rule: "firebase.database/unindexed-query", run: unindexedQuery },
 ];
 
+const storageButtons: { label: string; rule: string; run: (storage: FirebaseStorage) => Promise<string> }[] = [
+  { label: "unbounded storage list", rule: "firebase.storage/unbounded-list-page", run: unboundedStorageList },
+  { label: "list all prefix", rule: "firebase.storage/list-all-large-prefix", run: listAllLargePrefix },
+  { label: "download url per render", rule: "firebase.storage/download-url-per-render", run: downloadUrlPerRender },
+  { label: "redownload without cache", rule: "firebase.storage/redownload-without-cache-control", run: redownloadWithoutCache },
+  { label: "original size image", rule: "firebase.storage/original-size-images", run: originalSizeImage },
+  { label: "upload without resumable", rule: "firebase.storage/upload-without-resumable", run: uploadWithoutResumable },
+];
+
 let sdkError = "";
 const report = console.error.bind(console);
 console.error = (...args: unknown[]) => {
@@ -111,9 +130,11 @@ init({
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const rtdb = getDatabase(app, "https://demo-readmeter.firebaseio.com");
+const bucket = getStorage(app, "gs://demo-readmeter.appspot.com");
 if (import.meta.env.VITE_USE_EMULATOR === "1") {
   connectFirestoreEmulator(db, "127.0.0.1", 8085);
   connectDatabaseEmulator(rtdb, "127.0.0.1", 9000);
+  connectStorageEmulator(bucket, "127.0.0.1", 9199);
 }
 
 const buttonEls: HTMLButtonElement[] = [];
@@ -142,6 +163,8 @@ const firestoreBar = requireEl<HTMLElement>(actions, "actions");
 for (const spec of buttons) addButton(firestoreBar, spec.label, spec.rule, () => spec.run(db));
 const databaseBar = requireEl<HTMLElement>(databaseActions, "database");
 for (const spec of databaseButtons) addButton(databaseBar, spec.label, spec.rule, () => spec.run(rtdb));
+const storageBar = requireEl<HTMLElement>(storageActions, "storage");
+for (const spec of storageButtons) addButton(storageBar, spec.label, spec.rule, () => spec.run(bucket));
 
 const searchInput = requireEl<HTMLInputElement>(search, "search");
 searchInput.addEventListener("input", () => {

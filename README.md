@@ -72,17 +72,18 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
   `window` rules look at one session's recent calls and run on the backend
   (and in the SDK in dev mode). `aggregate` rules look across sessions
   (backend, planned).
-- **Capture.** Web: drop-in wrappers around the modular Firestore and Realtime
-  Database SDKs, plus a `sink()` API for manual use. Cloud Functions / Node:
-  interception of the Admin SDK (`instrument(db)` for Firestore,
-  `instrumentDatabase(db)` for Realtime Database).
+- **Capture.** Web: drop-in wrappers around the modular Firestore, Realtime
+  Database, and Cloud Storage SDKs, plus a `sink()` API for manual use. Cloud
+  Functions / Node: interception of the Admin SDK (`instrument(db)` for
+  Firestore, `instrumentDatabase(db)` for Realtime Database,
+  `instrumentStorage(bucket)` for Cloud Storage).
 - **Never breaks your app.** The SDK never throws into your code, never
   changes what Firestore returns, drops old data when buffers fill, and does
   its work after your call has returned.
 
 Contributor and agent guide: [`AGENTS.md`](AGENTS.md).
 
-## Rules (51 active)
+## Rules (57 active)
 
 Severity is ranked by cost impact: `critical` grows without bound with data
 or traffic, `high` is a large multiplier, `medium` is measurable waste on a
@@ -100,6 +101,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/listener-per-item` | high | window | Many single-document listeners are open on one document template. |
 | `firebase.firestore/hot-listener` | high | window | A listener is billed for a large number of document changes per minute. |
 | `firebase.database/value-listener-on-list` | high | window | onValue on a list downloads every child again each time one child changes. |
+| `firebase.storage/list-all-large-prefix` | high | local | listAll reads every object under a prefix, one class A operation per page of 1000. |
+| `firebase.storage/redownload-without-cache-control` | high | window | Repeated getBytes or getBlob calls re-download an object that sets no max-age. |
 | `generic/listener-leak` | high | window | Open subscriptions from one callsite keep growing because they are never unsubscribed. |
 | `generic/subscription-churn` | high | window | The same subscription is closed and re-opened many times, re-billing its initial result. |
 | `firebase.firestore/overfetch` | high | window | A query returned many documents and the caller read only a small fraction of them. |
@@ -120,6 +123,9 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/write-hotspot` | medium | window | One document is updated faster than Firestore's sustained per-document write rate. |
 | `firebase.database/rtdb-write-hotspot` | medium | window | One session writes the same path many times in a short window. |
 | `firebase.database/duplicate-listeners` | medium | window | The same path and query is subscribed more than once at the same time from one session. |
+| `firebase.storage/download-url-per-render` | medium | window | getDownloadURL hits object metadata, a class B operation, every time it runs. |
+| `firebase.storage/original-size-images` | medium | local | A browser image download larger than 1 MiB bills class B and the full egress. |
+| `firebase.storage/unbounded-list-page` | medium | local | list() without maxResults takes the server's default page of up to 1000 objects. |
 | `generic/duplicate-read` | medium | window | The exact same request is billed several times in a short window. |
 | `generic/n-plus-one` | medium | window | Many single-item reads on one path in a burst, usually one per item of an earlier list. |
 | `generic/oversized-payload` | medium | local | A response, or its average item, is far larger than a UI usually needs. |
@@ -139,6 +145,7 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/tiny-batches` | low | window | One callsite commits many batches of one or two writes that could be a single batch. |
 | `firebase.firestore/monotonic-document-ids` | low | window | New documents use monotonically increasing ids, concentrating writes on one index range. |
 | `generic/one-shot-subscription` | low | window | Subscriptions are closed right after their first snapshot; a one-time read is cheaper. |
+| `firebase.storage/upload-without-resumable` | low | local | uploadBytes of more than 5 MiB has no resume if the connection drops. |
 | `firebase.firestore/persistence-disabled` | low | local | The client SDK runs without a persistent cache, so every reload re-reads from the server. |
 | `firebase.firestore/fanout-writes` | info | local | One client commit writes or deletes many documents. |
 
@@ -212,6 +219,9 @@ operation types, document or child counts, byte sizes, query shapes (field names
 operators), timings, and keyed hashes of ids, filter values and callsites.
 Realtime Database sends the JSON byte size of a snapshot (capped) and a
 connection count from `goOnline`; that count is not priced.
+Cloud Storage sends a path template, extension, byte count, content-type
+major, cache-control class (max-age seconds or none), list counts, page-token
+presence, and a resumable flag. Object bytes, URLs, and tokens are not sent.
 Writes can also send field and payload sizes, transform names (`increment`,
 `array_union`, and the others), and a payload hash. That hash is salted per
 session inside the process, so the same payload cannot be matched across

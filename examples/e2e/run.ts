@@ -9,6 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteApp, initializeApp } from "firebase/app";
 import { connectDatabaseEmulator, getDatabase } from "@readmeter/firebase/database";
+import { connectStorageEmulator, getStorage } from "@readmeter/firebase/storage";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { findingRules } from "@readmeter/db";
 import { flush, init, shutdown } from "@readmeter/firebase";
@@ -39,6 +40,14 @@ import {
   valueListenerOnList,
   writeHotspot,
 } from "../web/src/database.ts";
+import {
+  downloadUrlPerRender,
+  listAllLargePrefix,
+  originalSizeImage,
+  redownloadWithoutCache,
+  unboundedStorageList,
+  uploadWithoutResumable,
+} from "../web/src/storage.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter";
@@ -75,6 +84,12 @@ const EXPECTED = [
   "firebase.database/value-listener-on-list",
   "firebase.database/rtdb-write-hotspot",
   "firebase.database/duplicate-listeners",
+  "firebase.storage/unbounded-list-page",
+  "firebase.storage/list-all-large-prefix",
+  "firebase.storage/download-url-per-render",
+  "firebase.storage/redownload-without-cache-control",
+  "firebase.storage/original-size-images",
+  "firebase.storage/upload-without-resumable",
 ];
 
 const COUNTER_RULE = "firebase.firestore/read-modify-write-counter";
@@ -184,6 +199,12 @@ async function drive(): Promise<void> {
   if (!databaseHost || databasePort !== 9000) throw new Error(`bad FIREBASE_DATABASE_EMULATOR_HOST ${rawDatabase}`);
   const rtdb = getDatabase(app, "https://demo-readmeter.firebaseio.com");
   connectDatabaseEmulator(rtdb, databaseHost, databasePort);
+  const rawStorage = (process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? "127.0.0.1:9199").replace(/^https?:\/\//, "");
+  const [storageHost, storagePortText] = rawStorage.split(":");
+  const storagePort = Number(storagePortText);
+  if (!storageHost || storagePort !== 9199) throw new Error(`bad FIREBASE_STORAGE_EMULATOR_HOST ${rawStorage}`);
+  const bucket = getStorage(app, "gs://demo-readmeter.appspot.com");
+  connectStorageEmulator(bucket, storageHost, storagePort);
   try {
     console.log(await seedData(db));
     console.log(await unboundedList(db));
@@ -207,6 +228,12 @@ async function drive(): Promise<void> {
     console.log(await writeHotspot(rtdb));
     console.log(await duplicateListeners(rtdb));
     console.log(await unindexedQuery(rtdb));
+    console.log(await unboundedStorageList(bucket));
+    console.log(await downloadUrlPerRender(bucket));
+    console.log(await redownloadWithoutCache(bucket));
+    console.log(await originalSizeImage(bucket));
+    console.log(await uploadWithoutResumable(bucket));
+    console.log(await listAllLargePrefix(bucket));
     await flush();
   } finally {
     await shutdown();

@@ -1,0 +1,33 @@
+id = "firebase.storage/unbounded-list-page"
+title = "List page without a caller page size"
+provider = "firebase"
+service = "storage"
+severity = "medium"
+category = "pagination"
+evaluation = "local"
+status = "stable"
+summary = "list() without maxResults takes the server's default page of up to 1000 objects."
+
+description = """
+`list()` is one class A operation. Omitting `maxResults` still asks the
+server for its maximum page, which is 1000 objects. A screen that needed
+a handful of names pays for a full page and has no bound it chose.
+"""
+
+fix = """
+Pass `maxResults` to `list()` and follow `nextPageToken` when the user
+asks for the next page.
+"""
+
+docs = ["https://firebase.google.com/docs/storage/web/list-files"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+const page = await list(ref(storage, "photos"));
+render(page.items);
+'''
+good = '''
+const page = await list(ref(storage, "photos"), { maxResults: 50 });
+render(page.items);
+'''

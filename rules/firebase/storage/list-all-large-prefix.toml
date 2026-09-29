@@ -1,0 +1,36 @@
+id = "firebase.storage/list-all-large-prefix"
+title = "listAll walked a large prefix"
+provider = "firebase"
+service = "storage"
+severity = "high"
+category = "pagination"
+evaluation = "local"
+status = "stable"
+summary = "listAll reads every object under a prefix, one class A operation per page of 1000."
+
+description = """
+`listAll` keeps calling the list API until the prefix is exhausted. Each
+page is a class A operation, and the default page is 1000 objects. A
+folder that grows quietly turns one screen into a loop of list calls.
+"""
+
+fix = """
+Use `list(ref, { maxResults })` and a page token. Ask for the page the
+screen shows, not the whole prefix.
+"""
+
+docs = ["https://firebase.google.com/docs/storage/web/list-files"]
+
+[params]
+min_items = 1000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const all = await listAll(ref(storage, "photos"));
+render(all.items);
+'''
+good = '''
+const page = await list(ref(storage, "photos"), { maxResults: 50 });
+render(page.items);
+'''

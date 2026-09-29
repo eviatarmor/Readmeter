@@ -1,0 +1,38 @@
+id = "firebase.storage/original-size-images"
+title = "Full-size image downloaded in the browser"
+provider = "firebase"
+service = "storage"
+severity = "medium"
+category = "payload"
+evaluation = "local"
+status = "stable"
+summary = "A browser image download larger than 1 MiB bills class B and the full egress."
+
+description = """
+Downloading an original photo with `getBytes` or `getBlob` transfers
+every byte to the browser. A multi-megabyte image is class B plus
+egress on every view, which a thumbnail would avoid. Server downloads
+are a different path and are not flagged here.
+"""
+
+fix = """
+Resize before upload, or serve a thumbnail from the Resize Images
+extension (`firebase/storage-resize-images`) and point the browser at
+that object.
+"""
+
+docs = ["https://firebase.google.com/docs/storage/web/download-files"]
+
+[params]
+max_image_bytes = 1048576
+
+[[examples]]
+lang = "ts"
+bad = '''
+const blob = await getBlob(ref(storage, "photos/banner.png"));
+img.src = URL.createObjectURL(blob);
+'''
+good = '''
+const blob = await getBlob(ref(storage, "photos/banner_400x400.png"));
+img.src = URL.createObjectURL(blob);
+'''

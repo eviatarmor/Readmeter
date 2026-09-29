@@ -1,0 +1,18 @@
+{
+  "description": "list() on an empty prefix with no maxResults. One class A operation. An empty page still counts.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "storage", "op": "list", "ts_ms": 1000, "call_id": 1,
+      "path": "photos",
+      "result": { "items": 0 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "photos", "units": { "class_a": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.storage/unbounded-list-page" }
+  ]
+}

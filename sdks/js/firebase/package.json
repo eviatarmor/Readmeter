@@ -23,6 +23,10 @@
       "types": "./dist/web/database.d.ts",
       "import": "./dist/web/database.js"
     },
+    "./storage": {
+      "types": "./dist/web/storage.d.ts",
+      "import": "./dist/web/storage.js"
+    },
     "./admin": {
       "types": "./dist/admin/index.d.ts",
       "import": "./dist/admin/index.js"
@@ -37,6 +41,7 @@
   },
   "peerDependencies": {
     "@google-cloud/firestore": ">=7",
+    "@google-cloud/storage": ">=8",
     "firebase": ">=10 <13",
     "firebase-admin": ">=12"
   },
@@ -48,6 +53,9 @@
       "optional": true
     },
     "@google-cloud/firestore": {
+      "optional": true
+    },
+    "@google-cloud/storage": {
       "optional": true
     }
   },
@@ -66,5 +74,5 @@
     "url": "https://github.com/eviatarmor/Readmeter.git",
     "directory": "sdks/js/firebase"
   },
-  "description": "Find Firestore and Realtime Database cost problems in Firebase web apps and Cloud Functions, down to the callsite."
+  "description": "Find Firestore, Realtime Database, and Cloud Storage cost problems in Firebase web apps and Cloud Functions, down to the callsite."
 }

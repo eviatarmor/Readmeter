@@ -1,0 +1,18 @@
+{
+  "description": "uploadBytes of 5 MiB plus one byte, not resumable. One class A operation and a stored_bytes observation of that size.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "storage", "op": "upload", "ts_ms": 1000, "call_id": 1,
+      "path": "videos/clip.bin", "resumable": false,
+      "bytes": 5242881
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "videos/clip.bin", "units": { "class_a": 1, "stored_bytes": 5242881 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.storage/upload-without-resumable" }
+  ]
+}

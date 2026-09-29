@@ -4,5 +4,5 @@
     "lib": ["ES2023", "DOM"],
     "noEmit": true
   },
-  "include": ["run.ts", "../web/src/scenarios.ts", "../web/src/database.ts"]
+  "include": ["run.ts", "../web/src/scenarios.ts", "../web/src/database.ts", "../web/src/storage.ts"]
 }

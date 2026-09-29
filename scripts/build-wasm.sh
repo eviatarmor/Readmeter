@@ -4,11 +4,11 @@
 # (same version as Cargo.lock); Node (wasm-opt comes from the npm `binaryen` package).
 set -euo pipefail
 
-# Ratchet: lower this whenever the build shrinks. Raised for Realtime Database
-# local rules (measured gzip 79,005 B, rounded up to the next 256).
-BUDGET_GZIP=${BUDGET_GZIP:-79104}
+# Ratchet: lower this whenever the build shrinks. Raised for Cloud Storage
+# local rules (measured gzip 85,380 B, rounded up to the next 256).
+BUDGET_GZIP=${BUDGET_GZIP:-85504}
 OUT=${OUT:-target/wasm-pkg}
-FEATURES=${FEATURES:-firebase,database}
+FEATURES=${FEATURES:-firebase,database,storage}
 
 cd "$(dirname "$0")/.."
 

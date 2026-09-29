@@ -14,5 +14,7 @@ test("seed, unbounded list, and offset pagination show local findings", async ({
   await expect(log).toContainText("firebase.firestore/offset-pagination");
   await page.getByRole("button", { name: "duplicate listeners" }).click();
   await expect(log).toContainText("firebase.database/duplicate-listeners");
+  await page.getByRole("button", { name: "unbounded storage list" }).click();
+  await expect(log).toContainText("firebase.storage/unbounded-list-page");
   expect(pageErrors, pageErrors.join("\n")).toEqual([]);
 });

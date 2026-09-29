@@ -1,0 +1,18 @@
+{
+  "description": "A browser getBlob of an image just over 1 MiB. Class B plus egress. The operation is not a generic read, so oversized-payload does not also match.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "storage", "op": "download", "ts_ms": 1000, "call_id": 1,
+      "path": "photos/banner.png", "content_type": "image",
+      "result": { "bytes": 1048577 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "photos/banner.png", "units": { "class_b": 1, "egress_bytes": 1048577 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.storage/original-size-images" }
+  ]
+}

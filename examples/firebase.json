@@ -8,6 +8,9 @@
       "rules": "database.rules.json"
     }
   ],
+  "storage": {
+    "rules": "storage.rules"
+  },
   "functions": [
     {
       "source": "functions",
@@ -28,6 +31,10 @@
     "database": {
       "host": "127.0.0.1",
       "port": 9000
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
     },
     "ui": {
       "enabled": false

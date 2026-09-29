@@ -1,0 +1,22 @@
+{
+  "description": "getDownloadURL for photos/hero.png five times in a minute. Each call is one class B metadata read and no egress.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "storage", "op": "download_url", "ts_ms": 1000, "call_id": 1, "path": "photos/hero.png" },
+    { "service": "storage", "op": "download_url", "ts_ms": 2000, "call_id": 2, "path": "photos/hero.png" },
+    { "service": "storage", "op": "download_url", "ts_ms": 3000, "call_id": 3, "path": "photos/hero.png" },
+    { "service": "storage", "op": "download_url", "ts_ms": 4000, "call_id": 4, "path": "photos/hero.png" },
+    { "service": "storage", "op": "download_url", "ts_ms": 5000, "call_id": 5, "path": "photos/hero.png" }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "photos/hero.png", "units": { "class_b": 1 } },
+    { "op": "other", "template": "photos/hero.png", "units": { "class_b": 1 } },
+    { "op": "other", "template": "photos/hero.png", "units": { "class_b": 1 } },
+    { "op": "other", "template": "photos/hero.png", "units": { "class_b": 1 } },
+    { "op": "other", "template": "photos/hero.png", "units": { "class_b": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.storage/download-url-per-render" }
+  ]
+}

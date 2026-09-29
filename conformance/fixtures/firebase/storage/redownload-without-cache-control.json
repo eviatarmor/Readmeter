@@ -1,0 +1,30 @@
+{
+  "description": "Three getBytes of files/data.bin whose metadata says there is no max-age. Each download is class B plus egress. The file is not an image and is far under 1 MiB.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    {
+      "service": "storage", "op": "download", "ts_ms": 1000, "call_id": 1,
+      "path": "files/data.bin", "cache_control": "none",
+      "result": { "bytes": 100 }
+    },
+    {
+      "service": "storage", "op": "download", "ts_ms": 2000, "call_id": 2,
+      "path": "files/data.bin", "cache_control": "none",
+      "result": { "bytes": 100 }
+    },
+    {
+      "service": "storage", "op": "download", "ts_ms": 3000, "call_id": 3,
+      "path": "files/data.bin", "cache_control": "none",
+      "result": { "bytes": 100 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "files/data.bin", "units": { "class_b": 1, "egress_bytes": 100 } },
+    { "op": "other", "template": "files/data.bin", "units": { "class_b": 1, "egress_bytes": 100 } },
+    { "op": "other", "template": "files/data.bin", "units": { "class_b": 1, "egress_bytes": 100 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.storage/redownload-without-cache-control" }
+  ]
+}

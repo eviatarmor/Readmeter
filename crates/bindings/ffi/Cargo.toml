@@ -14,6 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 default = ["firebase", "window"]
 firebase = ["readmeter-runtime/firebase"]
 database = ["readmeter-runtime/database"]
+storage = ["readmeter-runtime/storage"]
 window = ["readmeter-runtime/window"]
 
 [dependencies]

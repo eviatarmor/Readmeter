@@ -8,8 +8,8 @@ cd "$root"
 
 mkdir -p sdks/js/firebase/wasm/prod sdks/js/firebase/wasm/dev sdks/js/firebase/bundle
 
-OUT=sdks/js/firebase/wasm/prod FEATURES=firebase,database ./scripts/build-wasm.sh
-OUT=sdks/js/firebase/wasm/dev FEATURES=firebase,database,window BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
+OUT=sdks/js/firebase/wasm/prod FEATURES=firebase,database,storage ./scripts/build-wasm.sh
+OUT=sdks/js/firebase/wasm/dev FEATURES=firebase,database,storage,window BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
 
 cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
 cp target/rules/bundle.bin sdks/js/firebase/bundle/bundle.bin

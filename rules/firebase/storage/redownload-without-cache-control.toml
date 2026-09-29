@@ -1,0 +1,43 @@
+id = "firebase.storage/redownload-without-cache-control"
+title = "Object downloaded again with no cache lifetime"
+provider = "firebase"
+service = "storage"
+severity = "high"
+category = "payload"
+evaluation = "window"
+status = "stable"
+summary = "Repeated getBytes or getBlob calls re-download an object that sets no max-age."
+
+description = """
+Each `getBytes` or `getBlob` is a class B operation plus egress. Without
+a `Cache-Control: max-age` the browser and the SDK have no lifetime to
+reuse, so the next call downloads the object again. `getStream` and a
+server `File.download` are the same billed download.
+"""
+
+fix = """
+Set `cacheControl` on the object (`uploadBytes` metadata, or
+`updateMetadata`) to a `max-age` the clients can keep, and download it
+once per session.
+"""
+
+docs = [
+  "https://firebase.google.com/docs/storage/web/download-files",
+  "https://firebase.google.com/docs/storage/web/file-metadata",
+]
+
+[params]
+min_downloads = 3
+window_ms = 600000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const bytes = await getBytes(ref(storage, "files/report.bin"));
+render(bytes);
+'''
+good = '''
+await updateMetadata(ref(storage, "files/report.bin"), { cacheControl: "public,max-age=86400" });
+const bytes = cache.get("files/report.bin") ?? await getBytes(ref(storage, "files/report.bin"));
+cache.set("files/report.bin", bytes);
+'''

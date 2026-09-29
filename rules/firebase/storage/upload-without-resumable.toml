@@ -1,0 +1,38 @@
+id = "firebase.storage/upload-without-resumable"
+title = "Large upload sent in one shot"
+provider = "firebase"
+service = "storage"
+severity = "low"
+category = "reliability"
+evaluation = "local"
+status = "stable"
+summary = "uploadBytes of more than 5 MiB has no resume if the connection drops."
+
+description = """
+`uploadBytes` and `uploadString` send the body in one request. A dropped
+connection retries the whole object. The Admin `File.save` and
+`createWriteStream` helpers are resumable unless `resumable` is set to
+false, and those non-resumable uploads are the same problem. One object
+is still a single class A operation either way; the cost here is the
+repeated attempt.
+"""
+
+fix = """
+Use `uploadBytesResumable` for browser uploads over a few megabytes.
+On the server, leave `resumable` at its default, or set it to true.
+"""
+
+docs = ["https://firebase.google.com/docs/storage/web/upload-files"]
+
+[params]
+min_bytes = 5242880
+
+[[examples]]
+lang = "ts"
+bad = '''
+await uploadBytes(ref(storage, "videos/clip.mp4"), file);
+'''
+good = '''
+const task = uploadBytesResumable(ref(storage, "videos/clip.mp4"), file);
+await task;
+'''

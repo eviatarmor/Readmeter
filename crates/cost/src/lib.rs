@@ -136,6 +136,13 @@ reads = { price = 0.03, per = 100000 }
             (db.provider.as_str(), db.service.as_str()),
             ("firebase", "database")
         );
+        let storage =
+            PriceTable::from_toml(include_str!("../../../pricing/firebase/storage.toml")).unwrap();
+        assert_eq!(
+            (storage.provider.as_str(), storage.service.as_str()),
+            ("firebase", "storage")
+        );
+        assert_eq!(storage.checked_on, "2026-09-30");
     }
 
     #[test]

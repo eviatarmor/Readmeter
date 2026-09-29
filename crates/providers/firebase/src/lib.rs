@@ -1,8 +1,8 @@
 //! Firebase provider.
 //!
 //! Services are cargo features so SDK builds only carry what they wrap.
-//! Firestore and Realtime Database are implemented; Storage and Functions
-//! slot in as sibling modules.
+//! Firestore, Realtime Database, and Cloud Storage are implemented.
+//! Authentication and Functions slot in as sibling modules.
 
 use readmeter_core::Envelope;
 use readmeter_provider_api::json::{self, JsonTypeError};
@@ -13,6 +13,8 @@ use readmeter_rules::DetectorFactory;
 pub mod database;
 #[cfg(feature = "firestore")]
 pub mod firestore;
+#[cfg(feature = "storage")]
+pub mod storage;
 
 pub const PROVIDER_ID: &str = "firebase";
 
@@ -30,6 +32,8 @@ impl Provider for FirebaseProvider {
             database::SERVICE_ID,
             #[cfg(feature = "firestore")]
             firestore::SERVICE_ID,
+            #[cfg(feature = "storage")]
+            storage::SERVICE_ID,
         ]
     }
 
@@ -53,6 +57,8 @@ impl Provider for FirebaseProvider {
             firestore::SERVICE_ID => {
                 firestore::normalize(firestore::RawCall::from_json(value)?, cx)
             }
+            #[cfg(feature = "storage")]
+            storage::SERVICE_ID => storage::normalize(storage::RawCall::from_json(value)?, cx),
             other => Err(NormalizeError::UnknownService(other.to_owned())),
         }
     }
@@ -63,6 +69,8 @@ impl Provider for FirebaseProvider {
         out.extend(database::detectors::all());
         #[cfg(feature = "firestore")]
         out.extend(firestore::detectors::all());
+        #[cfg(feature = "storage")]
+        out.extend(storage::detectors::all());
         out
     }
 }

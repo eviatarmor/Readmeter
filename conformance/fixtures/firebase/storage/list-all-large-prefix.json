@@ -1,0 +1,18 @@
+{
+  "description": "listAll returns 1000 objects under photos. That is one class A page and the large-prefix rule.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "storage", "op": "list_all", "ts_ms": 1000, "call_id": 1,
+      "path": "photos",
+      "result": { "items": 1000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "photos", "units": { "class_a": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.storage/list-all-large-prefix" }
+  ]
+}

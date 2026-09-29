@@ -1,6 +1,6 @@
 # @readmeter/firebase
 
-Record Cloud Firestore and Realtime Database calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
+Record Cloud Firestore, Realtime Database, and Cloud Storage calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
 
 ## Install
 
@@ -10,7 +10,7 @@ Install from the package tarball (`pnpm pack` in `sdks/js/firebase`):
 pnpm add ./readmeter-firebase-0.1.0.tgz
 ```
 
-Peer dependencies are optional. Install the ones you call: `firebase` (web, `>=10 <13`), `firebase-admin` (`>=12`) and `@google-cloud/firestore` (`>=7`) for Cloud Functions.
+Peer dependencies are optional. Install the ones you call: `firebase` (web, `>=10 <13`), `firebase-admin` (`>=12`), `@google-cloud/firestore` (`>=7`), and `@google-cloud/storage` (`>=8`) for Cloud Functions.
 
 ## init
 
@@ -29,7 +29,7 @@ await flush();
 
 ## Web
 
-Change `from "firebase/firestore"` to `from "@readmeter/firebase/firestore"`.
+Change `from "firebase/firestore"` to `from "@readmeter/firebase/firestore"`. Change `from "firebase/storage"` to `from "@readmeter/firebase/storage"` the same way.
 
 ```ts
 import { init } from "@readmeter/firebase";
@@ -70,6 +70,7 @@ init({
 });
 
 const db = instrument(getFirestore());
+// Cloud Storage: instrumentStorage(getStorage().bucket()) from the same module.
 
 export const fn = onRequest(withFlush(async (req, res) => {
   const snap = await db.collection("orders").where("status", "==", "open").get();
@@ -85,7 +86,7 @@ export const fn = onRequest(withFlush(async (req, res) => {
 
 ## Privacy
 
-What leaves the process is a template (`users/{id}/orders`), a count, a size, or a keyed hash. Document data, filter values, and ids are not sent.
+What leaves the process is a template (`users/{id}/orders`), a count, a size, or a keyed hash. Document data, filter values, and ids are not sent. Cloud Storage also sends an extension, a content-type major, a cache-control class, list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent.
 
 ## Try it on your app
 

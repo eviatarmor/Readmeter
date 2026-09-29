@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local loop: dev-up, Firestore + Functions emulators, web scenarios, HTTP
+# Local loop: dev-up, Firestore + Functions + Storage emulators, web scenarios, HTTP
 # functions, Postgres findings, then a real Chromium pass through Vite.
 # Git Bash on Windows, bash on Linux.
 set -euo pipefail
@@ -15,6 +15,7 @@ cleanup() {
   node "$root/scripts/free-emulator-port.mjs" 8085 || true
   node "$root/scripts/free-emulator-port.mjs" 5001 || true
   node "$root/scripts/free-emulator-port.mjs" 9000 || true
+  node "$root/scripts/free-emulator-port.mjs" 9199 || true
 }
 trap cleanup EXIT
 
@@ -69,8 +70,9 @@ step "firebase emulators"
 node "$root/scripts/free-emulator-port.mjs" 8085
 node "$root/scripts/free-emulator-port.mjs" 5001
 node "$root/scripts/free-emulator-port.mjs" 9000
+node "$root/scripts/free-emulator-port.mjs" 9199
 npx -y firebase-tools@latest emulators:exec \
-  --only firestore,functions,database \
+  --only firestore,functions,database,storage \
   --project demo-readmeter \
   --config "$root/examples/firebase.json" \
   "bash scripts/e2e-inside.sh"

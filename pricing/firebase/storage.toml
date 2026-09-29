@@ -1,0 +1,45 @@
+# Cloud Storage for Firebase.
+# Verified 2026-09-30 against https://firebase.google.com/pricing and
+# https://cloud.google.com/storage/pricing.
+#
+# Legacy *.appspot.com buckets (billed as App Engine / regional Standard):
+#   class A  $0.05 per 10,000 after 20,000/day  ($0.005 per 1,000)
+#   class B  $0.004 per 10,000 after 50,000/day ($0.0004 per 1,000)
+#   download $0.12 per GB after 1 GB/day
+# This table uses decimal GB (1e9 bytes), the same unit as Realtime
+# Database. Cloud Storage quotes network egress per GiB (2^30 bytes) at
+# $0.12; the Firebase appspot line says $0.12/GB. The gap is not encoded
+# as a second unit.
+#
+# Dual-region and multi-region Standard class A is $0.01 per 1,000. Not
+# encoded. default_region is the single-region price.
+#
+# *.firebasestorage.app buckets use Cloud Storage prices. No-cost quotas
+# apply only in us-central1, us-west1 and us-east1 (5 GB-months stored,
+# 100 GB downloaded per month, 5,000 upload ops per month, 50,000 download
+# ops per month) and then standard rates. Those monthly quotas are not
+# the daily free tier below.
+#
+# stored_bytes is an observation of an object size seen on metadata or a
+# completed upload. Summing it overcounts the bucket, so it is unpriced.
+# A resumable upload of one object is one class A operation
+# (https://cloud.google.com/storage/pricing, operations footnote).
+# objects.delete is free. getSignedUrl is local signing or IAM signBlob,
+# not a class A or class B storage operation.
+
+provider = "firebase"
+service = "storage"
+currency = "USD"
+source = "https://firebase.google.com/pricing"
+checked_on = "2026-09-30"
+default_region = "global"
+
+[regions.global]
+class_a = { price = 0.05, per = 10000 }
+class_b = { price = 0.004, per = 10000 }
+egress_bytes = { price = 0.12, per = 1000000000 }
+
+[free_per_day]
+class_a = 20000
+class_b = 50000
+egress_bytes = 1000000000

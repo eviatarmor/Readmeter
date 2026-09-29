@@ -1,0 +1,38 @@
+id = "firebase.storage/download-url-per-render"
+title = "Download URL fetched again on each render"
+provider = "firebase"
+service = "storage"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "getDownloadURL hits object metadata, a class B operation, every time it runs."
+
+description = """
+`getDownloadURL` reads object metadata to mint a URL. It does not
+download the bytes, but each call is still a class B operation. Calling
+it from a render path repeats that read for the same object.
+"""
+
+fix = """
+Call `getDownloadURL` once, keep the string, and reuse it. The URL stays
+valid until the download token is revoked.
+"""
+
+docs = ["https://firebase.google.com/docs/storage/web/download-files"]
+
+[params]
+min_calls = 5
+window_ms = 60000
+
+[[examples]]
+lang = "ts"
+bad = '''
+const url = await getDownloadURL(ref(storage, path));
+img.src = url;
+'''
+good = '''
+const url = urls.get(path) ?? await getDownloadURL(ref(storage, path));
+urls.set(path, url);
+img.src = url;
+'''

@@ -29,6 +29,7 @@ step "browser findings in postgres"
 pnpm --filter readmeter-e2e exec tsx run.ts --assert-only \
   firebase.firestore/unbounded-list \
   firebase.firestore/offset-pagination \
-  firebase.database/duplicate-listeners
+  firebase.database/duplicate-listeners \
+  firebase.storage/unbounded-list-page
 
 stop_pid "$root/target/dev/preview.pid"
