@@ -12,9 +12,9 @@ sdks/js/firebase/*.tgz
 .readmeter/
 examples/functions/lib/
 examples/functions/package-lock.json
-examples/web-firestore/dist/
-examples/web-firestore/playwright-report/
-examples/web-firestore/test-results/
+examples/web/dist/
+examples/web/playwright-report/
+examples/web/test-results/
 *-debug.log
 ui-debug.log
 
