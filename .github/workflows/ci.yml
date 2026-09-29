@@ -95,11 +95,12 @@ jobs:
           BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
           ./scripts/build-wasm-server.sh
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      # The SDK package is checked in the sdk-js job (it needs its wasm build).
+      - run: pnpm --filter "./apps/*" --filter "./packages/*" typecheck
       - run: pnpm db:migrate
       - name: Migrations match the schema
         run: pnpm db:generate && git diff --exit-code packages/db/migrations
-      - run: pnpm test
+      - run: pnpm --filter "./apps/*" --filter "./packages/*" test
 
   sdk-js:
     runs-on: ubuntu-latest
