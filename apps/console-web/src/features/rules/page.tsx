@@ -3,7 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import * as React from "react";
 import { toast } from "sonner";
 
-import type { RuleRow } from "@readmeter/console-api/contract";
+import { SEVERITY_ORDER, type RuleRow } from "@readmeter/console-api/contract";
 
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { EmptyState, PageHeader, QueryError } from "@/components/page-header";
@@ -93,7 +93,7 @@ function ruleColumns(manage: boolean): ColumnDef<DataTableFeatures, RuleRow>[] {
       meta: {
         label: "Severity",
         variant: "multiSelect",
-        options: ["critical", "high", "medium", "low", "info"].map((value) => ({
+        options: SEVERITY_ORDER.map((value) => ({
           label: value,
           value,
         })),
@@ -202,7 +202,7 @@ function RuleSheet({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["info", "low", "medium", "high", "critical"].map((item) => (
+                  {SEVERITY_ORDER.map((item) => (
                     <SelectItem key={item} value={item}>
                       {item}
                     </SelectItem>

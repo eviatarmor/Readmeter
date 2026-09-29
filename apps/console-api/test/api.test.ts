@@ -13,9 +13,16 @@ import { createApp } from "../src/app.ts";
 import { createAuth } from "../src/auth.ts";
 import { loadCore } from "../src/core.ts";
 import { readEnv } from "../src/env.ts";
+import { issueId, parseIssueId } from "../src/issues.ts";
 import { createMailer } from "../src/mail.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
+
+test("issue ids hash rule, template, and callsite", () => {
+  assert.equal(issueId("proj_a", "rule", "tmpl", "file.ts:1"), "proj_a:120e50c6529080fc");
+  assert.equal(parseIssueId("proj_a:120e50c6529080fc")?.hash, "120e50c6529080fc");
+  assert.equal(parseIssueId("12"), null);
+});
 const ORIGIN = "http://localhost:5174";
 const BASE = "http://127.0.0.1:8091";
 
@@ -213,6 +220,151 @@ test("console api", { skip: !databaseUrl }, async () => {
     assert.equal(filteredBody.items[0]?.status, "open");
     assert.equal(typeof filteredBody.items[0]?.wastedMicros, "number");
 
+    const [sessionA] = await insertFinding(db, project.id, {
+      rule: "firebase.firestore/unbounded-list",
+      severity: "critical",
+      template: "grouped",
+      callsite: "app.ts:10:1",
+      session: "session-a",
+      occurrences: 2,
+      wasted: { reads: 10 },
+      now,
+    });
+    const [sessionB] = await insertFinding(db, project.id, {
+      rule: "firebase.firestore/unbounded-list",
+      severity: "critical",
+      template: "grouped",
+      callsite: "app.ts:10:1",
+      session: "session-b",
+      occurrences: 5,
+      wasted: { reads: 4 },
+      now,
+    });
+    await db.insert(schema.findingStates).values({
+      findingId: sessionB!.id,
+      status: "resolved",
+      updatedAt: now,
+    });
+    const grouped = await call(
+      app,
+      "GET",
+      `/api/v1/workspaces/${slug}/findings?template=grouped`,
+      { cookie },
+    );
+    assert.equal(grouped.status, 200, await grouped.clone().text());
+    const groupedBody = (await grouped.json()) as {
+      items: {
+        id: string;
+        rule: string;
+        sessions: number;
+        occurrences: number;
+        status: string;
+        wasted: Record<string, number>;
+        wastedMicros: number;
+      }[];
+      total: number;
+    };
+    assert.equal(groupedBody.total, 1);
+    assert.equal(groupedBody.items.length, 1);
+    const issue = groupedBody.items[0]!;
+    assert.equal(issue.id, issueId(project.id, "firebase.firestore/unbounded-list", "grouped", "app.ts:10:1"));
+    assert.equal(issue.sessions, 2);
+    assert.equal(issue.occurrences, 7);
+    assert.equal(issue.status, "open");
+    assert.equal(issue.wasted.reads, 14);
+
+    const ungrouped = await call(
+      app,
+      "GET",
+      `/api/v1/workspaces/${slug}/findings?template=grouped&group=none`,
+      { cookie },
+    );
+    const ungroupedBody = (await ungrouped.json()) as { items: { id: number; wastedMicros: number }[]; total: number };
+    assert.equal(ungroupedBody.total, 2);
+    assert.equal(
+      ungroupedBody.items.reduce((sum, row) => sum + row.wastedMicros, 0),
+      issue.wastedMicros,
+    );
+
+    const issueDetail = await call(app, "GET", `/api/v1/workspaces/${slug}/findings/${encodeURIComponent(issue.id)}`, {
+      cookie,
+    });
+    assert.equal(issueDetail.status, 200, await issueDetail.clone().text());
+    const issueDetailBody = (await issueDetail.json()) as {
+      id: string;
+      members: { session: string; occurrences: number; evidence: unknown }[];
+      occurrencesByDay: { day: string; occurrences: number }[];
+    };
+    assert.equal(issueDetailBody.id, issue.id);
+    assert.equal(issueDetailBody.members.length, 2);
+    assert.equal(
+      issueDetailBody.members.reduce((sum, member) => sum + member.occurrences, 0),
+      7,
+    );
+    assert.ok(issueDetailBody.occurrencesByDay.length >= 1);
+
+    const byNumber = await call(app, "GET", `/api/v1/workspaces/${slug}/findings/${sessionA!.id}`, { cookie });
+    assert.equal(byNumber.status, 200, await byNumber.clone().text());
+    const byNumberBody = (await byNumber.json()) as { id: string; sessions: number };
+    assert.equal(byNumberBody.id, issue.id);
+    assert.equal(byNumberBody.sessions, 2);
+
+    const auditsBefore = await db
+      .select({ id: schema.auditLog.id })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.orgId, orgId));
+    const patchedIssue = await call(app, "PATCH", `/api/v1/workspaces/${slug}/findings/${encodeURIComponent(issue.id)}`, {
+      cookie,
+      body: { status: "ignored" },
+    });
+    assert.equal(patchedIssue.status, 200, await patchedIssue.clone().text());
+    const states = await db
+      .select({ status: schema.findingStates.status })
+      .from(schema.findingStates)
+      .where(eq(schema.findingStates.findingId, sessionA!.id));
+    assert.equal(states[0]?.status, "ignored");
+    const statesB = await db
+      .select({ status: schema.findingStates.status })
+      .from(schema.findingStates)
+      .where(eq(schema.findingStates.findingId, sessionB!.id));
+    assert.equal(statesB[0]?.status, "ignored");
+    const auditsAfter = await db
+      .select({ id: schema.auditLog.id })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.orgId, orgId));
+    assert.equal(auditsAfter.length, auditsBefore.length + 1);
+
+    const bulk = await call(app, "POST", `/api/v1/workspaces/${slug}/findings/bulk`, {
+      cookie,
+      body: { ids: [issue.id], status: "open" },
+    });
+    assert.equal(bulk.status, 200, await bulk.clone().text());
+    const bulkBody = (await bulk.json()) as { updated: number };
+    assert.equal(bulkBody.updated, 2);
+
+    const sorted = await call(
+      app,
+      "GET",
+      `/api/v1/workspaces/${slug}/findings?sort=sessions&limit=1`,
+      { cookie },
+    );
+    assert.equal(sorted.status, 200, await sorted.clone().text());
+    const sortedBody = (await sorted.json()) as { items: { sessions: number }[]; nextCursor: string | null };
+    assert.equal(sortedBody.items[0]?.sessions, 2);
+    assert.ok(sortedBody.nextCursor);
+    const page2 = await call(
+      app,
+      "GET",
+      `/api/v1/workspaces/${slug}/findings?sort=sessions&limit=1&cursor=${encodeURIComponent(sortedBody.nextCursor!)}`,
+      { cookie },
+    );
+    assert.equal(page2.status, 200, await page2.clone().text());
+    const page2Body = (await page2.json()) as { items: { sessions: number }[] };
+    assert.ok((page2Body.items[0]?.sessions ?? 0) <= 2);
+
+    const badGroup = await call(app, "GET", `/api/v1/workspaces/${slug}/findings?group=row`, { cookie });
+    assert.equal(badGroup.status, 400);
+
     const bundlePath = new URL("../../../target/rules/bundle.bin", import.meta.url);
     const bundleJson = readFileSync(new URL("../../../target/rules/bundle.json", import.meta.url), "utf8");
     const bundleBytes = new Uint8Array(readFileSync(bundlePath));
@@ -246,11 +398,19 @@ test("console api", { skip: !databaseUrl }, async () => {
     assert.equal(overview.status, 200, await overview.clone().text());
     const overviewBody = (await overview.json()) as {
       series: { day: string; events: number; estimatedCostMicros: number }[];
-      kpis: { events: number };
+      kpis: { events: number; openFindings: number; openIssues: number };
+      topRules: { title: string }[];
+      openFindingsBySeverity: Record<string, number>;
     };
     assert.equal(overviewBody.series.length, 7);
     assert.ok(overviewBody.kpis.events >= 1);
     assert.ok(overviewBody.series.some((point) => point.events >= 1));
+    assert.ok(overviewBody.kpis.openIssues <= overviewBody.kpis.openFindings);
+    assert.ok(overviewBody.topRules.every((row) => typeof row.title === "string"));
+    const severityKeys = Object.keys(overviewBody.openFindingsBySeverity);
+    const order = ["critical", "high", "medium", "low", "info"];
+    const ranked = severityKeys.map((key) => order.indexOf(key));
+    assert.deepEqual(ranked, [...ranked].sort((a, b) => a - b));
 
     const csrf = await call(app, "POST", "/api/v1/workspaces", {
       cookie,
@@ -267,7 +427,16 @@ test("console api", { skip: !databaseUrl }, async () => {
 async function insertFinding(
   db: Db,
   projectId: string,
-  row: { rule: string; severity: string; template: string; wasted: Record<string, number>; now: Date },
+  row: {
+    rule: string;
+    severity: string;
+    template: string;
+    wasted: Record<string, number>;
+    now: Date;
+    session?: string;
+    callsite?: string;
+    occurrences?: number;
+  },
 ) {
   return db
     .insert(schema.findings)
@@ -279,13 +448,14 @@ async function insertFinding(
       provider: "firebase",
       service: "firestore",
       template: row.template,
-      session: "s",
-      callsite: "test.ts:1:1",
+      session: row.session ?? "s",
+      callsite: row.callsite ?? "test.ts:1:1",
       message: row.rule,
-      evidence: {},
+      evidence: { template: row.template },
       wasted: row.wasted,
       firstSeen: row.now,
       lastSeen: row.now,
+      occurrences: row.occurrences ?? 1,
     })
     .returning({ id: schema.findings.id });
 }

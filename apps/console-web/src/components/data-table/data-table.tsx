@@ -23,18 +23,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+function columnBox(
+  column: { columnDef: { meta?: { width?: string } } },
+  base: React.CSSProperties,
+): React.CSSProperties {
+  const width = column.columnDef.meta?.width;
+  if (!width) return base;
+  return { ...base, width, maxWidth: width };
+}
+
 interface DataTableProps<
   TData extends RowData,
 > extends React.ComponentProps<"div"> {
   table: TanstackTable<DataTableFeatures, TData>;
   actionBar?: React.ReactNode;
   onRowClick?: (row: TData) => void;
+  tableClassName?: string;
 }
 
 export function DataTable<TData extends RowData>({
   table,
   actionBar,
   onRowClick,
+  tableClassName,
   children,
   className,
   ...props
@@ -46,7 +57,7 @@ export function DataTable<TData extends RowData>({
     >
       {children}
       <div className="overflow-hidden rounded-md border">
-        <Table>
+        <Table className={tableClassName}>
           <DataTableHeader table={table} />
           <DataTableBody table={table} onRowClick={onRowClick} />
         </Table>
@@ -86,7 +97,8 @@ function DataTableHeader<TData extends RowData>({
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
-                  style={getColumnPinningStyle({ column: header.column })}
+                  className={header.column.columnDef.meta?.width ? "overflow-hidden" : undefined}
+                  style={columnBox(header.column, getColumnPinningStyle({ column: header.column }))}
                 >
                   {header.isPlaceholder ? null : <FlexRender header={header} />}
                 </TableHead>
@@ -160,7 +172,7 @@ function DataTableRow<TData extends RowData>({
       {() => {
         const cells = row.getVisibleCells().map((cell) => ({
           cell,
-          style: getColumnPinningStyle({ column: cell.column }),
+          style: columnBox(cell.column, getColumnPinningStyle({ column: cell.column })),
         }));
 
         return (
@@ -185,7 +197,11 @@ function DataTableRow<TData extends RowData>({
                 }}
               >
                 {cells.map(({ cell, style }) => (
-                  <TableCell key={cell.id} style={style}>
+                  <TableCell
+                    key={cell.id}
+                    style={style}
+                    className={cell.column.columnDef.meta?.width ? "overflow-hidden" : undefined}
+                  >
                     <FlexRender cell={cell} />
                   </TableCell>
                 ))}

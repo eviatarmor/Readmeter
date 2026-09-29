@@ -189,6 +189,8 @@ export const findings = pgTable(
     uniqueIndex("findings_dedupe_idx").on(t.projectId, t.rule, t.session, t.callsite, t.template),
     index("findings_project_last_seen_idx").on(t.projectId, t.lastSeen),
     index("findings_project_rule_idx").on(t.projectId, t.rule),
+    // Issue groups are (project, rule, template, callsite). Session is not part of the key.
+    index("findings_issue_idx").on(t.projectId, t.rule, t.template, t.callsite),
   ],
 );
 

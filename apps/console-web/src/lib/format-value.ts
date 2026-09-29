@@ -57,6 +57,26 @@ export function formatRelative(value: string | number | Date): string {
   return formatDistanceToNow(date, { addSuffix: true });
 }
 
+/** Short relative label for narrow table cells: "<1m ago", "10h ago", "3d ago". */
+export function formatRelativeCompact(value: string | number | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const delta = date.getTime() - Date.now();
+  const abs = Math.abs(delta);
+  const future = delta > 0;
+  const label = (amount: number, unit: string) => (future ? `in ${amount}${unit}` : `${amount}${unit} ago`);
+  if (abs < 60_000) return future ? "in <1m" : "<1m ago";
+  const minutes = Math.round(abs / 60_000);
+  if (minutes < 60) return label(minutes, "m");
+  const hours = Math.round(abs / 3_600_000);
+  if (hours < 48) return label(hours, "h");
+  const days = Math.round(abs / 86_400_000);
+  if (days < 60) return label(days, "d");
+  const months = Math.round(days / 30);
+  if (months < 24) return label(months, "mo");
+  return label(Math.max(1, Math.round(days / 365)), "y");
+}
+
 export function halfDelta(values: number[]): number | null {
   if (values.length < 2) return null;
   const mid = Math.floor(values.length / 2);

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseAsStringEnum, useQueryState } from "nuqs";
 
-import type { Finding, FindingDetail } from "@readmeter/console-api/contract";
+import type { Finding, FindingDetail, Page } from "@readmeter/console-api/contract";
 
 import { useRules } from "@/features/rules/queries";
 import { api, collectPages } from "@/lib/api";
@@ -27,6 +27,7 @@ const sortMap: Record<string, string> = {
   lastSeen: "last_seen",
   occurrences: "occurrences",
   wastedMicros: "wasted_micros",
+  sessions: "sessions",
 };
 
 export function useFindingRows(slug: string, project: string | undefined, range: WindowRange) {
@@ -65,18 +66,18 @@ export function useFinding(slug: string, id: string | undefined) {
   return useQuery({
     queryKey: ["finding", slug, id ?? ""],
     enabled: Boolean(id),
-    queryFn: () => api<FindingDetail>(`/api/v1/workspaces/${slug}/findings/${id}`),
+    queryFn: () => api<FindingDetail>(`/api/v1/workspaces/${slug}/findings/${encodeURIComponent(id ?? "")}`),
   });
 }
 
 export function useFindingBadge(slug: string, project: string | undefined) {
-  const params = new URLSearchParams({ status: "open", severity: "critical,high", limit: "200" });
+  const params = new URLSearchParams({ status: "open", severity: "critical,high", limit: "1" });
   if (project) params.set("project", project);
   return useQuery({
     queryKey: ["finding-badge", slug, project ?? ""],
     queryFn: async () => {
-      const items = await collectPages<Finding>(`/api/v1/workspaces/${slug}/findings?${params}`);
-      return items.length;
+      const page = await api<Page<Finding>>(`/api/v1/workspaces/${slug}/findings?${params}`);
+      return page.total ?? page.items.length;
     },
   });
 }

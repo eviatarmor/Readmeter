@@ -3,6 +3,11 @@
 export type Role = "owner" | "admin" | "member";
 export type Environment = "production" | "staging" | "development";
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
+/**
+ * Cost-impact order for every severity list (filters, selects, charts, badges).
+ * Never sort these alphabetically.
+ */
+export const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"] as const;
 export type FindingStatus = "open" | "resolved" | "ignored";
 export type Range = "7d" | "30d" | "90d";
 
@@ -53,6 +58,8 @@ export interface WorkspacePatch {
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
+  /** Findings lists include the full match count (groups or rows), not the page size. */
+  total?: number;
 }
 
 export interface Member {
@@ -119,18 +126,42 @@ export interface CreatedApiKey {
   createdAt: string;
 }
 
+/**
+ * One finding row (`group=none`) or one issue (`group=issue`, the default).
+ *
+ * Issue id is `{projectId}:{md5}`, where `md5` is the first 16 hex chars of
+ * MD5 over UTF-8 `rule + "\n" + template + "\n" + callsite`. Postgres `md5()`
+ * of that same text matches, so detail and status updates can find the group
+ * without an extension. A numeric id is a single finding (`group=none`, and
+ * `GET`/`PATCH /findings/:id` of that id still addresses its whole issue).
+ *
+ * Group fields, from members that pass the list filters:
+ * - `sessions`: distinct sessions. `occurrences`: sum. `wasted`: units summed
+ *   per key. `wastedMicros`: price of those summed units (one provider and
+ *   service, taken from the latest member).
+ * - `firstSeen`: min. `lastSeen`: max. `message`, `severity`, `provider`,
+ *   `service`, and `session`: the member with the greatest `lastSeen`.
+ * - `status`: `open` if any member is open (a missing `finding_states` row is
+ *   open); otherwise the status with the greatest `finding_states.updated_at`.
+ * - `assignee` and `note`: from the member that supplied `status` (when open,
+ *   the open member with the greatest `updated_at`).
+ */
 export interface Finding {
-  id: number;
+  /** Numeric finding id, or an issue id (`project:hash`) when grouped. */
+  id: number | string;
   projectId: string;
   rule: string;
   severity: Severity | string;
   provider: string;
   service: string;
   template: string;
+  /** Latest member session. `group=none` is that row's own session. */
   session: string;
   callsite: string;
   message: string;
   occurrences: number;
+  /** Distinct sessions. `1` on a `group=none` row. */
+  sessions: number;
   firstSeen: string;
   lastSeen: string;
   wasted: Record<string, number>;
@@ -138,6 +169,15 @@ export interface Finding {
   assignee: string | null;
   note: string | null;
   wastedMicros: number;
+}
+
+/** One session row inside an issue. Occurrences are this row's own count. */
+export interface FindingMember {
+  id: number;
+  session: string;
+  occurrences: number;
+  lastSeen: string;
+  evidence: Record<string, unknown>;
 }
 
 export interface RuleExample {
@@ -165,8 +205,16 @@ export interface CatalogRule {
 }
 
 export interface FindingDetail extends Omit<Finding, "rule"> {
+  /** Evidence from the latest member (`members[0]`). */
   evidence: Record<string, unknown>;
   rule: CatalogRule | null;
+  /** Latest 20 members by `lastSeen`. */
+  members: FindingMember[];
+  /**
+   * Occurrences bucketed onto each member's `lastSeen` UTC day.
+   * Gaps of 90 days or fewer are filled with 0.
+   */
+  occurrencesByDay: { day: string; occurrences: number }[];
 }
 
 export interface TelemetryEvent {
@@ -230,9 +278,11 @@ export interface Overview {
     estimatedCostMicros: number;
     wastedMicros: number;
     openFindings: number;
+    /** Open issues: groups with at least one open finding. */
+    openIssues: number;
   };
   series: OverviewPoint[];
-  topRules: { rule: string; wastedMicros: number }[];
+  topRules: { rule: string; title: string; wastedMicros: number }[];
   topTemplates: { template: string; events: number }[];
   topCallsites: { callsite: string | null; events: number }[];
   openFindingsBySeverity: Record<string, number>;

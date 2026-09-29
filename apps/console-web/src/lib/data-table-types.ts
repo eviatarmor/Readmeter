@@ -10,6 +10,8 @@ export interface DataTableMeta {
 
 export interface DataTableColumnMeta {
   label?: string;
+  /** Fixed column width, usually a percentage so the table fits the viewport. */
+  width?: string;
   placeholder?: string;
   variant?: FilterVariant;
   options?: Option[];

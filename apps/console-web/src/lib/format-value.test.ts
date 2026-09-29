@@ -1,4 +1,4 @@
-import { formatAbsolute, formatBytes, formatCount, formatMoney, formatRelative, halfDelta } from "@/lib/format-value";
+import { formatAbsolute, formatBytes, formatCount, formatMoney, formatRelative, formatRelativeCompact, halfDelta } from "@/lib/format-value";
 
 describe("formatMoney", () => {
   it("formats zero, tiny amounts, and dollars", () => {
@@ -35,6 +35,16 @@ describe("dates and deltas", () => {
     expect(formatAbsolute("2026-01-02T15:04:00.000Z")).toMatch(/2026/);
     expect(formatAbsolute("not-a-date")).toBe("");
     expect(formatRelative("not-a-date")).toBe("");
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-02T15:04:00.000Z"));
+      expect(formatRelativeCompact("not-a-date")).toBe("");
+      expect(formatRelativeCompact("2026-01-02T15:03:30.000Z")).toBe("<1m ago");
+      expect(formatRelativeCompact("2026-01-02T05:04:00.000Z")).toBe("10h ago");
+      expect(formatRelativeCompact("2026-01-05T15:04:00.000Z")).toBe("in 3d");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("compares the later half of a series with the earlier half", () => {

@@ -26,6 +26,8 @@ interface ResourceTableProps<TData extends RowData> {
   isLoading?: boolean;
   onRowClick?: (row: TData) => void;
   actionBar?: (table: TanstackTable<DataTableFeatures, TData>) => React.ReactNode;
+  columnVisibility?: Record<string, boolean>;
+  tableClassName?: string;
 }
 
 export function ResourceTable<TData extends RowData>({
@@ -36,6 +38,8 @@ export function ResourceTable<TData extends RowData>({
   isLoading,
   onRowClick,
   actionBar,
+  columnVisibility,
+  tableClassName,
 }: ResourceTableProps<TData>) {
   const sortParser = React.useMemo(() => getSortingStateParser<TData>().withDefault([]), []);
   const filterParser = React.useMemo(() => getFiltersStateParser<TData>().withDefault([]), []);
@@ -65,7 +69,10 @@ export function ResourceTable<TData extends RowData>({
     pageCount,
     getRowId,
     queryKeys,
-    initialState: { pagination: { pageIndex: 0, pageSize: 20 } },
+    initialState: {
+      pagination: { pageIndex: 0, pageSize: 20 },
+      ...(columnVisibility ? { columnVisibility } : {}),
+    },
     enableAdvancedFilter: true,
     enableRowSelection: actionBar !== undefined,
   });
@@ -81,7 +88,7 @@ export function ResourceTable<TData extends RowData>({
   }
 
   return (
-    <DataTable table={table} actionBar={bar} onRowClick={onRowClick}>
+    <DataTable table={table} actionBar={bar} onRowClick={onRowClick} tableClassName={tableClassName}>
       <DataTableAdvancedToolbar table={table}>
         <DataTableFilterList table={table} />
         <DataTableSortList table={table} />

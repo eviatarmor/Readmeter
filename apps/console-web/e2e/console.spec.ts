@@ -16,9 +16,11 @@ test("console covers overview, findings, keys, invites, and the sidebar", async 
 
   await page.goto("/w/local/overview?project=demo_local&range=7d");
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  for (const label of ["Events", "Estimated cost", "Wasted", "Open findings"]) {
+  for (const label of ["Events", "Estimated cost", "Wasted", "Open issues"]) {
     await expect(page.locator("[data-slot=card-title]", { hasText: label }).first()).toBeVisible();
   }
+  await expect(page.getByTestId("severity-chart").getByText("Critical")).toBeVisible();
+  await expect(page.getByTestId("top-rules")).toBeVisible();
   await page.screenshot({ path: path.join(images, "console-overview.png") });
 
   await page.goto("/w/local/findings?project=demo_local&range=7d");
@@ -28,12 +30,22 @@ test("console covers overview, findings, keys, invites, and the sidebar", async 
   await page.getByRole("button", { name: "Severity filter values" }).click();
   await page.getByRole("option", { name: "Critical" }).click();
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("columnheader", { name: "Sessions" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Occurrences" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Message" })).toHaveCount(0);
   await expect(page.getByText(/unbounded-list/).first()).toBeVisible();
   await expect(page.getByText(/offset-pagination/)).toHaveCount(0);
+  const fits = await page.getByTestId("findings-table").locator("[data-slot=table-container]").evaluate((el) => {
+    return el.scrollWidth <= el.clientWidth + 1;
+  });
+  expect(fits).toBe(true);
   await page.screenshot({ path: path.join(images, "console-findings.png") });
 
   await page.getByText(/unbounded-list/).first().click();
   await expect(page.getByTestId("finding-status")).toBeVisible();
+  await expect(page.getByTestId("finding-sessions")).toBeVisible();
+  await expect(page.getByTestId("finding-callsite")).toBeVisible();
+  await expect(page.getByTestId("finding-occurrences")).toBeVisible();
   await page.getByTestId("finding-status").click();
   await page.getByRole("option", { name: "Resolved" }).click();
   await page.getByRole("button", { name: "Save" }).click();

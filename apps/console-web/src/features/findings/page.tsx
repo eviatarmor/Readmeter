@@ -1,16 +1,18 @@
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Subscribe, type ColumnDef, type Table } from "@tanstack/react-table";
+import { Subscribe, type ColumnDef, type Table as ReactTable } from "@tanstack/react-table";
+import { Area, AreaChart, XAxis } from "recharts";
 import * as React from "react";
 import { toast } from "sonner";
 
-import type { FindingStatus } from "@readmeter/console-api/contract";
+import { SEVERITY_ORDER, type FindingStatus } from "@readmeter/console-api/contract";
 
 import { CodeBlock } from "@/components/code-block";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { PageHeader, QueryError } from "@/components/page-header";
 import { RelativeTime } from "@/components/relative-time";
 import { ResourceTable } from "@/components/resource-table";
-import { Mono, SeverityBadge, StatusBadge } from "@/components/severity-badge";
+import { SeverityBadge, StatusBadge } from "@/components/severity-badge";
 import {
   ActionBar,
   ActionBarGroup,
@@ -19,21 +21,30 @@ import {
   ActionBarSeparator,
 } from "@/components/ui/action-bar";
 import { Button } from "@/components/ui/button";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { findingKeys, useFinding, useFindingRows, type FindingRow } from "@/features/findings/queries";
 import { useMembers } from "@/features/members/queries";
 import { ApiError, api } from "@/lib/api";
 import type { DataTableFeatures } from "@/lib/data-table-features";
 import { formatCount, formatMoney } from "@/lib/format-value";
 import { queryClient } from "@/lib/query-client";
+import { cn } from "@/lib/utils";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
 
 const statuses: FindingStatus[] = ["open", "resolved", "ignored"];
+const severityOptions = SEVERITY_ORDER.map((value) => ({
+  label: value[0]!.toUpperCase() + value.slice(1),
+  value,
+}));
+const hiddenFindingColumns = { message: false, callsite: false };
+const sparkConfig = { occurrences: { label: "Occurrences", color: "var(--foreground)" } } satisfies ChartConfig;
 
 export function FindingsPage({
   slug,
@@ -48,7 +59,7 @@ export function FindingsPage({
   const query = useFindingRows(slug, search.project, search.range);
   const columns = React.useMemo(() => findingColumns(), []);
   const bulk = useMutation({
-    mutationFn: (input: { ids: number[]; status: FindingStatus }) =>
+    mutationFn: (input: { ids: Array<number | string>; status: FindingStatus }) =>
       api<{ updated: number }>(`/api/v1/workspaces/${slug}/findings/bulk`, {
         method: "POST",
         body: JSON.stringify(input),
@@ -57,6 +68,7 @@ export function FindingsPage({
       toast.success(`Updated ${result.updated} findings`);
       void queryClient.invalidateQueries({ queryKey: ["findings", slug] });
       void queryClient.invalidateQueries({ queryKey: ["finding-badge", slug] });
+      void queryClient.invalidateQueries({ queryKey: ["overview", slug] });
     },
     onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not update findings"),
   });
@@ -67,13 +79,16 @@ export function FindingsPage({
 
   return (
     <div className="grid gap-4">
-      <PageHeader title="Findings" description="Open issues from the rule catalog, priced from wasted work." />
+      <PageHeader title="Findings" description="Each row is one issue: the same rule, template, and callsite across sessions." />
+      <div data-testid="findings-table" className="min-w-0">
       <ResourceTable
         data={query.rows}
         columns={columns}
         getRowId={(row) => String(row.id)}
         queryKeys={findingKeys}
         isLoading={query.isLoading}
+        columnVisibility={hiddenFindingColumns}
+        tableClassName="table-fixed"
         onRowClick={(row) => {
           void navigate({
             to: "/w/$slug/findings/$id",
@@ -101,6 +116,7 @@ export function FindingsPage({
           </ActionBar>
         )}
       />
+      </div>
       <FindingSheet
         slug={slug}
         search={search}
@@ -113,7 +129,7 @@ export function FindingsPage({
   );
 }
 
-function SelectionCount({ table }: { table: Table<DataTableFeatures, FindingRow> }) {
+function SelectionCount({ table }: { table: ReactTable<DataTableFeatures, FindingRow> }) {
   return (
     <Subscribe source={table.atoms.rowSelection} selector={() => table.getSelectedRowModel().rows.length}>
       {(count) => <span>{count} selected</span>}
@@ -121,7 +137,7 @@ function SelectionCount({ table }: { table: Table<DataTableFeatures, FindingRow>
   );
 }
 
-function selectedIds(table: Table<DataTableFeatures, FindingRow>): number[] {
+function selectedIds(table: ReactTable<DataTableFeatures, FindingRow>): Array<number | string> {
   return table.getSelectedRowModel().rows.map((row) => row.original.id);
 }
 
@@ -145,6 +161,7 @@ function findingColumns(): ColumnDef<DataTableFeatures, FindingRow>[] {
       ),
       enableSorting: false,
       enableHiding: false,
+      meta: { width: "4%" },
     },
     {
       id: "severity",
@@ -152,77 +169,65 @@ function findingColumns(): ColumnDef<DataTableFeatures, FindingRow>[] {
       header: ({ column }) => <DataTableColumnHeader column={column} label="Severity" />,
       cell: ({ row }) => <SeverityBadge severity={row.original.severity} />,
       enableColumnFilter: true,
-      meta: {
-        label: "Severity",
-        variant: "multiSelect",
-        options: ["critical", "high", "medium", "low", "info"].map((value) => ({
-          label: value[0]!.toUpperCase() + value.slice(1),
-          value,
-        })),
-      },
+      meta: { label: "Severity", variant: "multiSelect", options: severityOptions, width: "10%" },
     },
     {
       id: "rule",
       accessorKey: "ruleTitle",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Rule" />,
       cell: ({ row }) => (
-        <div className="grid">
-          <span className="truncate">{row.original.ruleTitle}</span>
-          <Mono>{row.original.rule}</Mono>
+        <div className="grid min-w-0">
+          <Truncate text={row.original.ruleTitle} />
+          <Truncate text={row.original.rule} className="font-mono text-xs text-muted-foreground" />
         </div>
       ),
       enableColumnFilter: true,
-      meta: { label: "Rule", variant: "text", placeholder: "Rule id" },
-    },
-    {
-      id: "message",
-      accessorKey: "message",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Message" />,
-      cell: ({ row }) => <span className="line-clamp-2 max-w-md">{row.original.message}</span>,
-    },
-    {
-      id: "service",
-      accessorKey: "service",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Service" />,
-      enableColumnFilter: true,
-      meta: { label: "Service", variant: "text" },
+      meta: { label: "Rule", variant: "text", placeholder: "Rule id", width: "24%" },
     },
     {
       id: "template",
       accessorKey: "template",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Template" />,
-      cell: ({ row }) => <Mono>{row.original.template}</Mono>,
+      cell: ({ row }) => <Truncate text={row.original.template} className="font-mono text-xs" />,
       enableColumnFilter: true,
-      meta: { label: "Template", variant: "text" },
+      meta: { label: "Template", variant: "text", width: "8%" },
     },
     {
-      id: "callsite",
-      accessorKey: "callsite",
-      header: "Callsite",
-      cell: ({ row }) => <Mono>{row.original.callsite}</Mono>,
+      id: "service",
+      accessorKey: "service",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Service" />,
+      cell: ({ row }) => <Truncate text={row.original.service} />,
+      enableColumnFilter: true,
+      meta: { label: "Service", variant: "text", width: "8%" },
+    },
+    {
+      id: "sessions",
+      accessorKey: "sessions",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Sessions" className="ml-auto" />,
+      cell: ({ row }) => <div className="text-right tabular-nums">{formatCount(row.original.sessions)}</div>,
+      meta: { label: "Sessions", width: "8%" },
     },
     {
       id: "occurrences",
       accessorKey: "occurrences",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Count" />,
-      cell: ({ row }) => formatCount(row.original.occurrences),
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Occurrences" className="ml-auto" />,
+      cell: ({ row }) => <div className="text-right tabular-nums">{formatCount(row.original.occurrences)}</div>,
+      meta: { label: "Occurrences", width: "10%" },
     },
     {
       id: "wastedMicros",
       accessorKey: "wastedMicros",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Wasted" />,
-      cell: ({ row }) => (
-        <div className="grid">
-          <span>{formatMoney(row.original.wastedMicros)}</span>
-          <span className="text-xs text-muted-foreground">{formatUnits(row.original.wasted)}</span>
-        </div>
-      ),
-    },
-    {
-      id: "lastSeen",
-      accessorKey: "lastSeen",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Last seen" />,
-      cell: ({ row }) => <RelativeTime value={row.original.lastSeen} />,
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Wasted" className="ml-auto" />,
+      cell: ({ row }) => {
+        const units = formatUnits(row.original.wasted);
+        return (
+          <div className="grid justify-items-end text-right tabular-nums">
+            <span>{formatMoney(row.original.wastedMicros)}</span>
+            {units ? <span className="max-w-full truncate text-xs text-muted-foreground">{units}</span> : null}
+          </div>
+        );
+      },
+      meta: { label: "Wasted", width: "10%" },
     },
     {
       id: "status",
@@ -234,20 +239,47 @@ function findingColumns(): ColumnDef<DataTableFeatures, FindingRow>[] {
         label: "Status",
         variant: "multiSelect",
         options: statuses.map((value) => ({ label: value[0]!.toUpperCase() + value.slice(1), value })),
+        width: "8%",
       },
     },
     {
-      id: "assignee",
-      accessorKey: "assignee",
-      header: "Assignee",
-      cell: ({ row }) => row.original.assignee ?? "—",
+      id: "lastSeen",
+      accessorKey: "lastSeen",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Last seen" />,
+      cell: ({ row }) => <RelativeTime value={row.original.lastSeen} compact className="block max-w-full truncate text-right" />,
+      meta: { label: "Last seen", width: "10%" },
+    },
+    {
+      id: "callsite",
+      accessorKey: "callsite",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Callsite" />,
+      cell: ({ row }) => <Truncate text={row.original.callsite || "—"} className="font-mono text-xs" />,
+      meta: { label: "Callsite" },
+    },
+    {
+      id: "message",
+      accessorKey: "message",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Message" />,
+      cell: ({ row }) => <Truncate text={row.original.message} />,
+      meta: { label: "Message" },
     },
   ];
 }
 
+function Truncate({ text, className }: { text: string; className?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("block truncate", className)}>{text}</span>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function formatUnits(wasted: Record<string, number>): string {
   const parts = Object.entries(wasted).filter(([, value]) => value !== 0);
-  if (parts.length === 0) return "—";
+  if (parts.length === 0) return "";
   return parts.map(([key, value]) => `${formatCount(value)} ${key}`).join(", ");
 }
 
@@ -290,6 +322,7 @@ function FindingSheet({
       void queryClient.invalidateQueries({ queryKey: ["findings", slug] });
       void queryClient.invalidateQueries({ queryKey: ["finding", slug, findingId] });
       void queryClient.invalidateQueries({ queryKey: ["finding-badge", slug] });
+      void queryClient.invalidateQueries({ queryKey: ["overview", slug] });
     },
     onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not update finding"),
   });
@@ -312,6 +345,70 @@ function FindingSheet({
               <StatusBadge status={row.status} />
               <span className="text-sm text-muted-foreground">{formatMoney(row.wastedMicros)} wasted</span>
             </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sessions</dt>
+                <dd data-testid="finding-sessions" className="tabular-nums">{formatCount(row.sessions)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Occurrences</dt>
+                <dd className="tabular-nums">{formatCount(row.occurrences)}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Callsite</dt>
+                <dd data-testid="finding-callsite" className="truncate font-mono text-xs">{row.callsite || "—"}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Template</dt>
+                <dd className="truncate font-mono text-xs">{row.template}</dd>
+              </div>
+            </dl>
+            <div data-testid="finding-occurrences">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Occurrences</p>
+              {row.occurrencesByDay.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No occurrences recorded.</p>
+              ) : (
+                <ChartContainer config={sparkConfig} className="aspect-auto h-24 w-full">
+                  <AreaChart data={row.occurrencesByDay} margin={{ left: 0, right: 8, top: 8 }}>
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} tickFormatter={(value) => String(value).slice(5)} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area
+                      dataKey="occurrences"
+                      type="monotone"
+                      fill="var(--color-occurrences)"
+                      stroke="var(--color-occurrences)"
+                      strokeWidth={2}
+                      fillOpacity={0.2}
+                      dot={{ r: 3, strokeWidth: 0, fill: "var(--color-occurrences)" }}
+                      isAnimationActive={false}
+                    />
+                  </AreaChart>
+                </ChartContainer>
+              )}
+            </div>
+            {row.members.length > 0 ? (
+              <div className="grid gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sessions</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Session</TableHead>
+                      <TableHead className="text-right">Count</TableHead>
+                      <TableHead>Last seen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {row.members.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="max-w-40 truncate font-mono text-xs">{member.session}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCount(member.occurrences)}</TableCell>
+                        <TableCell><RelativeTime value={member.lastSeen} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
             {row.rule ? (
               <div className="grid gap-2 text-sm">
                 <p>{row.rule.summary}</p>

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { schema, type Db } from "@readmeter/db";
 
+import { SEVERITY_ORDER } from "../contract.ts";
 import { priceGroups, type CatalogRule, type ServerCore } from "../core.ts";
 import {
   decodeCursor,
@@ -20,8 +21,18 @@ import {
   ws,
   type AppEnv,
 } from "../http.ts";
+import {
+  ISSUE_SORTS,
+  issueFindingIds,
+  issueOfFinding,
+  listIssuePage,
+  loadIssue,
+  parseIssueId,
+  countOpenIssues,
+  type IssueSort,
+} from "../issues.ts";
 
-const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
+const SEVERITIES = SEVERITY_ORDER;
 const STATUSES = ["open", "resolved", "ignored"] as const;
 
 const statusBody = z.object({
@@ -30,7 +41,7 @@ const statusBody = z.object({
   note: z.string().nullable().optional(),
 });
 const bulkBody = z.object({
-  ids: z.array(z.number().int().positive()).min(1).max(200),
+  ids: z.array(z.union([z.number().int().positive(), z.string().min(1).max(300)])).min(1).max(200),
   status: z.enum(STATUSES),
 });
 const overrideBody = z.object({
@@ -73,12 +84,28 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
     if (projectIds === "missing") return fail(c, 404, "not_found", "project not found");
     const filters = findingFilters(url, projectIds);
     if ("error" in filters) return fail(c, 400, "bad_request", filters.error);
+    const group = url.searchParams.get("group") ?? "issue";
+    if (group !== "issue" && group !== "none") return fail(c, 400, "bad_request", "group must be issue or none");
     const sort = url.searchParams.get("sort") ?? "last_seen";
+    if (group === "issue") {
+      if (!ISSUE_SORTS.includes(sort as IssueSort)) {
+        return fail(c, 400, "bad_request", "sort must be last_seen, occurrences, wasted_micros, or sessions");
+      }
+      if (!filters.where) return c.json({ items: [], nextCursor: null, total: 0 });
+      const page = await listIssuePage(db, filters.where, {
+        sort: sort as IssueSort,
+        limit: query.limit,
+        cursor: query.cursor,
+        price: (row) => wastedMicros(core, row),
+      });
+      if ("error" in page) return fail(c, 400, "bad_request", page.error);
+      return c.json(page);
+    }
     if (sort !== "last_seen" && sort !== "occurrences" && sort !== "wasted_micros") {
       return fail(c, 400, "bad_request", "sort must be last_seen, occurrences, or wasted_micros");
     }
     const rows = await selectFindings(db, filters.where);
-    const priced = rows.map((row) => ({ ...row, wastedMicros: wastedMicros(core, row) }));
+    const priced = rows.map((row) => ({ ...row, wastedMicros: wastedMicros(core, row), sessions: 1 }));
     const page =
       sort === "wasted_micros"
         ? slicePriced(
@@ -88,7 +115,7 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
           )
         : sliceSql(priced, sort, query.limit, query.cursor);
     if ("error" in page) return fail(c, 400, "bad_request", "invalid cursor");
-    return c.json(page);
+    return c.json({ ...page, total: priced.length });
   });
 
   app.post("/workspaces/:slug/findings/bulk", async (c) => {
@@ -97,35 +124,44 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
     if (!parsed.success) return fail(c, 400, "bad_request", parsed.error.issues[0]?.message ?? "invalid body");
     const projectIds = await orgProjects(db, workspace.id, null);
     if (projectIds === "missing" || projectIds.length === 0) return c.json({ updated: 0 });
-    const rows = await db
-      .select({ id: schema.findings.id })
-      .from(schema.findings)
-      .where(and(inArray(schema.findings.id, parsed.data.ids), inArray(schema.findings.projectId, projectIds)));
-    const ids = rows.map((row) => row.id);
-    for (const id of ids) {
-      await upsertStatus(db, id, parsed.data.status, user.id);
+    const seen = new Set<string>();
+    let updated = 0;
+    for (const raw of parsed.data.ids) {
+      const target = await resolveIssue(db, projectIds, String(raw));
+      if (!target || seen.has(target.issueId)) continue;
+      seen.add(target.issueId);
+      for (const id of target.findingIds) {
+        await upsertStatus(db, id, parsed.data.status, user.id);
+      }
+      updated += target.findingIds.length;
+      await writeAudit(db, {
+        orgId: workspace.id,
+        actor: user.id,
+        action: "finding.status",
+        target: target.issueId,
+        metadata: { status: parsed.data.status, ids: target.findingIds },
+      });
     }
-    await writeAudit(db, {
-      orgId: workspace.id,
-      actor: user.id,
-      action: "finding.status",
-      target: ids.join(","),
-      metadata: { status: parsed.data.status, ids },
-    });
-    return c.json({ updated: ids.length });
+    return c.json({ updated });
   });
 
   app.get("/workspaces/:slug/findings/:id", async (c) => {
     const { workspace } = ws(c);
-    const id = Number(c.req.param("id"));
-    if (!Number.isInteger(id)) return fail(c, 400, "bad_request", "invalid finding id");
     const projectIds = await orgProjects(db, workspace.id, null);
     if (projectIds === "missing" || projectIds.length === 0) return fail(c, 404, "not_found", "finding not found");
-    const rows = await selectFindings(db, and(eq(schema.findings.id, id), inArray(schema.findings.projectId, projectIds)));
-    const row = rows[0];
-    if (!row) return fail(c, 404, "not_found", "finding not found");
-    const rule = catalog().find((item) => item.id === row.rule) ?? null;
-    return c.json({ ...row, wastedMicros: wastedMicros(core, row), rule });
+    const located = await locateIssue(db, projectIds, pathId(c.req.param("id")));
+    if (located === "bad") return fail(c, 400, "bad_request", "invalid finding id");
+    if (!located) return fail(c, 404, "not_found", "finding not found");
+    const loaded = await loadIssue(db, located.projectId, located.hash, (row) => wastedMicros(core, row));
+    if (!loaded) return fail(c, 404, "not_found", "finding not found");
+    const rule = catalog().find((item) => item.id === loaded.group.rule) ?? null;
+    return c.json({
+      ...loaded.group,
+      evidence: loaded.members[0]?.evidence ?? {},
+      rule,
+      members: loaded.members,
+      occurrencesByDay: loaded.occurrencesByDay,
+    });
   });
 
   app.patch("/workspaces/:slug/findings/:id", async (c) => {
@@ -139,16 +175,13 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
     ) {
       return fail(c, 400, "bad_request", "nothing to update");
     }
-    const id = Number(c.req.param("id"));
-    if (!Number.isInteger(id)) return fail(c, 400, "bad_request", "invalid finding id");
     const projectIds = await orgProjects(db, workspace.id, null);
     if (projectIds === "missing" || projectIds.length === 0) return fail(c, 404, "not_found", "finding not found");
-    const [finding] = await db
-      .select({ id: schema.findings.id })
-      .from(schema.findings)
-      .where(and(eq(schema.findings.id, id), inArray(schema.findings.projectId, projectIds)))
-      .limit(1);
-    if (!finding) return fail(c, 404, "not_found", "finding not found");
+    const located = await locateIssue(db, projectIds, pathId(c.req.param("id")));
+    if (located === "bad") return fail(c, 400, "bad_request", "invalid finding id");
+    if (!located) return fail(c, 404, "not_found", "finding not found");
+    const findingIds = await issueFindingIds(db, located.projectId, located.hash);
+    if (findingIds.length === 0) return fail(c, 404, "not_found", "finding not found");
     if (parsed.data.assignee) {
       const [member] = await db
         .select({ id: schema.members.id })
@@ -159,18 +192,19 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
         .limit(1);
       if (!member) return fail(c, 400, "bad_request", "assignee is not a member of this workspace");
     }
-    await upsertState(db, id, parsed.data, user.id);
+    for (const id of findingIds) {
+      await upsertState(db, id, parsed.data, user.id);
+    }
     await writeAudit(db, {
       orgId: workspace.id,
       actor: user.id,
       action: "finding.status",
-      target: String(id),
-      metadata: parsed.data,
+      target: located.issueId,
+      metadata: { ...parsed.data, ids: findingIds },
     });
-    const rows = await selectFindings(db, eq(schema.findings.id, id));
-    const row = rows[0];
-    if (!row) return fail(c, 404, "not_found", "finding not found");
-    return c.json({ ...row, wastedMicros: wastedMicros(core, row) });
+    const loaded = await loadIssue(db, located.projectId, located.hash, (row) => wastedMicros(core, row));
+    if (!loaded) return fail(c, 404, "not_found", "finding not found");
+    return c.json(loaded.group);
   });
 
   app.get("/workspaces/:slug/events", async (c) => {
@@ -523,6 +557,40 @@ function stripEvidence<T extends { id: number }>(row: T): Omit<T, "evidence"> {
   return copy;
 }
 
+function pathId(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+async function locateIssue(
+  db: Db,
+  projectIds: string[],
+  raw: string,
+): Promise<{ projectId: string; hash: string; issueId: string } | "bad" | null> {
+  const parsed = parseIssueId(raw);
+  if (parsed) {
+    if (!projectIds.includes(parsed.projectId)) return null;
+    const ids = await issueFindingIds(db, parsed.projectId, parsed.hash);
+    if (ids.length === 0) return null;
+    return { projectId: parsed.projectId, hash: parsed.hash, issueId: `${parsed.projectId}:${parsed.hash}` };
+  }
+  if (!/^[1-9]\d*$/.test(raw)) return "bad";
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id)) return "bad";
+  return issueOfFinding(db, id, projectIds);
+}
+
+async function resolveIssue(db: Db, projectIds: string[], raw: string) {
+  const located = await locateIssue(db, projectIds, raw);
+  if (!located || located === "bad") return null;
+  const findingIds = await issueFindingIds(db, located.projectId, located.hash);
+  if (findingIds.length === 0) return null;
+  return { ...located, findingIds };
+}
+
 function isTupleCursor(value: unknown): value is { ts: string; id: number } {
   return (
     !!value &&
@@ -651,7 +719,7 @@ async function overview(
     return {
       rangeDays: days,
       from,
-      kpis: { events: 0, billedUnits: 0, estimatedCostMicros: 0, wastedMicros: 0, openFindings: 0 },
+      kpis: { events: 0, billedUnits: 0, estimatedCostMicros: 0, wastedMicros: 0, openFindings: 0, openIssues: 0 },
       series: emptySeries,
       topRules: [],
       topTemplates: [],
@@ -716,12 +784,15 @@ async function overview(
       and coalesce(${schema.findingStates.status}, 'open') = 'open'
     group by 1
   `);
+  const openCounts = new Map(rowsOf(open).map((row) => [row.severity, Number(row.n)]));
   const openFindingsBySeverity: Record<string, number> = {};
   let openFindings = 0;
-  for (const row of rowsOf(open)) {
-    openFindingsBySeverity[row.severity] = Number(row.n);
-    openFindings += Number(row.n);
+  for (const severity of SEVERITY_ORDER) {
+    const n = openCounts.get(severity) ?? 0;
+    if (n > 0) openFindingsBySeverity[severity] = n;
+    openFindings += n;
   }
+  const openIssues = await countOpenIssues(db, projectIds);
   const templates = await db
     .select({
       template: schema.events.template,
@@ -748,14 +819,22 @@ async function overview(
     .groupBy(schema.events.callsite)
     .orderBy(desc(sql`count(*)`))
     .limit(10);
+  const titles = new Map(core.catalog().rules.map((rule) => [rule.id, rule.title]));
   const topRules = [...(await wastedBy(db, core, projectIds, from, "rule")).entries()]
-    .map(([rule, micros]) => ({ rule, wastedMicros: micros }))
+    .map(([rule, micros]) => ({ rule, title: titles.get(rule) ?? rule, wastedMicros: micros }))
     .sort((a, b) => b.wastedMicros - a.wastedMicros)
     .slice(0, 10);
   return {
     rangeDays: days,
     from,
-    kpis: { events: eventTotal, billedUnits, estimatedCostMicros, wastedMicros: wastedMicrosTotal, openFindings },
+    kpis: {
+      events: eventTotal,
+      billedUnits,
+      estimatedCostMicros,
+      wastedMicros: wastedMicrosTotal,
+      openFindings,
+      openIssues,
+    },
     series,
     topRules,
     topTemplates: templates,

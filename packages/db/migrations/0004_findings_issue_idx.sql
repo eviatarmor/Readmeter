@@ -1,0 +1,1 @@
+CREATE INDEX "findings_issue_idx" ON "findings" USING btree ("project_id","rule","template","callsite");

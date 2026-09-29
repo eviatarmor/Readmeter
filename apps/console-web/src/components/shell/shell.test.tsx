@@ -49,7 +49,7 @@ function installFetch() {
         return json({
           rangeDays: 7,
           from: "2026-09-23T00:00:00.000Z",
-          kpis: { events: 4, billedUnits: 4, estimatedCostMicros: 0, wastedMicros: 0, openFindings: 1 },
+          kpis: { events: 4, billedUnits: 4, estimatedCostMicros: 0, wastedMicros: 0, openFindings: 1, openIssues: 1 },
           series: [],
           topRules: [],
           topTemplates: [],
