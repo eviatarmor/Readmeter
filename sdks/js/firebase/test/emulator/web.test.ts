@@ -67,6 +67,9 @@ function normalize(call: Record<string, unknown>, check: boolean): Record<string
 
 function assertCalls(actual: Record<string, unknown>[], fixture: Fixture, ignoreOps: string[] = []): void {
   const skip = new Set(ignoreOps);
+  // `usage` calls fire on a 1 s timer, so on a slow machine they can land
+  // before the comparison. Only compare them when the fixture lists them.
+  if (!fixture.calls.some((want) => want.op === "usage")) skip.add("usage");
   const got = actual.filter((call) => !skip.has(String(call.op)));
   const unexpected = got.filter((call) => !fixture.calls.some((want) => want.op === call.op));
   assert.deepEqual(
