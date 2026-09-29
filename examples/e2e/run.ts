@@ -13,22 +13,35 @@ import { findingRules } from "@readmeter/db";
 import { flush, init, shutdown } from "@readmeter/firebase";
 
 import {
+  blobWrite,
+  counterTransaction,
   countViaFetch,
+  forceServerRead,
   getThenListen,
   listenerPerItem,
   loadMore,
+  noOpWrite,
   offsetPagination,
+  overfetch,
   searchPerKeystroke,
   seedData,
   tinyBatches,
   unboundedList,
+  unusedPrefetch,
   writePerKeystroke,
 } from "../web-firestore/src/scenarios.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter";
 
-/** Web rules (sdk local or evaluator window) plus the four function rules. */
+/**
+ * Web rules the Node run produces, plus the function rules.
+ * `persistence-disabled` fires on the browser init (memory cache).
+ * `unused-result` fires on queries whose snapshots are never read
+ * (load-more, search, and the unused-prefetch button).
+ * `read-modify-write-counter` must also be stored with source `evaluator`
+ * (the Cloud Function's events are judged on ingest).
+ */
 const EXPECTED = [
   "firebase.firestore/unbounded-list",
   "firebase.firestore/offset-pagination",
@@ -39,9 +52,18 @@ const EXPECTED = [
   "firebase.firestore/query-per-keystroke",
   "firebase.firestore/write-per-keystroke",
   "firebase.firestore/tiny-batches",
+  "firebase.firestore/overfetch",
+  "firebase.firestore/force-server-read",
+  "firebase.firestore/no-op-write",
+  "firebase.firestore/read-modify-write-counter",
+  "firebase.firestore/blob-in-document",
+  "firebase.firestore/persistence-disabled",
+  "generic/unused-result",
   "generic/n-plus-one",
   "firebase.firestore/fanout-writes",
 ];
+
+const COUNTER_RULE = "firebase.firestore/read-modify-write-counter";
 
 function loadEnv(file: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -58,6 +80,8 @@ function loadEnv(file: string): Record<string, string> {
 interface FindingRow {
   rule: string;
   occurrences: number;
+  template: string;
+  source: string;
 }
 
 async function findings(): Promise<FindingRow[]> {
@@ -92,6 +116,15 @@ async function assertRules(expected: string[]): Promise<void> {
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 1000));
   }
   throw new Error(`missing rules: ${missing.join(", ")}`);
+}
+
+function assertCounterFromEvaluator(rows: FindingRow[]): void {
+  const matched = rows.filter((row) => row.rule === COUNTER_RULE);
+  const sources = matched.map((row) => `${row.source} session-template=${row.template}`);
+  console.log(`${COUNTER_RULE} rows: ${sources.join("; ") || "(none)"}`);
+  if (!matched.some((row) => row.source === "evaluator")) {
+    throw new Error(`${COUNTER_RULE} has no finding with source evaluator`);
+  }
 }
 
 async function callFunction(name: string): Promise<void> {
@@ -142,13 +175,19 @@ async function drive(): Promise<void> {
     console.log(await searchPerKeystroke(db));
     console.log(await writePerKeystroke(db));
     console.log(await tinyBatches(db));
+    console.log(await overfetch(db));
+    console.log(await forceServerRead(db));
+    console.log(await noOpWrite(db));
+    console.log(await counterTransaction(db));
+    console.log(await unusedPrefetch(db));
+    console.log(await blobWrite(db));
     await flush();
   } finally {
     await shutdown();
     await deleteApp(app);
   }
 
-  for (const name of ["unboundedReport", "nPlusOne", "offsetPage", "fanout"]) {
+  for (const name of ["unboundedReport", "nPlusOne", "offsetPage", "fanout", "counterTx"]) {
     await callFunction(name);
   }
 }
@@ -160,4 +199,7 @@ if (expected.length === 0) throw new Error("--assert-only needs at least one rul
 
 if (!only) await drive();
 await assertRules(expected);
+if (!only) {
+  assertCounterFromEvaluator(await findings());
+}
 console.log("e2e rules ok");

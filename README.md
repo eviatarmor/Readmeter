@@ -6,7 +6,7 @@ Readmeter watches how your app uses Firestore (how many calls, how many
 documents, how many bytes) and flags patterns that waste money: queries with
 no `limit()`, `offset()` pagination, "load more" that re-reads every page,
 listeners that leak, React effects that fetch twice, polling, N+1 reads,
-writes on every keystroke, and 30 more. Each finding names the rule, the
+writes on every keystroke, and 38 more. Each finding names the rule, the
 collection, the callsite, and how many reads or writes it wasted.
 
 It is self-hosted: a small SDK in your app, an ingest service, and Postgres.
@@ -81,7 +81,7 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
 
 Contributor and agent guide: [`AGENTS.md`](AGENTS.md).
 
-## Rules (36 active)
+## Rules (46 active)
 
 Severity is ranked by cost impact: `critical` grows without bound with data
 or traffic, `high` is a large multiplier, `medium` is measurable waste on a
@@ -98,6 +98,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.firestore/hot-listener` | high | window | A listener is billed for a large number of document changes per minute. |
 | `generic/listener-leak` | high | window | Open subscriptions from one callsite keep growing because they are never unsubscribed. |
 | `generic/subscription-churn` | high | window | The same subscription is closed and re-opened many times, re-billing its initial result. |
+| `firebase.firestore/overfetch` | high | window | A query returned many documents and the caller read only a small fraction of them. |
+| `firebase.firestore/growing-document` | high | window | A large document still grows through arrayUnion(), so every later read downloads the whole array. |
 | `firebase.firestore/emptiness-check-without-limit` | medium | window | A query used only for .empty returned many documents; limit(1) gives the same answer for 1 read. |
 | `firebase.firestore/get-then-listen` | medium | window | A billed read is followed within seconds by a listener on the same query. |
 | `firebase.firestore/get-while-listening` | medium | window | A billed read hits a query that an open listener already delivers. |
@@ -118,16 +120,25 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `generic/polling-instead-of-subscription` | medium | window | The same request is re-issued at a steady interval, re-billing the full result every time. |
 | `generic/react-double-mount` | medium | window | The same callsite opens a subscription or issues a read twice within milliseconds. |
 | `generic/retry-storm` | medium | window | A request keeps failing and is retried rapidly, or retried far past a sane backoff. |
+| `firebase.firestore/blob-in-document` | medium | local | A single field is large enough that every read of the document downloads it. |
+| `firebase.firestore/multi-tab-without-shared-cache` | medium | local | Each tab keeps its own persistent cache, so every tab bills its own listener reads. |
+| `firebase.firestore/force-server-read` | medium | window | The same target is read from the server several times with getDocsFromServer(). |
+| `firebase.firestore/no-op-write` | medium | window | The same document is written again with a payload identical to the previous write. |
+| `firebase.firestore/read-modify-write-counter` | medium | window | A counter is incremented by reading one document inside a transaction and writing it back. |
+| `generic/unused-result` | medium | window | A billed result was never accessed by the caller. |
+| `generic/activity-while-hidden` | medium | window | Listeners or queries keep billing after the tab has been hidden for a while. |
 | `firebase.firestore/client-side-bulk-delete` | low | window | A client deletes many documents of one collection in a short window. |
 | `firebase.firestore/count-then-fetch` | low | window | count() runs and the same query's documents are fetched right after. |
 | `firebase.firestore/read-after-write` | low | window | This client reads a document it just wrote. |
 | `firebase.firestore/tiny-batches` | low | window | One callsite commits many batches of one or two writes that could be a single batch. |
 | `firebase.firestore/monotonic-document-ids` | low | window | New documents use monotonically increasing ids, concentrating writes on one index range. |
 | `generic/one-shot-subscription` | low | window | Subscriptions are closed right after their first snapshot; a one-time read is cheaper. |
+| `firebase.firestore/persistence-disabled` | low | local | The client SDK runs without a persistent cache, so every reload re-reads from the server. |
 | `firebase.firestore/fanout-writes` | info | local | One client commit writes or deletes many documents. |
 
-About 17 more are on the roadmap, mostly rules that need new SDK signals and
-cross-session (aggregate) rules on the backend.
+Seven more are on the roadmap: two that still need SDK signals, and five
+cross-session (aggregate) rules on the backend. The console lists these
+rules at `http://localhost:5174` on the Rules page.
 
 ## Quick start (local)
 
@@ -192,8 +203,12 @@ adding a rule, adding a provider).
 
 What leaves your app: path templates with ids replaced (`users/{id}/orders`),
 operation types, document counts, byte sizes, query shapes (field names and
-operators), timings, and keyed hashes of ids, filter values and callsites. Never
-document data. Set `sampleRate: 0` to send findings only.
+operators), timings, and keyed hashes of ids, filter values and callsites.
+Writes can also send field and payload sizes, transform names (`increment`,
+`array_union`, and the others), and a payload hash. That hash is salted per
+session inside the process, so the same payload cannot be matched across
+sessions. Cache kind and tab visibility are sent too. Never document data.
+Set `sampleRate: 0` to send findings only.
 
 ## License
 

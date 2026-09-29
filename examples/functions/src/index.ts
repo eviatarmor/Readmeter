@@ -88,3 +88,20 @@ export const fanout = onRequest(
     res.json({ n: 150 });
   }),
 );
+
+/** Three read-then-write transactions on counters/likes. The web seed creates that document. */
+export const counterTx = onRequest(
+  { region: "us-central1" },
+  withFlush(async (_req, res) => {
+    const ref = db.collection("counters").doc("likes");
+    for (let i = 0; i < 3; i += 1) {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        const count = data && typeof data.count === "number" ? data.count : 0;
+        tx.update(ref, { count: count + 1 });
+      });
+    }
+    res.json({ n: 3 });
+  }),
+);

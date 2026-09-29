@@ -9,11 +9,17 @@ import {
   loadMore,
   offsetPagination,
   saveDraft,
+  blobWrite,
+  counterTransaction,
+  forceServerRead,
+  noOpWrite,
+  overfetch,
   searchOnce,
   searchPerKeystroke,
   seedData,
   tinyBatches,
   unboundedList,
+  unusedPrefetch,
   writePerKeystroke,
 } from "./scenarios.ts";
 
@@ -43,6 +49,12 @@ const buttons: { label: string; rule: string; run: (db: Firestore) => Promise<st
   { label: "search per keystroke", rule: "firebase.firestore/query-per-keystroke", run: searchPerKeystroke },
   { label: "write per keystroke", rule: "firebase.firestore/write-per-keystroke", run: writePerKeystroke },
   { label: "tiny batches", rule: "firebase.firestore/tiny-batches", run: tinyBatches },
+  { label: "overfetch", rule: "firebase.firestore/overfetch", run: overfetch },
+  { label: "force server read", rule: "firebase.firestore/force-server-read", run: forceServerRead },
+  { label: "no-op write", rule: "firebase.firestore/no-op-write", run: noOpWrite },
+  { label: "counter transaction", rule: "firebase.firestore/read-modify-write-counter", run: counterTransaction },
+  { label: "unused prefetch", rule: "generic/unused-result", run: unusedPrefetch },
+  { label: "blob write", rule: "firebase.firestore/blob-in-document", run: blobWrite },
 ];
 
 let sdkError = "";

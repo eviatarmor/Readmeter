@@ -7,10 +7,12 @@ import {
   collection,
   doc,
   getDocs,
+  getDocsFromServer,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   where,
   writeBatch,
@@ -60,6 +62,10 @@ export async function seedData(db: Firestore): Promise<string> {
       data: { name: `user${i}`, createdAt: i },
     });
   }
+  items.push({
+    ref: doc(db, "counters", "likes"),
+    data: { count: 0 },
+  });
   await commitAll(db, items);
   await flush();
   return `seeded ${POSTS} posts, ${USERS} users`;
@@ -162,4 +168,66 @@ export async function tinyBatches(db: Firestore): Promise<string> {
   }
   await flush();
   return "committed 10 tiny batches";
+}
+
+/** firebase.firestore/overfetch: limit(100), then data() of 5 documents. */
+export async function overfetch(db: Firestore): Promise<string> {
+  const snap = await getDocs(query(collection(db, "posts"), limit(100)));
+  const used = snap.docs.slice(0, 5);
+  for (const item of used) item.data();
+  await flush();
+  return `overfetch fetched ${snap.size} posts and used ${used.length}`;
+}
+
+/** firebase.firestore/force-server-read: the same query, from the server, 3 times. */
+export async function forceServerRead(db: Firestore): Promise<string> {
+  const latest = query(collection(db, "posts"), limit(1));
+  for (let i = 0; i < 3; i += 1) await getDocsFromServer(latest);
+  await flush();
+  return "read the latest post from the server 3 times";
+}
+
+/**
+ * firebase.firestore/no-op-write. Three identical writes: the first sets the
+ * payload, the next two change nothing. Fewer than write-per-keystroke's
+ * five writes, so that rule stays quiet.
+ */
+export async function noOpWrite(db: Firestore): Promise<string> {
+  const draft = doc(db, "drafts", "noop");
+  for (let i = 0; i < 3; i += 1) await setDoc(draft, { body: "same" });
+  await flush();
+  return "wrote the same draft 3 times";
+}
+
+/** firebase.firestore/read-modify-write-counter. The counter doc is seeded. */
+export async function counterTransaction(db: Firestore): Promise<string> {
+  const ref = doc(db, "counters", "likes");
+  for (let i = 0; i < 3; i += 1) {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.data();
+      const count = data && typeof data.count === "number" ? data.count : 0;
+      tx.update(ref, { count: count + 1 });
+    });
+  }
+  await flush();
+  return "incremented a counter with 3 transactions";
+}
+
+/** generic/unused-result: three queries whose snapshots are never read. */
+export async function unusedPrefetch(db: Firestore): Promise<string> {
+  const posts = collection(db, "posts");
+  for (const createdAt of [1, 2, 3]) {
+    await getDocs(query(posts, where("createdAt", "==", createdAt), limit(5)));
+  }
+  await flush();
+  return "prefetched 3 post queries and ignored them";
+}
+
+/** firebase.firestore/blob-in-document. 70 KB is over the 65536-byte field threshold. */
+export async function blobWrite(db: Firestore): Promise<string> {
+  const avatar = "x".repeat(70_000);
+  await setDoc(doc(db, "profiles", "blob"), { avatar });
+  await flush();
+  return `wrote a ${avatar.length}-byte field`;
 }

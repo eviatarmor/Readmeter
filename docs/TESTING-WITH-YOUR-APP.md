@@ -115,7 +115,7 @@ In the console, select the project in the top bar.
 
 ## 7. What is sent
 
-A call leaves the process as a path template (`users/{id}/orders`), a count, a size, or a keyed hash. Document fields, filter values, and raw ids are not sent. The hash key is not an API secret. The API key is.
+A call leaves the process as a path template (`users/{id}/orders`), a count, a size, or a keyed hash. Writes also send sizes (the largest field and the whole payload, in bytes), transform names (`increment`, `array_union`, and the other field transforms), and a payload hash. That hash is salted with a random value created per session that never leaves the process, so equal payloads cannot be compared across sessions. The client can also send its cache kind (`memory`, `persistent`, or `unknown`) and whether the tab is visible. Document fields, filter values, and raw ids are not sent. The hash key is not an API secret. The API key is.
 
 `init({ sampleRate: 0 })` keeps local findings and uploads no call batches.
 

@@ -26,7 +26,7 @@ export function hashApiKey(key: string): string {
 export async function findingRules(
   projectId: string,
   url = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
-): Promise<{ rule: string; occurrences: number; template: string }[]> {
+): Promise<{ rule: string; occurrences: number; template: string; source: string }[]> {
   const { db, close } = connect(url);
   try {
     return await db
@@ -34,6 +34,7 @@ export async function findingRules(
         rule: schema.findings.rule,
         occurrences: schema.findings.occurrences,
         template: schema.findings.template,
+        source: schema.findings.source,
       })
       .from(schema.findings)
       .where(eq(schema.findings.projectId, projectId));
