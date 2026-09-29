@@ -202,6 +202,8 @@ If you touched the SDK path, also run the size gate. If you touched
 
 ## Plans
 
+`.plans/` is local only: it is git-ignored and never pushed.
+
 Before starting significant work, read the relevant file in `.plans/`. When a
 decision changes, update the plan in the same change. Mark finished tasks.
 

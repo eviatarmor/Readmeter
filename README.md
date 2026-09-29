@@ -76,9 +76,7 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
   changes what Firestore returns, drops old data when buffers fill, and does
   its work after your call has returned.
 
-Architecture and decisions: [`.plans/`](.plans/) (start with
-[`0001-architecture.md`](.plans/0001-architecture.md)). Contributor and agent
-guide: [`AGENTS.md`](AGENTS.md).
+Contributor and agent guide: [`AGENTS.md`](AGENTS.md).
 
 ## Rules (36 active)
 
@@ -125,7 +123,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `generic/one-shot-subscription` | low | window | Subscriptions are closed right after their first snapshot; a one-time read is cheaper. |
 | `firebase.firestore/fanout-writes` | info | local | One client commit writes or deletes many documents. |
 
-17 more are planned (see [`.plans/0003-rule-catalog.md`](.plans/0003-rule-catalog.md)).
+About 17 more are on the roadmap, mostly rules that need new SDK signals and
+cross-session (aggregate) rules on the backend.
 
 ## Quick start (local)
 
@@ -169,7 +168,6 @@ functions, and expose ingest with a tunnel if your app is deployed).
 | `packages/db/` | Postgres schema and migrations (Drizzle) |
 | `conformance/` | Shared fixtures every SDK must reproduce |
 | `examples/` | Demo web app, Cloud Functions, end-to-end runner |
-| `.plans/` | Architecture, decisions, task briefs |
 
 ## Development
 

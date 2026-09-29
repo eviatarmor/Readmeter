@@ -17,3 +17,6 @@ examples/web-firestore/playwright-report/
 examples/web-firestore/test-results/
 *-debug.log
 ui-debug.log
+
+# Planning notes stay local
+.plans/
