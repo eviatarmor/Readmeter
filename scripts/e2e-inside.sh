@@ -30,6 +30,10 @@ pnpm --filter readmeter-e2e exec tsx run.ts --assert-only \
   firebase.firestore/unbounded-list \
   firebase.firestore/offset-pagination \
   firebase.database/duplicate-listeners \
-  firebase.storage/unbounded-list-page
+  firebase.storage/unbounded-list-page \
+  firebase.auth/anonymous-user-churn \
+  firebase.auth/id-token-refresh-storm \
+  firebase.auth/memory-persistence \
+  generic/listener-leak
 
 stop_pid "$root/target/dev/preview.pid"

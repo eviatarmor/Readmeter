@@ -12,7 +12,7 @@ if (!Number.isInteger(port) || port <= 0) {
   process.exit(1);
 }
 
-const OURS = /cloud-firestore-emulator|firebase-database-emulator|firebase-tools|cloud-functions|functionsEmulator|firebase emulators|storage-emulator|cloud-storage-rules|firebase-storage/;
+const OURS = /cloud-firestore-emulator|firebase-database-emulator|firebase-tools|cloud-functions|functionsEmulator|firebase emulators|storage-emulator|cloud-storage-rules|firebase-storage|firebase-auth-emulator|auth-emulator/;
 
 function listening() {
   return new Promise((resolve) => {

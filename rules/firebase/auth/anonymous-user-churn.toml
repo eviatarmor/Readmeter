@@ -1,0 +1,38 @@
+id = "firebase.auth/anonymous-user-churn"
+title = "Anonymous sign-in on every load"
+provider = "firebase"
+service = "auth"
+severity = "high"
+category = "reliability"
+evaluation = "window"
+status = "stable"
+summary = "signInAnonymously runs more than once in one session, so each call creates another anonymous user."
+
+description = """
+Each successful `signInAnonymously` creates an account. Doing it again
+in the same session, usually because a component signed in without
+checking `auth.currentUser`, leaves orphaned anonymous users behind.
+A fresh anonymous user on every page load is a separate problem: that
+load is a new session, and it is reported as in-memory persistence.
+"""
+
+fix = """
+Sign in anonymously once when `auth.currentUser` is null, and keep
+that user with local persistence. Do not call `signInAnonymously` from
+a render path.
+"""
+
+docs = ["https://firebase.google.com/docs/auth/web/anonymous-auth"]
+
+[params]
+min_sign_ins = 2
+
+[[examples]]
+lang = "ts"
+bad = '''
+await signInAnonymously(auth);
+await signInAnonymously(auth);
+'''
+good = '''
+if (!auth.currentUser) await signInAnonymously(auth);
+'''

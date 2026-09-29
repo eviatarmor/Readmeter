@@ -1,0 +1,14 @@
+{
+  "description": "initializeAuth with in-memory persistence in the browser. A failed init would not count; this one succeeds.",
+  "platform": "browser",
+  "evaluations": ["local"],
+  "calls": [
+    { "service": "auth", "op": "init", "method": "initializeAuth", "ts_ms": 1000, "call_id": 1, "persistence": "NONE" }
+  ],
+  "expect_envelopes": [
+    { "op": "init", "template": "auth/initializeAuth", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.auth/memory-persistence" }
+  ]
+}

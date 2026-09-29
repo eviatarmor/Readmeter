@@ -1,0 +1,18 @@
+{
+  "description": "listUsers twice inside one request invocation, then a call with no invocation. The invocation id is not a Firestore transaction. Only the first list in the invocation is a finding.",
+  "platform": "server",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "auth", "op": "list_users", "method": "listUsers", "ts_ms": 1000, "call_id": 1, "invocation": 7, "result": { "items": 0 } },
+    { "service": "auth", "op": "list_users", "method": "listUsers", "ts_ms": 1100, "call_id": 2, "invocation": 7, "page_token": true, "result": { "items": 2 } },
+    { "service": "auth", "op": "list_users", "method": "listUsers", "ts_ms": 2000, "call_id": 3, "result": { "items": 1 } }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "auth/listUsers", "units": {} },
+    { "op": "other", "template": "auth/listUsers", "units": {} },
+    { "op": "other", "template": "auth/listUsers", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.auth/server-list-users-in-request" }
+  ]
+}

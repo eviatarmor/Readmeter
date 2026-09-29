@@ -143,6 +143,23 @@ reads = { price = 0.03, per = 100000 }
             ("firebase", "storage")
         );
         assert_eq!(storage.checked_on, "2026-09-30");
+        let auth =
+            PriceTable::from_toml(include_str!("../../../pricing/firebase/auth.toml")).unwrap();
+        assert_eq!(
+            (auth.provider.as_str(), auth.service.as_str()),
+            ("firebase", "auth")
+        );
+        assert_eq!(auth.checked_on, "2026-09-30");
+        assert_eq!(auth.default_region, "us");
+        assert_eq!(auth.free_per_day.get("sms"), Some(&10));
+        let sms = auth.estimate(&Units::new().with("sms", 1), None);
+        assert!((sms.total - 0.01).abs() < 1e-9);
+        let uk = auth.estimate(&Units::new().with("sms", 1), Some("gb"));
+        assert!((uk.total - 0.04).abs() < 1e-9);
+        let other = auth.estimate(&Units::new().with("sms", 1), Some("zz"));
+        assert!((other.total - 0.47).abs() < 1e-9);
+        let sign_ins = auth.estimate(&Units::new().with("sign_ins", 1), None);
+        assert_eq!(sign_ins.unpriced, ["sign_ins"]);
     }
 
     #[test]

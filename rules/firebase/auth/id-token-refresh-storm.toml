@@ -1,0 +1,40 @@
+id = "firebase.auth/id-token-refresh-storm"
+title = "ID token refreshed on a loop"
+provider = "firebase"
+service = "auth"
+severity = "high"
+category = "reliability"
+evaluation = "window"
+status = "stable"
+summary = "getIdToken(true) runs many times in one session. Each call asks the token service for a new ID token."
+
+description = """
+`getIdToken(true)` skips the cached ID token and fetches a new one.
+Calling it on every render or on a timer hammers the token endpoint.
+The cached token is valid until it is close to expiry; a forced refresh
+is for the moment the app knows the claims changed.
+"""
+
+fix = """
+Call `getIdToken()` without forcing a refresh, and pass `true` only
+after `setCustomUserClaims` or another change the client must see now.
+"""
+
+docs = ["https://firebase.google.com/docs/auth/web/manage-users"]
+
+[params]
+min_refreshes = 5
+window_ms = 60000
+
+[[examples]]
+lang = "ts"
+bad = '''
+onAuthStateChanged(auth, async (user) => {
+  if (user) await user.getIdToken(true);
+});
+'''
+good = '''
+onAuthStateChanged(auth, async (user) => {
+  if (user) await user.getIdToken();
+});
+'''

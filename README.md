@@ -83,7 +83,7 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
 
 Contributor and agent guide: [`AGENTS.md`](AGENTS.md).
 
-## Rules (57 active)
+## Rules (62 active)
 
 Severity is ranked by cost impact: `critical` grows without bound with data
 or traffic, `high` is a large multiplier, `medium` is measurable waste on a
@@ -103,6 +103,9 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.database/value-listener-on-list` | high | window | onValue on a list downloads every child again each time one child changes. |
 | `firebase.storage/list-all-large-prefix` | high | local | listAll reads every object under a prefix, one class A operation per page of 1000. |
 | `firebase.storage/redownload-without-cache-control` | high | window | Repeated getBytes or getBlob calls re-download an object that sets no max-age. |
+| `firebase.auth/anonymous-user-churn` | high | window | signInAnonymously runs more than once in one session, so each call creates another anonymous user. |
+| `firebase.auth/id-token-refresh-storm` | high | window | getIdToken(true) runs many times in one session. Each call asks the token service for a new ID token. |
+| `firebase.auth/phone-auth-retry` | high | window | Phone verification is sent several times in a short window, and each SMS is billed. |
 | `generic/listener-leak` | high | window | Open subscriptions from one callsite keep growing because they are never unsubscribed. |
 | `generic/subscription-churn` | high | window | The same subscription is closed and re-opened many times, re-billing its initial result. |
 | `firebase.firestore/overfetch` | high | window | A query returned many documents and the caller read only a small fraction of them. |
@@ -126,6 +129,8 @@ hot path, `low` is minor waste or latency only, `info` is an observation.
 | `firebase.storage/download-url-per-render` | medium | window | getDownloadURL hits object metadata, a class B operation, every time it runs. |
 | `firebase.storage/original-size-images` | medium | local | A browser image download larger than 1 MiB bills class B and the full egress. |
 | `firebase.storage/unbounded-list-page` | medium | local | list() without maxResults takes the server's default page of up to 1000 objects. |
+| `firebase.auth/memory-persistence` | medium | local | Auth is initialized with in-memory persistence, so the user is signed out on every page load. |
+| `firebase.auth/server-list-users-in-request` | medium | window | listUsers runs inside a request handler and walks the user list on the request path. |
 | `generic/duplicate-read` | medium | window | The exact same request is billed several times in a short window. |
 | `generic/n-plus-one` | medium | window | Many single-item reads on one path in a burst, usually one per item of an earlier list. |
 | `generic/oversized-payload` | medium | local | A response, or its average item, is far larger than a UI usually needs. |
@@ -222,6 +227,11 @@ connection count from `goOnline`; that count is not priced.
 Cloud Storage sends a path template, extension, byte count, content-type
 major, cache-control class (max-age seconds or none), list counts, page-token
 presence, and a resumable flag. Object bytes, URLs, and tokens are not sent.
+Authentication sends the method template, an operation name, a safe provider
+id (`google.com`, `password`, `phone`), a persistence kind (`memory`,
+`persistent`, or `unknown`), a force-refresh flag, listener and invocation
+ids, list counts, and page-token presence. Emails, phone numbers, uids,
+tokens, claims, and verification codes are not sent.
 Writes can also send field and payload sizes, transform names (`increment`,
 `array_union`, and the others), and a payload hash. That hash is salted per
 session inside the process, so the same payload cannot be matched across

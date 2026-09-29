@@ -1,0 +1,1029 @@
+# Firebase Authentication.
+# Verified 2026-09-30 against https://firebase.google.com/pricing and
+# https://cloud.google.com/identity-platform/pricing.
+#
+# Phone authentication and multi-factor authentication are billed per SMS
+# sent. The first 10 SMS per day are not billed (free_per_day). Prices
+# below are USD per SMS. The country is not on the envelope (a phone
+# number must not be recorded), so estimates use default_region us.
+#
+# Monthly active users are not observable per call. Identity Platform
+# (Blaze, after upgrading Auth) prices Tier 1 MAU (email, phone,
+# anonymous, social):
+#   0-50,000            $0
+#   50,001-100,000      $0.0055
+#   100,001-1,000,000   $0.0046
+#   1,000,001-10,000,000 $0.0032
+#   10,000,001+         $0.0025
+# Tier 2 (SAML/OIDC): 0-50 $0, then $0.015. Anonymous users are excluded
+# from MAU when automatic clean-up is enabled. Spark plan phone auth is
+# not available. Other Auth methods are no-cost on Spark and Blaze.
+# sign_ins and anonymous_sign_ins are observations for that estimate.
+# They are unpriced here because MAU is a monthly identity, not a call.
+# Token refreshes, password resets, and admin lookups are unpriced.
+
+provider = "firebase"
+service = "auth"
+currency = "USD"
+source = "https://cloud.google.com/identity-platform/pricing"
+checked_on = "2026-09-30"
+default_region = "us"
+
+# Andorra
+[regions.ad]
+sms = { price = 0.08, per = 1 }
+
+# United Arab Emirates
+[regions.ae]
+sms = { price = 0.09, per = 1 }
+
+# Afghanistan
+[regions.af]
+sms = { price = 0.22, per = 1 }
+
+# Antigua and Barbuda
+[regions.ag]
+sms = { price = 0.28, per = 1 }
+
+# Anguilla
+[regions.ai]
+sms = { price = 0.25, per = 1 }
+
+# Albania
+[regions.al]
+sms = { price = 0.13, per = 1 }
+
+# Armenia
+[regions.am]
+sms = { price = 0.16, per = 1 }
+
+# Angola
+[regions.ao]
+sms = { price = 0.12, per = 1 }
+
+# Argentina
+[regions.ar]
+sms = { price = 0.09, per = 1 }
+
+# American Samoa
+[regions.as]
+sms = { price = 0.04, per = 1 }
+
+# Austria
+[regions.at]
+sms = { price = 0.03, per = 1 }
+
+# Australia
+[regions.au]
+sms = { price = 0.02, per = 1 }
+
+# Aruba
+[regions.aw]
+sms = { price = 0.09, per = 1 }
+
+# Åland Islands
+[regions.ax]
+sms = { price = 0.07, per = 1 }
+
+# Azerbaijan
+[regions.az]
+sms = { price = 0.30, per = 1 }
+
+# Bosnia and Herzegovina
+[regions.ba]
+sms = { price = 0.12, per = 1 }
+
+# Barbados
+[regions.bb]
+sms = { price = 0.22, per = 1 }
+
+# Bangladesh
+[regions.bd]
+sms = { price = 0.19, per = 1 }
+
+# Belgium
+[regions.be]
+sms = { price = 0.08, per = 1 }
+
+# Burkina Faso
+[regions.bf]
+sms = { price = 0.16, per = 1 }
+
+# Bulgaria
+[regions.bg]
+sms = { price = 0.14, per = 1 }
+
+# Bahrain
+[regions.bh]
+sms = { price = 0.04, per = 1 }
+
+# Burundi
+[regions.bi]
+sms = { price = 0.47, per = 1 }
+
+# Benin
+[regions.bj]
+sms = { price = 0.25, per = 1 }
+
+# Saint Barthélemy
+[regions.bl]
+sms = { price = 0.12, per = 1 }
+
+# Bermuda
+[regions.bm]
+sms = { price = 0.24, per = 1 }
+
+# Brunei Darussalam
+[regions.bn]
+sms = { price = 0.04, per = 1 }
+
+# Bolivia, Plurinational State of
+[regions.bo]
+sms = { price = 0.14, per = 1 }
+
+# Bonaire, Sint Eustatius and Saba
+[regions.bq]
+sms = { price = 0.18, per = 1 }
+
+# Brazil
+[regions.br]
+sms = { price = 0.02, per = 1 }
+
+# Bahamas
+[regions.bs]
+sms = { price = 0.07, per = 1 }
+
+# Bhutan
+[regions.bt]
+sms = { price = 0.27, per = 1 }
+
+# Bouvet Island
+[regions.bv]
+sms = { price = 0.21, per = 1 }
+
+# Botswana
+[regions.bw]
+sms = { price = 0.04, per = 1 }
+
+# Belarus
+[regions.by]
+sms = { price = 0.19, per = 1 }
+
+# Belize
+[regions.bz]
+sms = { price = 0.12, per = 1 }
+
+# Canada
+[regions.ca]
+sms = { price = 0.01, per = 1 }
+
+# Cocos (Keeling) Islands
+[regions.cc]
+sms = { price = 0.01, per = 1 }
+
+# Congo, The Democratic Republic of the
+[regions.cd]
+sms = { price = 0.14, per = 1 }
+
+# Central African Republic
+[regions.cf]
+sms = { price = 0.13, per = 1 }
+
+# Congo
+[regions.cg]
+sms = { price = 0.22, per = 1 }
+
+# Switzerland
+[regions.ch]
+sms = { price = 0.07, per = 1 }
+
+# Côte d'Ivoire
+[regions.ci]
+sms = { price = 0.20, per = 1 }
+
+# Cook Islands
+[regions.ck]
+sms = { price = 0.09, per = 1 }
+
+# Chile
+[regions.cl]
+sms = { price = 0.03, per = 1 }
+
+# Cameroon
+[regions.cm]
+sms = { price = 0.21, per = 1 }
+
+# China
+[regions.cn]
+sms = { price = 0.01, per = 1 }
+
+# Colombia
+[regions.co]
+sms = { price = 0.01, per = 1 }
+
+# Costa Rica
+[regions.cr]
+sms = { price = 0.07, per = 1 }
+
+# Cuba
+[regions.cu]
+sms = { price = 0.07, per = 1 }
+
+# Cabo Verde
+[regions.cv]
+sms = { price = 0.17, per = 1 }
+
+# Curaçao
+[regions.cw]
+sms = { price = 0.22, per = 1 }
+
+# Christmas Island
+[regions.cx]
+sms = { price = 0.14, per = 1 }
+
+# Cyprus
+[regions.cy]
+sms = { price = 0.03, per = 1 }
+
+# Czechia
+[regions.cz]
+sms = { price = 0.06, per = 1 }
+
+# Germany
+[regions.de]
+sms = { price = 0.10, per = 1 }
+
+# Djibouti
+[regions.dj]
+sms = { price = 0.12, per = 1 }
+
+# Denmark
+[regions.dk]
+sms = { price = 0.05, per = 1 }
+
+# Dominica
+[regions.dm]
+sms = { price = 0.22, per = 1 }
+
+# Dominican Republic
+[regions.do]
+sms = { price = 0.05, per = 1 }
+
+# Algeria
+[regions.dz]
+sms = { price = 0.17, per = 1 }
+
+# Ecuador
+[regions.ec]
+sms = { price = 0.16, per = 1 }
+
+# Estonia
+[regions.ee]
+sms = { price = 0.05, per = 1 }
+
+# Egypt
+[regions.eg]
+sms = { price = 0.13, per = 1 }
+
+# Western Sahara
+[regions.eh]
+sms = { price = 0.19, per = 1 }
+
+# Eritrea
+[regions.er]
+sms = { price = 0.06, per = 1 }
+
+# Spain
+[regions.es]
+sms = { price = 0.04, per = 1 }
+
+# Ethiopia
+[regions.et]
+sms = { price = 0.29, per = 1 }
+
+# Finland
+[regions.fi]
+sms = { price = 0.09, per = 1 }
+
+# Fiji
+[regions.fj]
+sms = { price = 0.18, per = 1 }
+
+# Falkland Islands (Malvinas)
+[regions.fk]
+sms = { price = 0.01, per = 1 }
+
+# Micronesia, Federated States of
+[regions.fm]
+sms = { price = 0.06, per = 1 }
+
+# Faroe Islands
+[regions.fo]
+sms = { price = 0.04, per = 1 }
+
+# France
+[regions.fr]
+sms = { price = 0.07, per = 1 }
+
+# Gabon
+[regions.ga]
+sms = { price = 0.21, per = 1 }
+
+# United Kingdom
+[regions.gb]
+sms = { price = 0.04, per = 1 }
+
+# Grenada
+[regions.gd]
+sms = { price = 0.26, per = 1 }
+
+# Georgia
+[regions.ge]
+sms = { price = 0.13, per = 1 }
+
+# French Guiana
+[regions.gf]
+sms = { price = 0.15, per = 1 }
+
+# Guernsey
+[regions.gg]
+sms = { price = 0.10, per = 1 }
+
+# Ghana
+[regions.gh]
+sms = { price = 0.20, per = 1 }
+
+# Gibraltar
+[regions.gi]
+sms = { price = 0.08, per = 1 }
+
+# Greenland
+[regions.gl]
+sms = { price = 0.01, per = 1 }
+
+# Gambia
+[regions.gm]
+sms = { price = 0.13, per = 1 }
+
+# Guinea
+[regions.gn]
+sms = { price = 0.26, per = 1 }
+
+# Guadeloupe
+[regions.gp]
+sms = { price = 0.14, per = 1 }
+
+# Equatorial Guinea
+[regions.gq]
+sms = { price = 0.21, per = 1 }
+
+# Greece
+[regions.gr]
+sms = { price = 0.06, per = 1 }
+
+# South Georgia and the South Sandwich Islands
+[regions.gs]
+sms = { price = 0.05, per = 1 }
+
+# Guatemala
+[regions.gt]
+sms = { price = 0.15, per = 1 }
+
+# Guam
+[regions.gu]
+sms = { price = 0.02, per = 1 }
+
+# Guinea-Bissau
+[regions.gw]
+sms = { price = 0.17, per = 1 }
+
+# Guyana
+[regions.gy]
+sms = { price = 0.20, per = 1 }
+
+# Hong Kong
+[regions.hk]
+sms = { price = 0.06, per = 1 }
+
+# Heard Island and McDonald Islands
+[regions.hm]
+sms = { price = 0.06, per = 1 }
+
+# Honduras
+[regions.hn]
+sms = { price = 0.16, per = 1 }
+
+# Croatia
+[regions.hr]
+sms = { price = 0.10, per = 1 }
+
+# Haiti
+[regions.ht]
+sms = { price = 0.31, per = 1 }
+
+# Hungary
+[regions.hu]
+sms = { price = 0.06, per = 1 }
+
+# Indonesia
+[regions.id]
+sms = { price = 0.36, per = 1 }
+
+# Ireland
+[regions.ie]
+sms = { price = 0.06, per = 1 }
+
+# Israel
+[regions.il]
+sms = { price = 0.20, per = 1 }
+
+# Isle of Man
+[regions.im]
+sms = { price = 0.07, per = 1 }
+
+# India
+[regions.in]
+sms = { price = 0.07, per = 1 }
+
+# British Indian Ocean Territory
+[regions.io]
+sms = { price = 0.01, per = 1 }
+
+# Iraq
+[regions.iq]
+sms = { price = 0.23, per = 1 }
+
+# Iran, Islamic Republic of
+[regions.ir]
+sms = { price = 0.21, per = 1 }
+
+# Iceland
+[regions.is]
+sms = { price = 0.06, per = 1 }
+
+# Italy
+[regions.it]
+sms = { price = 0.05, per = 1 }
+
+# Jersey
+[regions.je]
+sms = { price = 0.06, per = 1 }
+
+# Jamaica
+[regions.jm]
+sms = { price = 0.25, per = 1 }
+
+# Jordan
+[regions.jo]
+sms = { price = 0.25, per = 1 }
+
+# Japan
+[regions.jp]
+sms = { price = 0.03, per = 1 }
+
+# Kenya
+[regions.ke]
+sms = { price = 0.16, per = 1 }
+
+# Kyrgyzstan
+[regions.kg]
+sms = { price = 0.30, per = 1 }
+
+# Cambodia
+[regions.kh]
+sms = { price = 0.18, per = 1 }
+
+# Kiribati
+[regions.ki]
+sms = { price = 0.02, per = 1 }
+
+# Comoros
+[regions.km]
+sms = { price = 0.50, per = 1 }
+
+# Saint Kitts and Nevis
+[regions.kn]
+sms = { price = 0.17, per = 1 }
+
+# Korea, Republic of
+[regions.kr]
+sms = { price = 0.01, per = 1 }
+
+# Kuwait
+[regions.kw]
+sms = { price = 0.23, per = 1 }
+
+# Cayman Islands
+[regions.ky]
+sms = { price = 0.14, per = 1 }
+
+# Kazakhstan
+[regions.kz]
+sms = { price = 0.24, per = 1 }
+
+# Lao People's Democratic Republic
+[regions.la]
+sms = { price = 0.36, per = 1 }
+
+# Lebanon
+[regions.lb]
+sms = { price = 0.27, per = 1 }
+
+# Saint Lucia
+[regions.lc]
+sms = { price = 0.19, per = 1 }
+
+# Liechtenstein
+[regions.li]
+sms = { price = 0.04, per = 1 }
+
+# Sri Lanka
+[regions.lk]
+sms = { price = 0.26, per = 1 }
+
+# Liberia
+[regions.lr]
+sms = { price = 0.22, per = 1 }
+
+# Lesotho
+[regions.ls]
+sms = { price = 0.11, per = 1 }
+
+# Lithuania
+[regions.lt]
+sms = { price = 0.05, per = 1 }
+
+# Luxembourg
+[regions.lu]
+sms = { price = 0.06, per = 1 }
+
+# Latvia
+[regions.lv]
+sms = { price = 0.05, per = 1 }
+
+# Libya
+[regions.ly]
+sms = { price = 0.37, per = 1 }
+
+# Morocco
+[regions.ma]
+sms = { price = 0.19, per = 1 }
+
+# Monaco
+[regions.mc]
+sms = { price = 0.08, per = 1 }
+
+# Moldova, Republic of
+[regions.md]
+sms = { price = 0.09, per = 1 }
+
+# Montenegro
+[regions.me]
+sms = { price = 0.15, per = 1 }
+
+# Saint Martin (French part)
+[regions.mf]
+sms = { price = 0.07, per = 1 }
+
+# Madagascar
+[regions.mg]
+sms = { price = 0.32, per = 1 }
+
+# Marshall Islands
+[regions.mh]
+sms = { price = 0.04, per = 1 }
+
+# North Macedonia
+[regions.mk]
+sms = { price = 0.11, per = 1 }
+
+# Mali
+[regions.ml]
+sms = { price = 0.25, per = 1 }
+
+# Myanmar
+[regions.mm]
+sms = { price = 0.38, per = 1 }
+
+# Mongolia
+[regions.mn]
+sms = { price = 0.17, per = 1 }
+
+# Macao
+[regions.mo]
+sms = { price = 0.03, per = 1 }
+
+# Northern Mariana Islands
+[regions.mp]
+sms = { price = 0.03, per = 1 }
+
+# Martinique
+[regions.mq]
+sms = { price = 0.13, per = 1 }
+
+# Mauritania
+[regions.mr]
+sms = { price = 0.19, per = 1 }
+
+# Montserrat
+[regions.ms]
+sms = { price = 0.12, per = 1 }
+
+# Malta
+[regions.mt]
+sms = { price = 0.06, per = 1 }
+
+# Mauritius
+[regions.mu]
+sms = { price = 0.12, per = 1 }
+
+# Maldives
+[regions.mv]
+sms = { price = 0.22, per = 1 }
+
+# Malawi
+[regions.mw]
+sms = { price = 0.25, per = 1 }
+
+# Mexico
+[regions.mx]
+sms = { price = 0.05, per = 1 }
+
+# Malaysia
+[regions.my]
+sms = { price = 0.28, per = 1 }
+
+# Mozambique
+[regions.mz]
+sms = { price = 0.35, per = 1 }
+
+# Namibia
+[regions.na]
+sms = { price = 0.02, per = 1 }
+
+# New Caledonia
+[regions.nc]
+sms = { price = 0.08, per = 1 }
+
+# Niger
+[regions.ne]
+sms = { price = 0.19, per = 1 }
+
+# Norfolk Island
+[regions.nf]
+sms = { price = 0.02, per = 1 }
+
+# Nigeria
+[regions.ng]
+sms = { price = 0.23, per = 1 }
+
+# Nicaragua
+[regions.ni]
+sms = { price = 0.12, per = 1 }
+
+# Netherlands
+[regions.nl]
+sms = { price = 0.10, per = 1 }
+
+# Norway
+[regions.no]
+sms = { price = 0.06, per = 1 }
+
+# Nepal
+[regions.np]
+sms = { price = 0.22, per = 1 }
+
+# Nauru
+[regions.nr]
+sms = { price = 0.14, per = 1 }
+
+# Niue
+[regions.nu]
+sms = { price = 0.03, per = 1 }
+
+# New Zealand
+[regions.nz]
+sms = { price = 0.07, per = 1 }
+
+# Oman
+[regions.om]
+sms = { price = 0.12, per = 1 }
+
+# Panama
+[regions.pa]
+sms = { price = 0.14, per = 1 }
+
+# Peru
+[regions.pe]
+sms = { price = 0.11, per = 1 }
+
+# French Polynesia
+[regions.pf]
+sms = { price = 0.05, per = 1 }
+
+# Papua New Guinea
+[regions.pg]
+sms = { price = 0.18, per = 1 }
+
+# Philippines
+[regions.ph]
+sms = { price = 0.17, per = 1 }
+
+# Pakistan
+[regions.pk]
+sms = { price = 0.24, per = 1 }
+
+# Poland
+[regions.pl]
+sms = { price = 0.03, per = 1 }
+
+# Saint Pierre and Miquelon
+[regions.pm]
+sms = { price = 0.15, per = 1 }
+
+# Pitcairn
+[regions.pn]
+sms = { price = 0.10, per = 1 }
+
+# Puerto Rico
+[regions.pr]
+sms = { price = 0.01, per = 1 }
+
+# Palestine, State of
+[regions.ps]
+sms = { price = 0.30, per = 1 }
+
+# Portugal
+[regions.pt]
+sms = { price = 0.02, per = 1 }
+
+# Palau
+[regions.pw]
+sms = { price = 0.07, per = 1 }
+
+# Paraguay
+[regions.py]
+sms = { price = 0.07, per = 1 }
+
+# Qatar
+[regions.qa]
+sms = { price = 0.20, per = 1 }
+
+# Réunion
+[regions.re]
+sms = { price = 0.06, per = 1 }
+
+# Romania
+[regions.ro]
+sms = { price = 0.05, per = 1 }
+
+# Serbia
+[regions.rs]
+sms = { price = 0.18, per = 1 }
+
+# Russian Federation
+[regions.ru]
+sms = { price = 0.34, per = 1 }
+
+# Rwanda
+[regions.rw]
+sms = { price = 0.18, per = 1 }
+
+# Saudi Arabia
+[regions.sa]
+sms = { price = 0.19, per = 1 }
+
+# Solomon Islands
+[regions.sb]
+sms = { price = 0.03, per = 1 }
+
+# Seychelles
+[regions.sc]
+sms = { price = 0.18, per = 1 }
+
+# Sudan
+[regions.sd]
+sms = { price = 0.11, per = 1 }
+
+# Sweden
+[regions.se]
+sms = { price = 0.06, per = 1 }
+
+# Singapore
+[regions.sg]
+sms = { price = 0.05, per = 1 }
+
+# Saint Helena, Ascension and Tristan da Cunha
+[regions.sh]
+sms = { price = 0.01, per = 1 }
+
+# Slovenia
+[regions.si]
+sms = { price = 0.12, per = 1 }
+
+# Svalbard and Jan Mayen
+[regions.sj]
+sms = { price = 0.14, per = 1 }
+
+# Slovakia
+[regions.sk]
+sms = { price = 0.05, per = 1 }
+
+# Sierra Leone
+[regions.sl]
+sms = { price = 0.14, per = 1 }
+
+# San Marino
+[regions.sm]
+sms = { price = 0.01, per = 1 }
+
+# Senegal
+[regions.sn]
+sms = { price = 0.32, per = 1 }
+
+# Somalia
+[regions.so]
+sms = { price = 0.10, per = 1 }
+
+# Suriname
+[regions.sr]
+sms = { price = 0.25, per = 1 }
+
+# South Sudan
+[regions.ss]
+sms = { price = 0.15, per = 1 }
+
+# Sao Tome and Principe
+[regions.st]
+sms = { price = 0.06, per = 1 }
+
+# El Salvador
+[regions.sv]
+sms = { price = 0.15, per = 1 }
+
+# Sint Maarten (Dutch part)
+[regions.sx]
+sms = { price = 0.10, per = 1 }
+
+# Syrian Arab Republic
+[regions.sy]
+sms = { price = 0.09, per = 1 }
+
+# Eswatini
+[regions.sz]
+sms = { price = 0.08, per = 1 }
+
+# Turks and Caicos Islands
+[regions.tc]
+sms = { price = 0.28, per = 1 }
+
+# Chad
+[regions.td]
+sms = { price = 0.19, per = 1 }
+
+# French Southern Territories
+[regions.tf]
+sms = { price = 0.19, per = 1 }
+
+# Togo
+[regions.tg]
+sms = { price = 0.34, per = 1 }
+
+# Thailand
+[regions.th]
+sms = { price = 0.01, per = 1 }
+
+# Tajikistan
+[regions.tj]
+sms = { price = 0.34, per = 1 }
+
+# Tokelau
+[regions.tk]
+sms = { price = 0.03, per = 1 }
+
+# Timor-Leste
+[regions.tl]
+sms = { price = 0.08, per = 1 }
+
+# Turkmenistan
+[regions.tm]
+sms = { price = 0.15, per = 1 }
+
+# Tunisia
+[regions.tn]
+sms = { price = 0.23, per = 1 }
+
+# Tonga
+[regions.to]
+sms = { price = 0.18, per = 1 }
+
+# Türkiye
+[regions.tr]
+sms = { price = 0.01, per = 1 }
+
+# Trinidad and Tobago
+[regions.tt]
+sms = { price = 0.18, per = 1 }
+
+# Tuvalu
+[regions.tv]
+sms = { price = 0.11, per = 1 }
+
+# Taiwan
+[regions.tw]
+sms = { price = 0.03, per = 1 }
+
+# Tanzania, United Republic of
+[regions.tz]
+sms = { price = 0.23, per = 1 }
+
+# Ukraine
+[regions.ua]
+sms = { price = 0.16, per = 1 }
+
+# Uganda
+[regions.ug]
+sms = { price = 0.19, per = 1 }
+
+# United States Minor Outlying Islands
+[regions.um]
+sms = { price = 0.16, per = 1 }
+
+# United States
+[regions.us]
+sms = { price = 0.01, per = 1 }
+
+# Uruguay
+[regions.uy]
+sms = { price = 0.05, per = 1 }
+
+# Uzbekistan
+[regions.uz]
+sms = { price = 0.40, per = 1 }
+
+# Holy See (Vatican City State)
+[regions.va]
+sms = { price = 0.33, per = 1 }
+
+# Saint Vincent and the Grenadines
+[regions.vc]
+sms = { price = 0.25, per = 1 }
+
+# Venezuela, Bolivarian Republic of
+[regions.ve]
+sms = { price = 0.17, per = 1 }
+
+# Virgin Islands, British
+[regions.vg]
+sms = { price = 0.30, per = 1 }
+
+# Virgin Islands, U.S.
+[regions.vi]
+sms = { price = 0.01, per = 1 }
+
+# Viet Nam
+[regions.vn]
+sms = { price = 0.13, per = 1 }
+
+# Vanuatu
+[regions.vu]
+sms = { price = 0.18, per = 1 }
+
+# Wallis and Futuna
+[regions.wf]
+sms = { price = 0.10, per = 1 }
+
+# Samoa
+[regions.ws]
+sms = { price = 0.18, per = 1 }
+
+# Republic of Kosovo
+[regions.xk]
+sms = { price = 0.19, per = 1 }
+
+# Yemen
+[regions.ye]
+sms = { price = 0.24, per = 1 }
+
+# Mayotte
+[regions.yt]
+sms = { price = 0.10, per = 1 }
+
+# South Africa
+[regions.za]
+sms = { price = 0.11, per = 1 }
+
+# Zambia
+[regions.zm]
+sms = { price = 0.24, per = 1 }
+
+# Zimbabwe
+[regions.zw]
+sms = { price = 0.09, per = 1 }
+
+# All other regions
+[regions.zz]
+sms = { price = 0.47, per = 1 }
+
+[free_per_day]
+sms = 10

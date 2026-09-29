@@ -1,0 +1,34 @@
+id = "firebase.auth/memory-persistence"
+title = "Auth persistence is memory only"
+provider = "firebase"
+service = "auth"
+severity = "medium"
+category = "reliability"
+evaluation = "local"
+status = "stable"
+summary = "Auth is initialized with in-memory persistence, so the user is signed out on every page load."
+
+description = """
+`inMemoryPersistence` (`NONE`) drops the user when the page unloads.
+The next load has to sign in again. For anonymous auth that creates a
+new user every visit. `browserSessionPersistence` survives a reload of
+the same tab, so it is not this case. `browserLocalPersistence` is the
+usual default.
+"""
+
+fix = """
+Use `browserLocalPersistence`, or pass it first in the persistence
+list given to `initializeAuth`. Call `setPersistence` with
+`inMemoryPersistence` only for a flow that must not be stored.
+"""
+
+docs = ["https://firebase.google.com/docs/auth/web/auth-state-persistence"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+const auth = initializeAuth(app, { persistence: inMemoryPersistence });
+'''
+good = '''
+const auth = initializeAuth(app, { persistence: browserLocalPersistence });
+'''

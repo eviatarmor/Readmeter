@@ -29,13 +29,16 @@
   </head>
   <body>
     <h1>Readmeter Firebase examples</h1>
-    <p>Each button does one wasteful Firestore, Realtime Database, or Cloud Storage pattern against the emulators. Local findings show up in the log.</p>
+    <p>Each button does one wasteful Firestore, Realtime Database, Cloud Storage, or Authentication pattern against the emulators. Local findings show up in the log.</p>
     <h2>Cloud Firestore</h2>
     <div class="actions" id="actions"></div>
     <h2>Realtime Database</h2>
     <div class="actions" id="database"></div>
     <h2>Cloud Storage</h2>
     <div class="actions" id="storage"></div>
+    <h2>Authentication</h2>
+    <div class="actions" id="auth"></div>
+    <div id="recaptcha" style="position: absolute; width: 0; height: 0; overflow: hidden"></div>
     <label>Search <input id="search" type="text" autocomplete="off" placeholder="queries on every keystroke" /></label>
     <label>Draft <input id="draft" type="text" autocomplete="off" placeholder="saves on every keystroke" /></label>
     <pre id="log" aria-live="polite"></pre>

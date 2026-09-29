@@ -1,6 +1,6 @@
 # @readmeter/firebase
 
-Record Cloud Firestore, Realtime Database, and Cloud Storage calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
+Record Cloud Firestore, Realtime Database, Cloud Storage, and Authentication calls and send them to Readmeter. The package covers the web modular SDK and the Firebase Admin SDK used by Cloud Functions.
 
 ## Install
 
@@ -29,7 +29,7 @@ await flush();
 
 ## Web
 
-Change `from "firebase/firestore"` to `from "@readmeter/firebase/firestore"`. Change `from "firebase/storage"` to `from "@readmeter/firebase/storage"` the same way.
+Change `from "firebase/firestore"` to `from "@readmeter/firebase/firestore"`. Change `from "firebase/storage"` to `from "@readmeter/firebase/storage"` and `from "firebase/auth"` to `from "@readmeter/firebase/auth"` the same way.
 
 ```ts
 import { init } from "@readmeter/firebase";
@@ -71,6 +71,7 @@ init({
 
 const db = instrument(getFirestore());
 // Cloud Storage: instrumentStorage(getStorage().bucket()) from the same module.
+// Authentication: instrumentAuth(getAuth()) from the same module.
 
 export const fn = onRequest(withFlush(async (req, res) => {
   const snap = await db.collection("orders").where("status", "==", "open").get();
@@ -86,7 +87,7 @@ export const fn = onRequest(withFlush(async (req, res) => {
 
 ## Privacy
 
-What leaves the process is a template (`users/{id}/orders`), a count, a size, or a keyed hash. Document data, filter values, and ids are not sent. Cloud Storage also sends an extension, a content-type major, a cache-control class, list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent.
+What leaves the process is a template (`users/{id}/orders`), a count, a size, or a keyed hash. Document data, filter values, and ids are not sent. Cloud Storage also sends an extension, a content-type major, a cache-control class, list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent. Authentication sends a method template, a safe provider id, a persistence kind, and page-token presence. Emails, phone numbers, uids, tokens, claims, and verification codes are not sent.
 
 ## Try it on your app
 

@@ -3,7 +3,15 @@ import { initializeApp } from "firebase/app";
 import { connectDatabaseEmulator, getDatabase, type Database } from "@readmeter/firebase/database";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "@readmeter/firebase/firestore";
 import { connectStorageEmulator, getStorage, type FirebaseStorage } from "@readmeter/firebase/storage";
+import { connectAuthEmulator, getAuth, type Auth } from "@readmeter/firebase/auth";
 
+import {
+  anonymousUserChurn,
+  authListenerLeak,
+  idTokenRefreshStorm,
+  memoryPersistence,
+  phoneAuthRetry,
+} from "./auth.ts";
 import {
   downloadWholeList,
   duplicateListeners,
@@ -45,6 +53,7 @@ const logEl = document.querySelector("#log");
 const actions = document.querySelector("#actions");
 const databaseActions = document.querySelector("#database");
 const storageActions = document.querySelector("#storage");
+const authActions = document.querySelector("#auth");
 const search = document.querySelector("#search");
 const draft = document.querySelector("#draft");
 
@@ -95,6 +104,14 @@ const storageButtons: { label: string; rule: string; run: (storage: FirebaseStor
   { label: "upload without resumable", rule: "firebase.storage/upload-without-resumable", run: uploadWithoutResumable },
 ];
 
+const authButtons: { label: string; rule: string; run: (auth: Auth) => Promise<string> }[] = [
+  { label: "anonymous churn", rule: "firebase.auth/anonymous-user-churn", run: anonymousUserChurn },
+  { label: "token refresh storm", rule: "firebase.auth/id-token-refresh-storm", run: idTokenRefreshStorm },
+  { label: "memory persistence", rule: "firebase.auth/memory-persistence", run: memoryPersistence },
+  { label: "auth listeners", rule: "generic/listener-leak", run: authListenerLeak },
+  { label: "phone auth retry", rule: "firebase.auth/phone-auth-retry", run: phoneAuthRetry },
+];
+
 let sdkError = "";
 const report = console.error.bind(console);
 console.error = (...args: unknown[]) => {
@@ -131,10 +148,12 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const rtdb = getDatabase(app, "https://demo-readmeter.firebaseio.com");
 const bucket = getStorage(app, "gs://demo-readmeter.appspot.com");
+const userAuth = getAuth(app);
 if (import.meta.env.VITE_USE_EMULATOR === "1") {
   connectFirestoreEmulator(db, "127.0.0.1", 8085);
   connectDatabaseEmulator(rtdb, "127.0.0.1", 9000);
   connectStorageEmulator(bucket, "127.0.0.1", 9199);
+  connectAuthEmulator(userAuth, "http://127.0.0.1:9099", { disableWarnings: true });
 }
 
 const buttonEls: HTMLButtonElement[] = [];
@@ -165,6 +184,8 @@ const databaseBar = requireEl<HTMLElement>(databaseActions, "database");
 for (const spec of databaseButtons) addButton(databaseBar, spec.label, spec.rule, () => spec.run(rtdb));
 const storageBar = requireEl<HTMLElement>(storageActions, "storage");
 for (const spec of storageButtons) addButton(storageBar, spec.label, spec.rule, () => spec.run(bucket));
+const authBar = requireEl<HTMLElement>(authActions, "auth");
+for (const spec of authButtons) addButton(authBar, spec.label, spec.rule, () => spec.run(userAuth));
 
 const searchInput = requireEl<HTMLInputElement>(search, "search");
 searchInput.addEventListener("input", () => {

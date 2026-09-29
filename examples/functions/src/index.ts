@@ -6,10 +6,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { init } from "@readmeter/firebase";
-import { instrument, withFlush } from "@readmeter/firebase/admin";
+import { instrument, instrumentAuth, withFlush } from "@readmeter/firebase/admin";
 
 function loadEnv(file: string): void {
   let text: string;
@@ -49,6 +50,7 @@ init({
 });
 
 const db = instrument(getFirestore());
+const adminAuth = instrumentAuth(getAuth());
 
 export const unboundedReport = onRequest(
   { region: "us-central1" },
@@ -86,6 +88,15 @@ export const fanout = onRequest(
     for (let i = 0; i < 150; i += 1) batch.set(db.collection("fanout").doc(`d${i}`), { n: i });
     await batch.commit();
     res.json({ n: 150 });
+  }),
+);
+
+/** listUsers inside the request. One finding per invocation, including an empty page. */
+export const listUsersRequest = onRequest(
+  { region: "us-central1" },
+  withFlush(async (_req, res) => {
+    const page = await adminAuth.listUsers(1000);
+    res.json({ n: page.users.length });
   }),
 );
 

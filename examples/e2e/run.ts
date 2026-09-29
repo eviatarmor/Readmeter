@@ -8,8 +8,15 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteApp, initializeApp } from "firebase/app";
+import { connectAuthEmulator, getAuth } from "@readmeter/firebase/auth";
 import { connectDatabaseEmulator, getDatabase } from "@readmeter/firebase/database";
 import { connectStorageEmulator, getStorage } from "@readmeter/firebase/storage";
+import {
+  anonymousUserChurn,
+  authListenerLeak,
+  idTokenRefreshStorm,
+  memoryPersistence,
+} from "../web/src/auth.ts";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { findingRules } from "@readmeter/db";
 import { flush, init, shutdown } from "@readmeter/firebase";
@@ -90,6 +97,11 @@ const EXPECTED = [
   "firebase.storage/redownload-without-cache-control",
   "firebase.storage/original-size-images",
   "firebase.storage/upload-without-resumable",
+  "firebase.auth/anonymous-user-churn",
+  "firebase.auth/id-token-refresh-storm",
+  "firebase.auth/memory-persistence",
+  "generic/listener-leak",
+  "firebase.auth/server-list-users-in-request",
 ];
 
 const COUNTER_RULE = "firebase.firestore/read-modify-write-counter";
@@ -205,6 +217,12 @@ async function drive(): Promise<void> {
   if (!storageHost || storagePort !== 9199) throw new Error(`bad FIREBASE_STORAGE_EMULATOR_HOST ${rawStorage}`);
   const bucket = getStorage(app, "gs://demo-readmeter.appspot.com");
   connectStorageEmulator(bucket, storageHost, storagePort);
+  const rawAuth = (process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099").replace(/^https?:\/\//, "");
+  const [authHost, authPortText] = rawAuth.split(":");
+  const authPort = Number(authPortText);
+  if (!authHost || authPort !== 9099) throw new Error(`bad FIREBASE_AUTH_EMULATOR_HOST ${rawAuth}`);
+  const userAuth = getAuth(app);
+  connectAuthEmulator(userAuth, `http://${authHost}:${authPort}`, { disableWarnings: true });
   try {
     console.log(await seedData(db));
     console.log(await unboundedList(db));
@@ -234,13 +252,17 @@ async function drive(): Promise<void> {
     console.log(await originalSizeImage(bucket));
     console.log(await uploadWithoutResumable(bucket));
     console.log(await listAllLargePrefix(bucket));
+    console.log(await memoryPersistence(userAuth));
+    console.log(await anonymousUserChurn(userAuth));
+    console.log(await idTokenRefreshStorm(userAuth));
+    console.log(await authListenerLeak(userAuth));
     await flush();
   } finally {
     await shutdown();
     await deleteApp(app);
   }
 
-  for (const name of ["unboundedReport", "nPlusOne", "offsetPage", "fanout", "counterTx"]) {
+  for (const name of ["unboundedReport", "nPlusOne", "offsetPage", "fanout", "counterTx", "listUsersRequest"]) {
     await callFunction(name);
   }
 }
@@ -256,3 +278,6 @@ if (!only) {
   assertCounterFromEvaluator(await findings());
 }
 console.log("e2e rules ok");
+// Auth listeners and the ID-token refresh timer stay scheduled after
+// deleteApp, so the process would never exit and emulators:exec would wait.
+process.exit(0);

@@ -1,0 +1,38 @@
+id = "firebase.auth/server-list-users-in-request"
+title = "listUsers inside a request"
+provider = "firebase"
+service = "auth"
+severity = "medium"
+category = "reads"
+evaluation = "window"
+status = "stable"
+summary = "listUsers runs inside a request handler and walks the user list on the request path."
+
+description = """
+`listUsers` pages through every user in the project, up to 1000 per
+call. Doing that inside a request handler ties the response to the size
+of the user list and repeats the walk on every request. One invocation
+that pages is still one walk.
+"""
+
+fix = """
+Export users from a scheduled job or an admin tool, and keep the
+request handler on a single `getUser` when it already has the uid.
+"""
+
+docs = ["https://firebase.google.com/docs/auth/admin/manage-users"]
+
+[[examples]]
+lang = "ts"
+bad = '''
+export const fn = onRequest(withFlush(async (_req, res) => {
+  const page = await getAuth().listUsers();
+  res.json({ n: page.users.length });
+}));
+'''
+good = '''
+export const nightly = onSchedule("every 24 hours", withFlush(async () => {
+  const page = await getAuth().listUsers();
+  await writeExport(page.users.length);
+}));
+'''

@@ -11,7 +11,7 @@ publish.workspace = true
 readmeter-core.workspace = true
 readmeter-rules = { workspace = true, features = ["window"] }
 readmeter-provider-api = { workspace = true, features = ["serde"] }
-readmeter-provider-firebase = { workspace = true, features = ["firestore", "database", "storage", "window"] }
+readmeter-provider-firebase = { workspace = true, features = ["firestore", "database", "storage", "auth", "window"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

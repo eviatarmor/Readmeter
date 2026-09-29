@@ -27,6 +27,10 @@
       "types": "./dist/web/storage.d.ts",
       "import": "./dist/web/storage.js"
     },
+    "./auth": {
+      "types": "./dist/web/auth.d.ts",
+      "import": "./dist/web/auth.js"
+    },
     "./admin": {
       "types": "./dist/admin/index.d.ts",
       "import": "./dist/admin/index.js"
@@ -74,5 +78,5 @@
     "url": "https://github.com/eviatarmor/Readmeter.git",
     "directory": "sdks/js/firebase"
   },
-  "description": "Find Firestore, Realtime Database, and Cloud Storage cost problems in Firebase web apps and Cloud Functions, down to the callsite."
+  "description": "Find Firestore, Realtime Database, Cloud Storage, and Authentication cost problems in Firebase web apps and Cloud Functions, down to the callsite."
 }

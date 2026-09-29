@@ -1,0 +1,22 @@
+{
+  "description": "getIdToken(true) five times in a minute. Forced refresh has no priced unit.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "auth", "op": "token_refresh", "method": "getIdToken", "ts_ms": 1000, "call_id": 1, "force": true },
+    { "service": "auth", "op": "token_refresh", "method": "getIdToken", "ts_ms": 2000, "call_id": 2, "force": true },
+    { "service": "auth", "op": "token_refresh", "method": "getIdToken", "ts_ms": 3000, "call_id": 3, "force": true },
+    { "service": "auth", "op": "token_refresh", "method": "getIdToken", "ts_ms": 4000, "call_id": 4, "force": true },
+    { "service": "auth", "op": "token_refresh", "method": "getIdToken", "ts_ms": 5000, "call_id": 5, "force": true }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "auth/getIdToken", "units": {} },
+    { "op": "other", "template": "auth/getIdToken", "units": {} },
+    { "op": "other", "template": "auth/getIdToken", "units": {} },
+    { "op": "other", "template": "auth/getIdToken", "units": {} },
+    { "op": "other", "template": "auth/getIdToken", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.auth/id-token-refresh-storm" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "description": "Three successful phone verification sends in ten minutes. Each send is one SMS. The retries after the first are wasted.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "auth", "op": "phone", "method": "signInWithPhoneNumber", "ts_ms": 1000, "call_id": 1 },
+    { "service": "auth", "op": "phone", "method": "verifyPhoneNumber", "ts_ms": 2000, "call_id": 2 },
+    { "service": "auth", "op": "phone", "method": "signInWithPhoneNumber", "ts_ms": 3000, "call_id": 3 }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "auth/signInWithPhoneNumber", "units": { "sms": 1 } },
+    { "op": "other", "template": "auth/verifyPhoneNumber", "units": { "sms": 1 } },
+    { "op": "other", "template": "auth/signInWithPhoneNumber", "units": { "sms": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.auth/phone-auth-retry", "wasted": { "sms": 2 } }
+  ]
+}

@@ -7,7 +7,7 @@ Commands are for Git Bash on Windows and bash on Linux. Findings land in Postgre
 - Docker (Postgres)
 - Node.js 22 and pnpm 10
 - Rust, the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` (same version as `Cargo.lock`)
-- Java 21 (the Firestore, Realtime Database, Cloud Storage, and Functions emulators). Java 17 also works locally.
+- Java 21 (the Firestore, Realtime Database, Cloud Storage, Authentication, and Functions emulators). Java 17 also works locally.
 - A checkout of this repo
 
 ```sh
@@ -27,14 +27,14 @@ That starts Postgres on port 5442, migrates and seeds it, builds the rules and t
 
 Stop ingest, the console API, the console, and the Postgres container with `./scripts/dev-down.sh`. The database volume is kept. `./scripts/dev-down.sh --keep-postgres` stops those processes and leaves Postgres running.
 
-The demo emulator config is `examples/firebase.json`: Firestore on **8085** (8080 is often taken), Realtime Database on **9000**, Cloud Storage on **9199**, Functions on 5001.
+The demo emulator config is `examples/firebase.json`: Firestore on **8085** (8080 is often taken), Realtime Database on **9000**, Cloud Storage on **9199**, Authentication on **9099**, Functions on 5001.
 
 ```sh
 cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter
 pnpm --filter web dev
 ```
 
-`pnpm --filter web dev` serves the demo on port 5173. Each button runs one wasteful Firestore, Realtime Database, or Cloud Storage pattern. Findings show up in the page log and in Postgres. Open `http://localhost:5174`, sign in as `admin@readmeter.local` / `readmeter-dev`, and open workspace `local`, project `demo_local`. Findings lists them.
+`pnpm --filter web dev` serves the demo on port 5173. Each button runs one wasteful Firestore, Realtime Database, Cloud Storage, or Authentication pattern. Findings show up in the page log and in Postgres. Open `http://localhost:5174`, sign in as `admin@readmeter.local` / `readmeter-dev`, and open workspace `local`, project `demo_local`. Findings lists them. Listing users from a request is a Cloud Function (`listUsersRequest`), not a page button.
 
 ## 3. Create a project and a key
 
@@ -115,7 +115,7 @@ In the console, select the project in the top bar.
 
 ## 7. What is sent
 
-A call leaves the process as a path template (`users/{id}/orders`), a count, a size, or a keyed hash. Writes also send sizes (the largest field and the whole payload, in bytes), transform names (`increment`, `array_union`, and the other field transforms), and a payload hash. That hash is salted with a random value created per session that never leaves the process, so equal payloads cannot be compared across sessions. The client can also send its cache kind (`memory`, `persistent`, or `unknown`) and whether the tab is visible. Realtime Database calls send the child count and the JSON byte size of the snapshot, capped at 10 MB, plus a connection count when the app calls `goOnline`. Cloud Storage sends a path template, extension, byte count, content-type major, cache-control class (max-age seconds or none), list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent. Document fields, snapshot values, filter values, and raw ids are not sent. The hash key is not an API secret. The API key is.
+A call leaves the process as a path template (`users/{id}/orders`), a count, a size, or a keyed hash. Writes also send sizes (the largest field and the whole payload, in bytes), transform names (`increment`, `array_union`, and the other field transforms), and a payload hash. That hash is salted with a random value created per session that never leaves the process, so equal payloads cannot be compared across sessions. The client can also send its cache kind (`memory`, `persistent`, or `unknown`) and whether the tab is visible. Realtime Database calls send the child count and the JSON byte size of the snapshot, capped at 10 MB, plus a connection count when the app calls `goOnline`. Cloud Storage sends a path template, extension, byte count, content-type major, cache-control class (max-age seconds or none), list counts, page-token presence, and a resumable flag. Object bytes, URLs, and tokens are not sent. Authentication sends the method template, an operation name, a safe provider id, a persistence kind, a force-refresh flag, listener and invocation ids, list counts, and page-token presence. Emails, phone numbers, uids, tokens, claims, and verification codes are not sent. Document fields, snapshot values, filter values, and raw ids are not sent. The hash key is not an API secret. The API key is.
 
 `init({ sampleRate: 0 })` keeps local findings and uploads no call batches.
 

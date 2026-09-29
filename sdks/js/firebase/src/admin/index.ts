@@ -15,7 +15,9 @@ import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.t
 import { documentByteSize } from "../core/size.ts";
 import { flush } from "../index.ts";
 import type { RawQueryShape } from "../web/shape.ts";
+import { instrumentAuth } from "./auth.ts";
 import { instrumentDatabase } from "./database.ts";
+import { runInvocation } from "./invocation.ts";
 import { instrumentStorage } from "./storage.ts";
 import {
   classifyCommit,
@@ -638,7 +640,7 @@ function wrapRequestStream(original: AnyFn): AnyFn {
  * Records RPCs on this Firestore instance and returns it.
  * Safe to call more than once. Never throws.
  */
-export { instrumentDatabase, instrumentStorage };
+export { instrumentAuth, instrumentDatabase, instrumentStorage };
 
 export function instrument<T>(firestore: T): T {
   try {
@@ -661,7 +663,7 @@ export function instrument<T>(firestore: T): T {
 export function withFlush<A extends unknown[], R>(handler: (...args: A) => R): (...args: A) => Promise<Awaited<R>> {
   return async (...args: A): Promise<Awaited<R>> => {
     try {
-      return await handler(...args);
+      return await runInvocation(() => handler(...args));
     } finally {
       await flush();
     }

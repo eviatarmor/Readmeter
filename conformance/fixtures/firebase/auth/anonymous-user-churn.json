@@ -1,0 +1,16 @@
+{
+  "description": "signInAnonymously twice in one session. The second sign-in is the wasted anonymous user. The gap is longer than a minute because the counter is the whole session.",
+  "platform": "browser",
+  "evaluations": ["window"],
+  "calls": [
+    { "service": "auth", "op": "sign_in_anonymous", "method": "signInAnonymously", "ts_ms": 1000, "call_id": 1 },
+    { "service": "auth", "op": "sign_in_anonymous", "method": "signInAnonymously", "ts_ms": 120000, "call_id": 2 }
+  ],
+  "expect_envelopes": [
+    { "op": "other", "template": "auth/signInAnonymously", "units": { "anonymous_sign_ins": 1 } },
+    { "op": "other", "template": "auth/signInAnonymously", "units": { "anonymous_sign_ins": 1 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.auth/anonymous-user-churn", "wasted": { "anonymous_sign_ins": 1 } }
+  ]
+}

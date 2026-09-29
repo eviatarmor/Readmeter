@@ -1,9 +1,10 @@
-import { DatabaseIcon, FlameIcon, HardDriveIcon } from "lucide-react";
+import { DatabaseIcon, FlameIcon, HardDriveIcon, KeyRoundIcon } from "lucide-react";
 
 const SERVICES = [
   { value: "firestore", label: "Cloud Firestore", icon: FlameIcon },
   { value: "database", label: "Realtime Database", icon: DatabaseIcon },
   { value: "storage", label: "Cloud Storage", icon: HardDriveIcon },
+  { value: "auth", label: "Authentication", icon: KeyRoundIcon },
 ] as const;
 
 export const serviceOptions = SERVICES.map((service) => ({

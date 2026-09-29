@@ -12,6 +12,7 @@ default = ["firebase", "window"]
 firebase = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/firestore"]
 database = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/database"]
 storage = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/storage"]
+auth = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/auth"]
 window = ["readmeter-rules/window", "readmeter-provider-firebase?/window"]
 
 [dependencies]

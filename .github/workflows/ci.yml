@@ -23,7 +23,7 @@ jobs:
       - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
       - run: cargo test --workspace --all-features
       - name: Production SDK feature set (no window rules) builds clean
-        run: cargo clippy -p readmeter-wasm -p readmeter-ffi --no-default-features --features firebase,database,storage -- -D warnings
+        run: cargo clippy -p readmeter-wasm -p readmeter-ffi --no-default-features --features firebase,database,storage,auth -- -D warnings
       - name: Rule catalog
         run: cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
 
@@ -46,7 +46,7 @@ jobs:
           cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
           node scripts/smoke-wasm.mjs
       - name: Report dev build size
-        run: FEATURES=firebase,database,storage,window OUT=target/wasm-pkg-dev BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
+        run: FEATURES=firebase,database,storage,auth,window OUT=target/wasm-pkg-dev BUDGET_GZIP=999999999 ./scripts/build-wasm.sh
 
   ffi:
     runs-on: ubuntu-latest

@@ -1,0 +1,296 @@
+{
+  "description": "Twenty onAuthStateChanged subscriptions from one callsite and no unsubscribe. This is generic/listener-leak; Auth does not add its own listener rule. react-double-mount needs an unsubscribe first, so it stays quiet.",
+  "platform": "browser",
+  "evaluations": [
+    "window"
+  ],
+  "calls": [
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1001,
+      "call_id": 1,
+      "listener": 1,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1002,
+      "call_id": 2,
+      "listener": 2,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1003,
+      "call_id": 3,
+      "listener": 3,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1004,
+      "call_id": 4,
+      "listener": 4,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1005,
+      "call_id": 5,
+      "listener": 5,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1006,
+      "call_id": 6,
+      "listener": 6,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1007,
+      "call_id": 7,
+      "listener": 7,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1008,
+      "call_id": 8,
+      "listener": 8,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1009,
+      "call_id": 9,
+      "listener": 9,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1010,
+      "call_id": 10,
+      "listener": 10,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1011,
+      "call_id": 11,
+      "listener": 11,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1012,
+      "call_id": 12,
+      "listener": 12,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1013,
+      "call_id": 13,
+      "listener": 13,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1014,
+      "call_id": 14,
+      "listener": 14,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1015,
+      "call_id": 15,
+      "listener": 15,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1016,
+      "call_id": 16,
+      "listener": 16,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1017,
+      "call_id": 17,
+      "listener": 17,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1018,
+      "call_id": 18,
+      "listener": 18,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1019,
+      "call_id": 19,
+      "listener": 19,
+      "callsite": "src/Auth.tsx:12:5"
+    },
+    {
+      "service": "auth",
+      "op": "subscribe",
+      "method": "onAuthStateChanged",
+      "ts_ms": 1020,
+      "call_id": 20,
+      "listener": 20,
+      "callsite": "src/Auth.tsx:12:5"
+    }
+  ],
+  "expect_envelopes": [
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    },
+    {
+      "op": "subscribe",
+      "template": "auth/onAuthStateChanged",
+      "units": {}
+    }
+  ],
+  "expect_findings": [
+    {
+      "rule": "generic/listener-leak"
+    }
+  ]
+}

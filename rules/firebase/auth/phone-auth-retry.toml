@@ -1,0 +1,40 @@
+id = "firebase.auth/phone-auth-retry"
+title = "Phone verification sent again"
+provider = "firebase"
+service = "auth"
+severity = "high"
+category = "reliability"
+evaluation = "window"
+status = "stable"
+summary = "Phone verification is sent several times in a short window, and each SMS is billed."
+
+description = """
+`signInWithPhoneNumber` and `verifyPhoneNumber` each send an SMS.
+Repeating them because the code has not arrived yet, or because a
+button can be pressed again, bills every send. Confirming the code
+does not send another SMS.
+"""
+
+fix = """
+Send one code, disable the button until the attempt finishes, and
+confirm that code with `ConfirmationResult.confirm`. Wait before
+offering another send.
+"""
+
+docs = ["https://firebase.google.com/docs/auth/web/phone-auth"]
+
+[params]
+min_sends = 3
+window_ms = 600000
+
+[[examples]]
+lang = "ts"
+bad = '''
+await signInWithPhoneNumber(auth, phone, verifier);
+await signInWithPhoneNumber(auth, phone, verifier);
+await signInWithPhoneNumber(auth, phone, verifier);
+'''
+good = '''
+const confirmation = await signInWithPhoneNumber(auth, phone, verifier);
+await confirmation.confirm(code);
+'''
