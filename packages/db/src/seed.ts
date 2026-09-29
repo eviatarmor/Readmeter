@@ -7,9 +7,17 @@ import { apiKeys, organizations, projects } from "./schema.ts";
 const key = process.env.READMETER_DEV_KEY ?? "rm_dev_key";
 const DEMO_HASH_KEY = "000102030405060708090a0b0c0d0e0f";
 
+if (process.env.NODE_ENV === "production") {
+  console.log("skipping seed because NODE_ENV is production");
+  process.exit(0);
+}
+
 const { db, close } = connect();
 try {
-  await db.insert(organizations).values({ id: "org_demo", name: "Demo" }).onConflictDoNothing();
+  await db
+    .insert(organizations)
+    .values({ id: "org_demo", name: "Demo", slug: "demo" })
+    .onConflictDoUpdate({ target: organizations.id, set: { name: "Demo", slug: "demo" } });
   await db
     .insert(projects)
     .values({ id: "proj_demo", orgId: "org_demo", name: "Demo project", hashKey: DEMO_HASH_KEY })

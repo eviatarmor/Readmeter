@@ -25,7 +25,7 @@ fi
 step "playwright"
 pnpm --filter web-firestore exec playwright test --reporter=line
 
-step "browser findings via the cli"
+step "browser findings in postgres"
 pnpm --filter readmeter-e2e exec tsx run.ts --assert-only \
   firebase.firestore/unbounded-list \
   firebase.firestore/offset-pagination

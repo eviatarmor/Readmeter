@@ -1,6 +1,6 @@
 # Testing Readmeter with your app
 
-Commands are for Git Bash on Windows and bash on Linux. `pnpm run rm` is the Readmeter CLI. Plain `pnpm rm` removes a package.
+Commands are for Git Bash on Windows and bash on Linux. Findings land in Postgres. The console API is at `http://127.0.0.1:8091`. The seeded login is `admin@readmeter.local` / `readmeter-dev`.
 
 ## 1. Prerequisites
 
@@ -23,27 +23,39 @@ From the repo root:
 ./scripts/dev-up.sh
 ```
 
-That starts Postgres on port 5442, migrates and seeds it, builds the rules and the SDK, creates project `demo_local`, and starts ingest at `http://127.0.0.1:8090`. The API key and hash key are written to `.readmeter/local.env` (git-ignored).
+That starts Postgres on port 5442, migrates and seeds it, builds the rules and the SDK, creates project `demo_local`, starts ingest at `http://127.0.0.1:8090`, and starts the console API at `http://127.0.0.1:8091`. The API key and hash key are written to `.readmeter/local.env` (git-ignored).
 
-Stop ingest and the Postgres container with `./scripts/dev-down.sh`. The database volume is kept. `./scripts/dev-down.sh --keep-postgres` stops only ingest.
+Stop ingest, the console API, and the Postgres container with `./scripts/dev-down.sh`. The database volume is kept. `./scripts/dev-down.sh --keep-postgres` stops ingest and the console API and leaves Postgres running.
 
 The demo emulator config is `examples/firebase.json`: Firestore on **8085** (8080 is often taken), Functions on 5001.
 
 ```sh
 cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter
 pnpm --filter web-firestore dev
-pnpm run rm findings --project demo_local
 ```
 
-`pnpm --filter web-firestore dev` serves the demo on port 5173. Each button runs one wasteful Firestore pattern. Findings show up in the page log and in Postgres.
+`pnpm --filter web-firestore dev` serves the demo on port 5173. Each button runs one wasteful Firestore pattern. Findings show up in the page log and in Postgres. Sign in to the console API as `admin@readmeter.local` / `readmeter-dev` and open workspace `local`, project `demo_local`:
+
+```sh
+curl -c cookies.txt -H "Origin: http://localhost:5174" -H "Content-Type: application/json" \
+  -d "{\"email\":\"admin@readmeter.local\",\"password\":\"readmeter-dev\"}" \
+  http://127.0.0.1:8091/api/auth/sign-in/email
+curl -b cookies.txt -H "Origin: http://localhost:5174" \
+  "http://127.0.0.1:8091/api/v1/workspaces/local/findings?project=demo_local"
+```
 
 ## 3. Create a key for your app
 
-```sh
-pnpm run rm project create my_app && pnpm run rm key create my_app --origin http://localhost:5173
-```
+Sign in the same way, then create a project and a key in workspace `demo` (or any workspace you own). The key secret is returned once. `allowedOrigins` lists every browser origin you will send from, including `http://127.0.0.1:5173` when that is what the browser uses. An empty list allows any origin. The project response includes `hashKey` and SDK snippets; the snippet uses the placeholder `YOUR_API_KEY` for the secret.
 
-The key is printed once. Copy the `init({ ... })` snippet. Add every browser origin you will send from, including `http://127.0.0.1:5173` if that is what the browser uses. A key with no `--origin` allows any origin.
+```sh
+curl -b cookies.txt -H "Origin: http://localhost:5174" -H "Content-Type: application/json" \
+  -d "{\"name\":\"my_app\"}" \
+  http://127.0.0.1:8091/api/v1/workspaces/demo/projects
+curl -b cookies.txt -H "Origin: http://localhost:5174" -H "Content-Type: application/json" \
+  -d "{\"name\":\"local\",\"allowedOrigins\":[\"http://localhost:5173\"]}" \
+  http://127.0.0.1:8091/api/v1/workspaces/demo/projects/PROJECT_ID/keys
+```
 
 ## 4. Web app
 
@@ -98,20 +110,24 @@ The Functions emulator on your machine can reach `http://127.0.0.1:8090`. A depl
 
 ```sh
 cloudflared tunnel --url http://127.0.0.1:8090
-pnpm run rm key create my_app --origin https://your-app.web.app
 ```
 
-Put the tunnel URL in `endpoint`. Add the deployed site with `--origin`.
+Put the tunnel URL in `endpoint`. Create a key whose `allowedOrigins` includes the deployed site (`https://your-app.web.app`).
 
 ## 6. See results
 
+With the same signed-in cookie:
+
 ```sh
-pnpm run rm findings --project my_app
-pnpm run rm events --project my_app
-pnpm run rm stats --project my_app
+curl -b cookies.txt -H "Origin: http://localhost:5174" \
+  "http://127.0.0.1:8091/api/v1/workspaces/demo/findings?project=PROJECT_ID&rule=firebase.firestore/unbounded-list"
+curl -b cookies.txt -H "Origin: http://localhost:5174" \
+  "http://127.0.0.1:8091/api/v1/workspaces/demo/events?project=PROJECT_ID"
+curl -b cookies.txt -H "Origin: http://localhost:5174" \
+  "http://127.0.0.1:8091/api/v1/workspaces/demo/overview?project=PROJECT_ID&range=7d"
 ```
 
-`--json` on those three commands prints JSON. `--since 1h` and `--rule firebase.firestore/unbounded-list` filter findings.
+Findings accept `severity`, `status`, `from`, and `to` as query parameters. Costs are integer USD micros from the Rust price tables.
 
 ## 7. What is sent
 
@@ -122,7 +138,7 @@ A call leaves the process as a path template (`users/{id}/orders`), a count, a s
 ## 8. Troubleshooting
 
 - **401.** The API key is missing, revoked, or not the `Authorization: Bearer` value. Create a new key. The old one cannot be printed again.
-- **403 `origin_not_allowed`.** The browser `Origin` is not on the key. Create a key with `--origin` set to the exact origin (`http://localhost:5173`, not `http://localhost:5173/`).
+- **403 `origin_not_allowed`.** The browser `Origin` is not on the key. Create a key whose `allowedOrigins` includes the exact origin (`http://localhost:5173`, not `http://localhost:5173/`).
 - **No events.** Set `debug: true` on `init`. The SDK logs each raw call with `console.debug`. Confirm ingest is up: `curl http://127.0.0.1:8090/healthz`.
 - **CORS.** Ingest answers `OPTIONS` on `/v1/*` and reflects the request `Origin`. A 403 after a successful preflight is the origin allowlist, not CORS.
 - **Wasm does not load.** The bundler must leave `new URL(..., import.meta.url)` and the dynamic `import()` of the packaged wasm alone. Vite does. If the dev server pre-bundles `@readmeter/firebase`, exclude it from `optimizeDeps`.

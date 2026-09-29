@@ -81,4 +81,7 @@ export class MemoryStore implements Store {
     await this.delay;
     this.writes.push({ project, ingested });
   }
+  async ruleOverrides() {
+    return [];
+  }
 }

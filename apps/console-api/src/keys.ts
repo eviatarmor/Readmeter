@@ -16,13 +16,16 @@ export function randomBase62(length: number): string {
   return chars.join("");
 }
 
-/** 32 lowercase hex chars: the project keyed-hash key. */
 export function randomHashKey(): string {
   return randomBytes(16).toString("hex");
 }
 
-/** `rm_` plus 32 base62 characters. The stored prefix is the first 8. */
-export function newApiKey(): { apiKey: string; prefix: string } {
-  const apiKey = `rm_${randomBase62(32)}`;
-  return { apiKey, prefix: apiKey.slice(0, 8) };
+/**
+ * `rm_live_` plus 32 base62 characters. The stored prefix is the first 16:
+ * `rm_live_` is already 8 characters, so a shorter prefix would be identical
+ * for every live key.
+ */
+export function newLiveKey(): { apiKey: string; prefix: string } {
+  const apiKey = `rm_live_${randomBase62(32)}`;
+  return { apiKey, prefix: apiKey.slice(0, 16) };
 }

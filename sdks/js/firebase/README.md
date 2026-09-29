@@ -89,4 +89,4 @@ What leaves the process is a template (`users/{id}/orders`), a count, a size, or
 
 ## Try it on your app
 
-[Testing with your app](../../../docs/TESTING-WITH-YOUR-APP.md) is the local loop: `./scripts/dev-up.sh`, a web import change, Cloud Functions `instrument` / `withFlush`, and `pnpm run rm findings`.
+[Testing with your app](../../../docs/TESTING-WITH-YOUR-APP.md) is the local loop: `./scripts/dev-up.sh`, a web import change, Cloud Functions `instrument` / `withFlush`. Findings land in Postgres. The console API is at `http://127.0.0.1:8091` (seeded login `admin@readmeter.local` / `readmeter-dev`).

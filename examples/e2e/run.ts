@@ -1,15 +1,15 @@
 /**
  * Drives the web scenarios against the Firestore emulator, calls each HTTP
- * function once, then asserts rules via `pnpm run rm findings --json`.
+ * function once, then asserts rules via a direct Postgres read.
  *
  * `tsx run.ts --assert-only <rule...>` only checks Postgres (used after Playwright).
  */
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deleteApp, initializeApp } from "firebase/app";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { findingRules } from "@readmeter/db";
 import { flush, init, shutdown } from "@readmeter/firebase";
 
 import {
@@ -55,54 +55,13 @@ function loadEnv(file: string): Record<string, string> {
   return out;
 }
 
-function run(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {
-      cwd: root,
-      env: { ...process.env, DATABASE_URL, NO_COLOR: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (code) => resolvePromise({ stdout, stderr, code: code ?? 1 }));
-  });
-}
-
 interface FindingRow {
   rule: string;
   occurrences: number;
 }
 
-function parseFindings(stdout: string): FindingRow[] {
-  const start = stdout.indexOf("[");
-  const end = stdout.lastIndexOf("]");
-  if (start < 0 || end < start) throw new Error(`findings output has no JSON array:\n${stdout}`);
-  const value: unknown = JSON.parse(stdout.slice(start, end + 1));
-  if (!Array.isArray(value)) throw new Error("findings JSON is not an array");
-  return value.map((row) => {
-    if (!row || typeof row !== "object" || typeof (row as { rule?: unknown }).rule !== "string") {
-      throw new Error(`finding row missing rule: ${JSON.stringify(row)}`);
-    }
-    const rec = row as { rule: string; occurrences?: unknown };
-    return { rule: rec.rule, occurrences: typeof rec.occurrences === "number" ? rec.occurrences : 1 };
-  });
-}
-
 async function findings(): Promise<FindingRow[]> {
-  const result = await run("pnpm", ["run", "--silent", "rm", "findings", "--project", "demo_local", "--json", "--limit", "500"]);
-  if (result.code !== 0) {
-    throw new Error(`pnpm run rm findings exited ${result.code}\n${result.stdout}\n${result.stderr}`);
-  }
-  return parseFindings(result.stdout);
+  return findingRules("demo_local", DATABASE_URL);
 }
 
 function report(expected: string[], rows: FindingRow[]): string[] {

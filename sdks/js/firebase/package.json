@@ -48,6 +48,7 @@
     }
   },
   "devDependencies": {
+    "@readmeter/db": "workspace:*",
     "@types/node": "^24",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

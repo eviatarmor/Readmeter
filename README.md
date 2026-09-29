@@ -38,14 +38,23 @@ const db = instrument(getFirestore());
 export const report = onRequest(withFlush(async (req, res) => { /* ... */ }));
 ```
 
+Findings land in Postgres. The console API is `http://127.0.0.1:8091`.
+Sign in as `admin@readmeter.local` / `readmeter-dev`, then:
+
 ```text
-$ pnpm run rm findings --project demo_local
-severity  rule                                  template    callsite  occurrences  wasted     last seen  message
-critical  firebase.firestore/unbounded-list     posts       d0e60513  1            -          2m ago     unbounded query on `posts` returned 300 documents; add limit() and paginate
-high      firebase.firestore/offset-pagination  posts       8cc3f344  1            reads=200  2m ago     offset(200) on `posts` bills every skipped document; paginate with startAfter()
-high      firebase.firestore/listener-per-item  users/{id}  d91b83d9  2            -          2m ago     25 single-document listeners open on `users/{id}`; ...
-high      firebase.firestore/count-via-fetch    posts       -         2            reads=49   2m ago     50 documents from `posts` were fetched only to read .size; ...
-high      firebase.firestore/missing-cursor     posts       42ead6bf  2            reads=60   2m ago     `posts` is paginated by growing limit() ...
+GET /api/v1/workspaces/local/findings?project=demo_local
+```
+
+```json
+{
+  "rule": "firebase.firestore/unbounded-list",
+  "severity": "critical",
+  "template": "posts",
+  "occurrences": 1,
+  "status": "open",
+  "wastedMicros": 0,
+  "message": "unbounded query on `posts` returned 300 documents; add limit() and paginate"
+}
 ```
 
 ## How it works
@@ -56,7 +65,7 @@ your app ── @readmeter/firebase (TS) ──► Rust core (wasm, ~70 KB gzip)
             ──► POST /v1/batches ──► apps/ingest (TypeScript, Hono)
                                        Rust core (server build): decode, window rules
                                        ──► Postgres (Drizzle): events, findings
-                                             ──► CLI (`pnpm run rm`), console (planned)
+                                             ──► console API (http://127.0.0.1:8091)
 ```
 
 - **One Rust core, many languages.** The same code runs in the browser and
@@ -135,7 +144,7 @@ Prerequisites: Docker, Node 22 + pnpm 10, Rust with the
 ```sh
 git clone https://github.com/eviatarmor/Readmeter.git && cd Readmeter
 pnpm install
-./scripts/dev-up.sh      # Postgres, migrations, rules, SDK build, project demo_local, ingest on :8090
+./scripts/dev-up.sh      # Postgres, migrations, rules, SDK build, project demo_local, ingest on :8090, console API on :8091
 ```
 
 Try the demo against the Firebase emulators:
@@ -143,8 +152,9 @@ Try the demo against the Firebase emulators:
 ```sh
 cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter   # terminal 1
 pnpm --filter web-firestore dev                                                       # terminal 2, http://localhost:5173
-pnpm run rm findings --project demo_local                                             # after clicking a few buttons
 ```
+
+After clicking a few buttons, findings are in Postgres. Read them from the console API at `http://127.0.0.1:8091` (login `admin@readmeter.local` / `readmeter-dev`, workspace `local`, project `demo_local`).
 
 Run the whole loop as a test (web SDK, Cloud Functions, real Chromium, Postgres):
 
@@ -164,7 +174,7 @@ functions, and expose ingest with a tunnel if your app is deployed).
 | `rules/` | Rule definitions (TOML) |
 | `sdks/js/firebase/` | `@readmeter/firebase`: web drop-in, `sink`, Admin/Cloud Functions instrumentation |
 | `apps/ingest/` | HTTP ingest (TypeScript, Hono) |
-| `apps/cli/` | `pnpm run rm`: projects, keys, findings, events, stats |
+| `apps/console-api/` | Console API (TypeScript, Hono, Better Auth): workspaces, projects, keys, findings, events, rules, costs |
 | `packages/db/` | Postgres schema and migrations (Drizzle) |
 | `conformance/` | Shared fixtures every SDK must reproduce |
 | `examples/` | Demo web app, Cloud Functions, end-to-end runner |

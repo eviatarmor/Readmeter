@@ -206,8 +206,11 @@ dependencies = [
 name = "readmeter-wasm-server"
 version = "0.1.0"
 dependencies = [
+ "readmeter-core",
+ "readmeter-cost",
  "readmeter-evaluator",
  "readmeter-rules",
+ "serde",
  "serde_json",
  "wasm-bindgen",
 ]

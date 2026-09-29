@@ -11,10 +11,15 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+readmeter-cost.workspace = true
 readmeter-evaluator = { path = "../../evaluator" }
-readmeter-rules.workspace = true
+readmeter-rules = { workspace = true, features = ["catalog-toml"] }
+serde.workspace = true
 serde_json.workspace = true
 wasm-bindgen.workspace = true
+
+[dev-dependencies]
+readmeter-core.workspace = true
 
 [lints]
 workspace = true

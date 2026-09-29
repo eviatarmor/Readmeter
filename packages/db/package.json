@@ -1,5 +1,6 @@
 {
   "name": "@readmeter/db",
+  "version": "0.0.0",
   "license": "SEE LICENSE IN LICENSE.md",
   "private": true,
   "type": "module",
@@ -10,11 +11,12 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts",
+    "seed": "tsx src/seed.ts && pnpm --filter @readmeter/console-api exec tsx src/seed-user.ts",
     "typecheck": "tsc -p ."
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",
+    "kysely": "^0.29.0",
     "postgres": "^3.4.9"
   },
   "devDependencies": {

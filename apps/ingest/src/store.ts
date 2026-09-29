@@ -12,17 +12,28 @@ export interface ProjectAccess {
   hashKey: string;
 }
 
+/** One project rule override, as stored. Null fields are "leave the default". */
+export interface StoredOverride {
+  rule: string;
+  enabled: boolean | null;
+  severity: string | null;
+  params: Record<string, number | boolean | string> | null;
+}
+
 export interface Store {
   /** Access for an active API key, or `null`. */
   projectForKey(apiKey: string): Promise<ProjectAccess | null>;
   /** Stores one accepted batch atomically. */
   write(project: string, receivedAt: Date, ingested: Ingested): Promise<void>;
+  /** Rule overrides for the project that owns the API key. */
+  ruleOverrides(projectId: string): Promise<StoredOverride[]>;
 }
 
 // Postgres caps a statement at 65535 bind parameters; events have ~29 columns.
 const EVENT_CHUNK = 1_000;
 const KEY_CACHE_TTL_MS = 30_000;
 const KEY_CACHE_MAX = 10_000;
+const LAST_USED_MIN_MS = 60_000;
 
 /** Collapses findings that share the dedupe key: one upsert may not touch a row twice. */
 export function collapseFindings(findings: FindingRow[]) {
@@ -47,6 +58,9 @@ export function collapseFindings(findings: FindingRow[]) {
 export class PgStore implements Store {
   // Revocations and origin-list edits take effect within KEY_CACHE_TTL_MS.
   private readonly keys = new Map<string, { access: ProjectAccess | null; expires: number }>();
+  // At most one last_used_at write per key per minute. Not awaited.
+  private readonly lastUsed = new Map<string, number>();
+  private loggedLastUsed = false;
 
   constructor(private readonly db: Db) {}
 
@@ -54,7 +68,10 @@ export class PgStore implements Store {
     const hash = hashApiKey(apiKey);
     const now = Date.now();
     const cached = this.keys.get(hash);
-    if (cached && cached.expires > now) return cached.access;
+    if (cached && cached.expires > now) {
+      if (cached.access) this.touchLastUsed(hash, now);
+      return cached.access;
+    }
 
     const [row] = await this.db
       .select({
@@ -75,7 +92,38 @@ export class PgStore implements Store {
       : null;
     if (this.keys.size >= KEY_CACHE_MAX) this.keys.clear();
     this.keys.set(hash, { access, expires: now + KEY_CACHE_TTL_MS });
+    if (access) this.touchLastUsed(hash, now);
     return access;
+  }
+
+  async ruleOverrides(projectId: string): Promise<StoredOverride[]> {
+    return this.db
+      .select({
+        rule: schema.ruleOverrides.rule,
+        enabled: schema.ruleOverrides.enabled,
+        severity: schema.ruleOverrides.severity,
+        params: schema.ruleOverrides.params,
+      })
+      .from(schema.ruleOverrides)
+      .where(eq(schema.ruleOverrides.projectId, projectId));
+  }
+
+  private touchLastUsed(keyHash: string, now: number) {
+    const prev = this.lastUsed.get(keyHash) ?? 0;
+    if (now - prev < LAST_USED_MIN_MS) return;
+    this.lastUsed.set(keyHash, now);
+    void this.db
+      .update(schema.apiKeys)
+      .set({ lastUsedAt: new Date(now) })
+      .where(eq(schema.apiKeys.keyHash, keyHash))
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        if (this.loggedLastUsed) return;
+        this.loggedLastUsed = true;
+        console.error(
+          JSON.stringify({ msg: "last_used_at update failed", error: String(error) }),
+        );
+      });
   }
 
   async write(project: string, receivedAt: Date, { batch, events, findings }: Ingested) {

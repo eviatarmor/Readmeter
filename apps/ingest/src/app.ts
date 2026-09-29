@@ -159,13 +159,14 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
     const authz = await authorize(c);
     if (!authz.ok) return authz.response;
     if (!bundle) return fail(500, "internal", "sdk bundle is not configured");
+    const served = await projectBundle(core, store, bundle, authz.access.projectId);
     const inm = c.req.header("if-none-match");
-    if (inm && etagMatches(inm, bundle.etag)) {
-      return new Response(null, { status: 304, headers: { etag: bundle.etag } });
+    if (inm && etagMatches(inm, served.etag)) {
+      return new Response(null, { status: 304, headers: { etag: served.etag } });
     }
-    return new Response(Buffer.from(bundle.body), {
+    return new Response(Buffer.from(served.body), {
       status: 200,
-      headers: { "content-type": "application/octet-stream", etag: bundle.etag },
+      headers: { "content-type": "application/octet-stream", etag: served.etag },
     });
   });
 
@@ -176,4 +177,31 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
   });
 
   return app;
+}
+
+/** Override map the wasm core accepts. Null columns are left off so they stay defaults. */
+export function overrideJson(
+  rows: { rule: string; enabled: boolean | null; severity: string | null; params: Record<string, unknown> | null }[],
+): Record<string, { enabled?: boolean; severity?: string; params?: Record<string, unknown> }> {
+  const out: Record<string, { enabled?: boolean; severity?: string; params?: Record<string, unknown> }> = {};
+  for (const row of rows) {
+    const entry: { enabled?: boolean; severity?: string; params?: Record<string, unknown> } = {};
+    if (row.enabled !== null) entry.enabled = row.enabled;
+    if (row.severity) entry.severity = row.severity;
+    if (row.params && Object.keys(row.params).length > 0) entry.params = row.params;
+    if (Object.keys(entry).length > 0) out[row.rule] = entry;
+  }
+  return out;
+}
+
+async function projectBundle(
+  core: Core,
+  store: Store,
+  bundle: SdkBundle,
+  projectId: string,
+): Promise<SdkBundle> {
+  const overrides = overrideJson(await store.ruleOverrides(projectId));
+  if (Object.keys(overrides).length === 0) return bundle;
+  const body = core.applyOverrides(bundle.body, JSON.stringify(overrides));
+  return { body, etag: bundleEtag(body) };
 }

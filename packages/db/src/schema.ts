@@ -19,14 +19,22 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { organizations, users } from "./auth-schema.ts";
+
+export {
+  accounts,
+  invitations,
+  members,
+  organizations,
+  sessions,
+  users,
+  verifications,
+} from "./auth-schema.ts";
+
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const counter = (name: string) => bigint(name, { mode: "number" }).notNull().default(0);
 
-export const organizations = pgTable("organizations", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  createdAt: createdAt(),
-});
+export type ParamMap = Record<string, number | boolean | string>;
 
 export const projects = pgTable(
   "projects",
@@ -41,11 +49,17 @@ export const projects = pgTable(
      * It is not an API secret: the API key is what authenticates ingest.
      */
     hashKey: text("hash_key").notNull(),
+    firebaseProjectId: text("firebase_project_id"),
+    environment: text("environment").notNull().default("production"),
     createdAt: createdAt(),
   },
   (t) => [
     index("projects_org_idx").on(t.orgId),
     check("projects_hash_key_hex", sql`${t.hashKey} ~ '^[0-9a-f]{32}$'`),
+    check(
+      "projects_environment",
+      sql`${t.environment} in ('production', 'staging', 'development')`,
+    ),
   ],
 );
 
@@ -60,6 +74,9 @@ export const apiKeys = pgTable(
     keyHash: text("key_hash").notNull(),
     /** First characters of the key, for display in the console. */
     prefix: text("prefix").notNull(),
+    name: text("name").notNull().default("default"),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     /**
      * Exact `Origin` values allowed to call ingest. Empty means any origin
      * (dev keys, and non-browser callers, which send no Origin).
@@ -173,4 +190,62 @@ export const findings = pgTable(
     index("findings_project_last_seen_idx").on(t.projectId, t.lastSeen),
     index("findings_project_rule_idx").on(t.projectId, t.rule),
   ],
+);
+
+export const ruleOverrides = pgTable(
+  "rule_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    rule: text("rule").notNull(),
+    enabled: boolean("enabled"),
+    severity: text("severity"),
+    params: jsonb("params").$type<ParamMap>(),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("rule_overrides_project_rule_idx").on(t.projectId, t.rule),
+    check(
+      "rule_overrides_severity",
+      sql`${t.severity} is null or ${t.severity} in ('info', 'low', 'medium', 'high', 'critical')`,
+    ),
+  ],
+);
+
+/** Console workflow state. Absent row means the finding is open. */
+export const findingStates = pgTable(
+  "finding_states",
+  {
+    findingId: bigint("finding_id", { mode: "number" })
+      .primaryKey()
+      .references(() => findings.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("open"),
+    assignee: text("assignee").references(() => users.id, { onDelete: "set null" }),
+    note: text("note"),
+    updatedBy: text("updated_by"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("finding_states_status", sql`${t.status} in ('open', 'resolved', 'ignored')`),
+  ],
+);
+
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    /** User id, or null for a system action. */
+    actor: text("actor"),
+    action: text("action").notNull(),
+    target: text("target"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("audit_log_org_at_idx").on(t.orgId, t.at.desc())],
 );

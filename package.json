@@ -14,7 +14,7 @@
     "db:migrate": "pnpm --filter @readmeter/db migrate",
     "db:seed": "pnpm --filter @readmeter/db seed",
     "dev:ingest": "pnpm --filter @readmeter/ingest dev",
-    "rm": "pnpm --filter @readmeter/cli start --",
+    "dev:console-api": "pnpm --filter @readmeter/console-api dev",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "sdk:build": "pnpm --filter @readmeter/firebase build",

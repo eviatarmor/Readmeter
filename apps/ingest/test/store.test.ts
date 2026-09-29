@@ -20,7 +20,7 @@ test("stores batches, events and deduped findings in Postgres", { skip: !url }, 
   const project = `proj_${suffix}`;
   const key = `rm_${suffix}`;
   try {
-    await db.insert(schema.organizations).values({ id: org, name: "t" });
+    await db.insert(schema.organizations).values({ id: org, name: "t", slug: org });
     await db.insert(schema.projects).values({
       id: project,
       orgId: org,

@@ -7,6 +7,11 @@ import type { Ingested } from "./types.ts";
 export interface Core {
   /** Throws {@link CoreError} for batches that must be rejected. */
   ingest(project: string, body: Uint8Array): Ingested;
+  /**
+   * Applies project rule overrides to an SDK bundle. An empty override map
+   * must not be passed: re-encoding is not byte-identical.
+   */
+  applyOverrides(bundle: Uint8Array, overridesJson: string): Uint8Array;
 }
 
 export type CoreErrorCode = "bad_batch" | "batch_too_large" | "internal";
@@ -38,11 +43,21 @@ function toCoreError(e: unknown): CoreError {
     : new CoreError("internal", message);
 }
 
+interface WasmServer {
+  initSync(options: { module: Buffer }): void;
+  Evaluator: new (
+    bundleJson: string,
+    maxEvents: number,
+    maxFindings: number,
+  ) => { ingest(project: string, body: Uint8Array): string };
+  bundle_with_overrides(bundle: Uint8Array, overridesJson: string): Uint8Array;
+}
+
 export async function loadCore(options: CoreOptions): Promise<Core> {
   const pkg = new URL("../wasm/", import.meta.url);
-  const mod = await import(new URL("readmeter_wasm_server.js", pkg).href).catch(() => {
+  const mod = (await import(new URL("readmeter_wasm_server.js", pkg).href).catch(() => {
     throw new Error("Rust core not built: run `pnpm --filter @readmeter/ingest build:core`");
-  });
+  })) as WasmServer;
   mod.initSync({ module: readFileSync(new URL("readmeter_wasm_server_bg.wasm", pkg)) });
   const evaluator = new mod.Evaluator(options.bundleJson, options.maxEvents, options.maxFindings);
   return {
@@ -54,6 +69,10 @@ export async function loadCore(options: CoreOptions): Promise<Core> {
         throw toCoreError(e);
       }
       return JSON.parse(json) as Ingested;
+    },
+    applyOverrides(bundle, overridesJson) {
+      const out = mod.bundle_with_overrides(bundle, overridesJson);
+      return out instanceof Uint8Array ? out : new Uint8Array(out);
     },
   };
 }
