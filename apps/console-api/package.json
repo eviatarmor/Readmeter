@@ -3,6 +3,9 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "private": true,
   "type": "module",
+  "exports": {
+    "./contract": "./src/contract.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",

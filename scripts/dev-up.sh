@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bring up Postgres, ingest, the console API, and the local demo project. Idempotent.
+# Bring up Postgres, ingest, the console API, the console, and the local demo project. Idempotent.
 # Git Bash on Windows, bash on Linux.
 set -euo pipefail
 
@@ -93,14 +93,28 @@ if ! wait_http "http://127.0.0.1:8091/healthz" 90; then
 fi
 echo "console api healthy at http://127.0.0.1:8091"
 
+step "console web"
+stop_pid "$root/target/dev/console-web.pid"
+if port_open 5174; then
+  echo "port 5174 is still in use after stopping the recorded console-web pid" >&2
+  exit 1
+fi
+start_detached "$root/target/dev/console-web.pid" "$root/target/dev/console-web.log" \
+  pnpm --filter console-web dev
+if ! wait_http "http://127.0.0.1:5174" 90; then
+  echo "console-web log:" >&2
+  tail -n 80 "$root/target/dev/console-web.log" >&2 || true
+  exit 1
+fi
+echo "console web healthy at http://localhost:5174"
+
 cat <<EOF
 
 Next:
   cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter
   pnpm --filter web-firestore dev
-  console http://127.0.0.1:8091
+  console http://localhost:5174
   login admin@readmeter.local / readmeter-dev
   workspace local, project demo_local
-  console origin http://localhost:5174
 
 EOF

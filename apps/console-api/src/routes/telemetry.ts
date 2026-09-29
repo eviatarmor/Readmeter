@@ -216,6 +216,18 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
         bytes: schema.events.bytes,
         fromCache: schema.events.fromCache,
         errorCode: schema.events.errorCode,
+        platform: schema.events.platform,
+        signals: schema.events.signals,
+        opDetail: schema.events.opDetail,
+        query: schema.events.query,
+        durationUs: schema.events.durationUs,
+        listener: schema.events.listener,
+        mount: schema.events.mount,
+        dev: schema.events.dev,
+        attempt: schema.events.attempt,
+        targetKey: schema.events.targetKey,
+        idShape: schema.events.idShape,
+        collectionGroup: schema.events.collectionGroup,
       })
       .from(schema.events)
       .where(and(...filters))

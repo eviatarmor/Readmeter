@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -95,7 +95,38 @@ export function projectRoutes(db: Db, ingestPublicUrl: string) {
     const page = rows.slice(start, start + query.limit + 1);
     const items = page.slice(0, query.limit);
     const next = page.length > query.limit ? items[items.length - 1] : undefined;
-    return c.json({ items, nextCursor: next ? encodeId(next.id) : null });
+    const ids = items.map((row) => row.id);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const eventCounts = new Map<string, number>();
+    const openCounts = new Map<string, number>();
+    if (ids.length > 0) {
+      const events = await db
+        .select({ projectId: schema.events.projectId, n: sql<number>`count(*)::int` })
+        .from(schema.events)
+        .where(and(inArray(schema.events.projectId, ids), gte(schema.events.ts, since)))
+        .groupBy(schema.events.projectId);
+      for (const row of events) eventCounts.set(row.projectId, Number(row.n));
+      const open = await db
+        .select({ projectId: schema.findings.projectId, n: sql<number>`count(*)::int` })
+        .from(schema.findings)
+        .leftJoin(schema.findingStates, eq(schema.findingStates.findingId, schema.findings.id))
+        .where(
+          and(
+            inArray(schema.findings.projectId, ids),
+            sql`coalesce(${schema.findingStates.status}, 'open') = 'open'`,
+          ),
+        )
+        .groupBy(schema.findings.projectId);
+      for (const row of open) openCounts.set(row.projectId, Number(row.n));
+    }
+    return c.json({
+      items: items.map((row) => ({
+        ...row,
+        events24h: eventCounts.get(row.id) ?? 0,
+        openFindings: openCounts.get(row.id) ?? 0,
+      })),
+      nextCursor: next ? encodeId(next.id) : null,
+    });
   });
 
   app.post("/workspaces/:slug/projects", requireRole("admin"), async (c) => {
@@ -190,8 +221,13 @@ export function projectRoutes(db: Db, ingestPublicUrl: string) {
         createdAt: schema.apiKeys.createdAt,
         lastUsedAt: schema.apiKeys.lastUsedAt,
         revokedAt: schema.apiKeys.revokedAt,
+        createdBy: schema.apiKeys.createdBy,
+        creatorId: schema.users.id,
+        creatorName: schema.users.name,
+        creatorEmail: schema.users.email,
       })
       .from(schema.apiKeys)
+      .leftJoin(schema.users, eq(schema.users.id, schema.apiKeys.createdBy))
       .where(eq(schema.apiKeys.projectId, project.id))
       .orderBy(desc(schema.apiKeys.createdAt));
     const start = cursorIndex(query.cursor, rows.map((row) => row.id));
@@ -199,7 +235,22 @@ export function projectRoutes(db: Db, ingestPublicUrl: string) {
     const page = rows.slice(start, start + query.limit + 1);
     const items = page.slice(0, query.limit);
     const next = page.length > query.limit ? items[items.length - 1] : undefined;
-    return c.json({ items, nextCursor: next ? encodeId(next.id) : null });
+    return c.json({
+      items: items.map((row) => ({
+        id: row.id,
+        name: row.name,
+        prefix: row.prefix,
+        allowedOrigins: row.allowedOrigins,
+        createdAt: row.createdAt,
+        lastUsedAt: row.lastUsedAt,
+        revokedAt: row.revokedAt,
+        createdBy: row.createdBy,
+        creator: row.creatorId
+          ? { id: row.creatorId, name: row.creatorName, email: row.creatorEmail }
+          : null,
+      })),
+      nextCursor: next ? encodeId(next.id) : null,
+    });
   });
 
   app.post("/workspaces/:slug/projects/:projectId/keys", requireRole("admin"), async (c) => {

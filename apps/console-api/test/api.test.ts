@@ -59,6 +59,10 @@ test("console api", { skip: !databaseUrl }, async () => {
   const auth = createAuth(db, env, mailer);
   const core = await loadCore();
   const app = createApp({ db, auth, core, env, mailer });
+  const authConfig = await call(app, "GET", "/api/v1/auth-config");
+  assert.equal(authConfig.status, 200, await authConfig.clone().text());
+  const authConfigBody = (await authConfig.json()) as { google?: unknown };
+  assert.equal(typeof authConfigBody.google, "boolean");
   const suffix = Math.random().toString(36).slice(2, 10);
   const email = `owner-${suffix}@readmeter.test`;
   const slug = `ws-${suffix}`;

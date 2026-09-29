@@ -1,6 +1,6 @@
 # Testing Readmeter with your app
 
-Commands are for Git Bash on Windows and bash on Linux. Findings land in Postgres. The console API is at `http://127.0.0.1:8091`. The seeded login is `admin@readmeter.local` / `readmeter-dev`.
+Commands are for Git Bash on Windows and bash on Linux. Findings land in Postgres and show up in the console at `http://localhost:5174`. The seeded login is `admin@readmeter.local` / `readmeter-dev`.
 
 ## 1. Prerequisites
 
@@ -23,9 +23,9 @@ From the repo root:
 ./scripts/dev-up.sh
 ```
 
-That starts Postgres on port 5442, migrates and seeds it, builds the rules and the SDK, creates project `demo_local`, starts ingest at `http://127.0.0.1:8090`, and starts the console API at `http://127.0.0.1:8091`. The API key and hash key are written to `.readmeter/local.env` (git-ignored).
+That starts Postgres on port 5442, migrates and seeds it, builds the rules and the SDK, creates project `demo_local`, starts ingest at `http://127.0.0.1:8090`, starts the console API at `http://127.0.0.1:8091`, and starts the console at `http://localhost:5174`. The API key and hash key are written to `.readmeter/local.env` (git-ignored).
 
-Stop ingest, the console API, and the Postgres container with `./scripts/dev-down.sh`. The database volume is kept. `./scripts/dev-down.sh --keep-postgres` stops ingest and the console API and leaves Postgres running.
+Stop ingest, the console API, the console, and the Postgres container with `./scripts/dev-down.sh`. The database volume is kept. `./scripts/dev-down.sh --keep-postgres` stops those processes and leaves Postgres running.
 
 The demo emulator config is `examples/firebase.json`: Firestore on **8085** (8080 is often taken), Functions on 5001.
 
@@ -34,28 +34,19 @@ cd examples && npx -y firebase-tools@latest emulators:start --project demo-readm
 pnpm --filter web-firestore dev
 ```
 
-`pnpm --filter web-firestore dev` serves the demo on port 5173. Each button runs one wasteful Firestore pattern. Findings show up in the page log and in Postgres. Sign in to the console API as `admin@readmeter.local` / `readmeter-dev` and open workspace `local`, project `demo_local`:
+`pnpm --filter web-firestore dev` serves the demo on port 5173. Each button runs one wasteful Firestore pattern. Findings show up in the page log and in Postgres. Open `http://localhost:5174`, sign in as `admin@readmeter.local` / `readmeter-dev`, and open workspace `local`, project `demo_local`. Findings lists them.
 
-```sh
-curl -c cookies.txt -H "Origin: http://localhost:5174" -H "Content-Type: application/json" \
-  -d "{\"email\":\"admin@readmeter.local\",\"password\":\"readmeter-dev\"}" \
-  http://127.0.0.1:8091/api/auth/sign-in/email
-curl -b cookies.txt -H "Origin: http://localhost:5174" \
-  "http://127.0.0.1:8091/api/v1/workspaces/local/findings?project=demo_local"
-```
+## 3. Create a project and a key
 
-## 3. Create a key for your app
+Open `http://localhost:5174` and sign in. Workspace `local` already has project `demo_local`. Its key and hash key are also in `.readmeter/local.env`.
 
-Sign in the same way, then create a project and a key in workspace `demo` (or any workspace you own). The key secret is returned once. `allowedOrigins` lists every browser origin you will send from, including `http://127.0.0.1:5173` when that is what the browser uses. An empty list allows any origin. The project response includes `hashKey` and SDK snippets; the snippet uses the placeholder `YOUR_API_KEY` for the secret.
+To issue a key for your own app:
 
-```sh
-curl -b cookies.txt -H "Origin: http://localhost:5174" -H "Content-Type: application/json" \
-  -d "{\"name\":\"my_app\"}" \
-  http://127.0.0.1:8091/api/v1/workspaces/demo/projects
-curl -b cookies.txt -H "Origin: http://localhost:5174" -H "Content-Type: application/json" \
-  -d "{\"name\":\"local\",\"allowedOrigins\":[\"http://localhost:5173\"]}" \
-  http://127.0.0.1:8091/api/v1/workspaces/demo/projects/PROJECT_ID/keys
-```
+1. Use the workspace switcher at the top of the sidebar, or create a workspace.
+2. Open Projects, create a project, then open it. The SDK tab shows the hash key and the web and Cloud Functions snippets.
+3. Open API keys with that project selected and create a key. The secret is shown once. Put every browser origin you send from in Allowed origins, including `http://localhost:5173` when that is the origin the browser uses. An empty list allows any origin.
+
+Paste the secret over `YOUR_API_KEY` in the snippet. The hash key goes in `init` as `hashKey`.
 
 ## 4. Web app
 
@@ -116,18 +107,11 @@ Put the tunnel URL in `endpoint`. Create a key whose `allowedOrigins` includes t
 
 ## 6. See results
 
-With the same signed-in cookie:
+In the console, select the project in the top bar.
 
-```sh
-curl -b cookies.txt -H "Origin: http://localhost:5174" \
-  "http://127.0.0.1:8091/api/v1/workspaces/demo/findings?project=PROJECT_ID&rule=firebase.firestore/unbounded-list"
-curl -b cookies.txt -H "Origin: http://localhost:5174" \
-  "http://127.0.0.1:8091/api/v1/workspaces/demo/events?project=PROJECT_ID"
-curl -b cookies.txt -H "Origin: http://localhost:5174" \
-  "http://127.0.0.1:8091/api/v1/workspaces/demo/overview?project=PROJECT_ID&range=7d"
-```
-
-Findings accept `severity`, `status`, `from`, and `to` as query parameters. Costs are integer USD micros from the Rust price tables.
+- **Findings** lists matches. Filter by severity, status, rule, service, or template. Open a row for the rule, the evidence, and the status.
+- **Events** lists the calls that were ingested, including platform and signals.
+- **Overview** and **Costs** show estimated USD for 7, 30, or 90 days. Costs are integer USD micros from the Rust price tables; the console formats them.
 
 ## 7. What is sent
 

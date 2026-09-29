@@ -38,24 +38,18 @@ const db = instrument(getFirestore());
 export const report = onRequest(withFlush(async (req, res) => { /* ... */ }));
 ```
 
-Findings land in Postgres. The console API is `http://127.0.0.1:8091`.
-Sign in as `admin@readmeter.local` / `readmeter-dev`, then:
+## Console
 
-```text
-GET /api/v1/workspaces/local/findings?project=demo_local
-```
+Findings land in Postgres and show up in the console: a collapsible sidebar,
+workspace switcher, and dense tables for findings, events, costs, and keys.
 
-```json
-{
-  "rule": "firebase.firestore/unbounded-list",
-  "severity": "critical",
-  "template": "posts",
-  "occurrences": 1,
-  "status": "open",
-  "wastedMicros": 0,
-  "message": "unbounded query on `posts` returned 300 documents; add limit() and paginate"
-}
-```
+![Overview](docs/images/console-overview.png)
+
+![Findings](docs/images/console-findings.png)
+
+`./scripts/dev-up.sh` starts it. Open `http://localhost:5174` and sign in as
+`admin@readmeter.local` / `readmeter-dev`. The seeded workspace is `local`
+and the demo project is `demo_local`.
 
 ## How it works
 
@@ -144,8 +138,10 @@ Prerequisites: Docker, Node 22 + pnpm 10, Rust with the
 ```sh
 git clone https://github.com/eviatarmor/Readmeter.git && cd Readmeter
 pnpm install
-./scripts/dev-up.sh      # Postgres, migrations, rules, SDK build, project demo_local, ingest on :8090, console API on :8091
+./scripts/dev-up.sh      # Postgres, migrations, rules, SDK build, project demo_local, ingest on :8090, console API on :8091, console on :5174
 ```
+
+Open the console at `http://localhost:5174` (`admin@readmeter.local` / `readmeter-dev`, workspace `local`, project `demo_local`).
 
 Try the demo against the Firebase emulators:
 
@@ -154,7 +150,7 @@ cd examples && npx -y firebase-tools@latest emulators:start --project demo-readm
 pnpm --filter web-firestore dev                                                       # terminal 2, http://localhost:5173
 ```
 
-After clicking a few buttons, findings are in Postgres. Read them from the console API at `http://127.0.0.1:8091` (login `admin@readmeter.local` / `readmeter-dev`, workspace `local`, project `demo_local`).
+After clicking a few buttons, findings are in Postgres. Open `http://localhost:5174`, choose workspace `local` and project `demo_local`, and read them on Findings.
 
 Run the whole loop as a test (web SDK, Cloud Functions, real Chromium, Postgres):
 
@@ -175,6 +171,7 @@ functions, and expose ingest with a tunnel if your app is deployed).
 | `sdks/js/firebase/` | `@readmeter/firebase`: web drop-in, `sink`, Admin/Cloud Functions instrumentation |
 | `apps/ingest/` | HTTP ingest (TypeScript, Hono) |
 | `apps/console-api/` | Console API (TypeScript, Hono, Better Auth): workspaces, projects, keys, findings, events, rules, costs |
+| `apps/console-web/` | Console (Vite, React): sidebar, findings, events, costs, rules, keys, members |
 | `packages/db/` | Postgres schema and migrations (Drizzle) |
 | `conformance/` | Shared fixtures every SDK must reproduce |
 | `examples/` | Demo web app, Cloud Functions, end-to-end runner |

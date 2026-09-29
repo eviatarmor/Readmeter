@@ -26,6 +26,7 @@ pnpm --filter readmeter-e2e exec tsc -p . --noEmit
 step "playwright chromium"
 # The browser check is required when the installer can run. A failed install fails the script.
 pnpm --filter web-firestore exec playwright install chromium
+pnpm --filter console-web exec playwright install chromium
 
 # firebase-tools requires JDK 21 or newer. CI sets JAVA_HOME to 21.
 # JDK 17 is installed on some dev machines and must not be selected.
@@ -67,3 +68,7 @@ npx -y firebase-tools@latest emulators:exec \
   --project demo-readmeter \
   --config "$root/examples/firebase.json" \
   "bash scripts/e2e-inside.sh"
+
+step "console"
+mkdir -p "$root/docs/images"
+pnpm --filter console-web exec playwright test --reporter=line

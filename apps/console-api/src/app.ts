@@ -38,6 +38,10 @@ export function createApp({ db, auth, core, env, mailer }: Deps) {
     }),
   );
 
+  app.get("/api/v1/auth-config", (c) =>
+    c.json({ google: Boolean(env.googleClientId && env.googleClientSecret) }),
+  );
+
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     const path = new URL(c.req.url).pathname;
     const reset = c.req.method === "POST" && path.endsWith("/request-password-reset") && !mailer.smtp;
@@ -62,6 +66,10 @@ export function createApp({ db, auth, core, env, mailer }: Deps) {
 
   const api = new Hono<AppEnv>();
   api.use("*", async (c, next) => {
+    if (c.req.method === "GET" && new URL(c.req.url).pathname === "/api/v1/auth-config") {
+      await next();
+      return;
+    }
     if (["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method)) {
       const origin = c.req.header("origin");
       const type = (c.req.header("content-type") ?? "").toLowerCase();

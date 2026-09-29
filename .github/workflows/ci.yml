@@ -101,6 +101,7 @@ jobs:
       - name: Migrations match the schema
         run: pnpm db:generate && git diff --exit-code packages/db/migrations
       - run: pnpm --filter "./apps/*" --filter "./packages/*" test
+      - run: pnpm --filter console-web build
 
   sdk-js:
     runs-on: ubuntu-latest
