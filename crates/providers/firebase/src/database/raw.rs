@@ -23,6 +23,9 @@ pub struct RawCall {
     pub callsite: Option<String>,
     pub listener: Option<u64>,
     pub attempt: u32,
+    /// For `index_warning`: the child named in the SDK's "Using an
+    /// unspecified index" warning (`$value` for `orderByValue`).
+    pub order_by_child: Option<String>,
 }
 
 impl RawCall {
@@ -41,6 +44,7 @@ impl RawCall {
             callsite: opt_string(value, "callsite")?,
             listener: opt_u64(value, "listener")?,
             attempt: def_u32(value, "attempt", 1)?,
+            order_by_child: opt_string(value, "order_by_child")?,
         })
     }
 }
@@ -62,6 +66,8 @@ pub enum RawOp {
     ChildMoved,
     GoOnline,
     GoOffline,
+    /// The SDK logged "Using an unspecified index" for a listen at `path`.
+    IndexWarning,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -259,6 +265,7 @@ fn parse_op(s: &str) -> Result<RawOp, NormalizeError> {
         "child_moved" => RawOp::ChildMoved,
         "go_online" => RawOp::GoOnline,
         "go_offline" => RawOp::GoOffline,
+        "index_warning" => RawOp::IndexWarning,
         _ => return Err(NormalizeError::Invalid("unknown `op`".into())),
     })
 }

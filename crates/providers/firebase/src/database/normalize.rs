@@ -13,7 +13,15 @@ use crate::PROVIDER_ID;
 /// Placeholder for redacted path segments.
 const ID: &str = "{id}";
 
-pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, NormalizeError> {
+pub fn normalize(mut raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, NormalizeError> {
+    // The warning names the ordered child but not the rest of the query, so
+    // its shape is just that order. The field name is allowed in a shape.
+    if raw.op == RawOp::IndexWarning && raw.query.is_none() {
+        raw.query = raw.order_by_child.take().map(|child| RawQuery {
+            order_by: Some(child),
+            ..RawQuery::default()
+        });
+    }
     let segments: Vec<&str> = raw.path.split('/').filter(|s| !s.is_empty()).collect();
     let template = template(&segments);
     let id_shape = segments.last().copied().and_then(segment_id);
@@ -50,6 +58,7 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
         RawOp::ChildMoved => Op::Other("child_moved".into()),
         RawOp::GoOnline => Op::Other("go_online".into()),
         RawOp::GoOffline => Op::Other("go_offline".into()),
+        RawOp::IndexWarning => Op::Other("index_warning".into()),
     };
 
     let mut env = Envelope {
@@ -478,6 +487,39 @@ mod tests {
         assert!(!dump.contains("secret"), "{dump}");
         assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/File.tsx:1"));
         assert_eq!(env.target.template, "posts/{id}/owner/{id}");
+    }
+
+    #[test]
+    fn index_warning_is_a_templated_order_with_no_units() {
+        let env = norm(json!({
+            "op": "index_warning",
+            "ts_ms": 1,
+            "path": "/rooms/-NabcDEFghi123456789/scores/secretUserId99abcd",
+            "order_by_child": "pts",
+            "call_id": 7,
+            "callsite": "https://secret.example/src/Board.tsx:12?token=secret"
+        }));
+        assert_eq!(env.op, Op::Other("index_warning".into()));
+        assert_eq!(env.target.template, "rooms/{id}/scores/{id}");
+        let q = env.query.as_ref().unwrap();
+        assert_eq!(q.order_by.len(), 1);
+        assert_eq!(q.order_by[0].field, "pts");
+        assert_eq!(q.limit, None);
+        assert!(env.units.is_empty());
+        assert!(env.result.is_none());
+        assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/Board.tsx:12"));
+        let dump = format!("{env:?}");
+        assert!(!dump.contains("secret"), "{dump}");
+        assert!(!dump.contains("NabcDEF"), "{dump}");
+
+        let root = norm(
+            json!({"op": "index_warning", "ts_ms": 1, "path": "/", "order_by_child": "$value"}),
+        );
+        assert_eq!(root.target.template, "/");
+        assert_eq!(root.query.unwrap().order_by[0].field, "$value");
+
+        let bare = norm(json!({"op": "index_warning", "ts_ms": 1, "path": "posts"}));
+        assert!(bare.query.is_none());
     }
 
     #[test]
