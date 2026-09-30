@@ -20,6 +20,8 @@ pub mod functions;
 #[cfg(feature = "storage")]
 pub mod storage;
 
+pub mod path;
+
 pub const PROVIDER_ID: &str = "firebase";
 
 #[derive(Debug, Default, Clone, Copy)]

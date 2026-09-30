@@ -83,6 +83,10 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             session: cx.session,
             call_id: raw.call_id,
             callsite: raw.callsite.as_deref().map(|c| cx.hasher.hash_str(c)),
+            callsite_label: raw
+                .callsite
+                .as_deref()
+                .and_then(readmeter_core::callsite_label),
             listener: raw.listener,
             transaction: None,
             mount: None,
@@ -133,6 +137,9 @@ fn segment_id(id: &str) -> Option<IdShape> {
         return Some(IdShape::AutoId);
     }
     if is_long_token(bytes) {
+        return Some(IdShape::Other);
+    }
+    if crate::path::personal_segment(id) {
         return Some(IdShape::Other);
     }
     None
@@ -319,6 +326,19 @@ mod tests {
         assert_eq!(slug.target.template, "rooms/room_1");
         assert_eq!(slug.target.id_shape, None);
 
+        let email = norm(json!({"op": "get", "ts_ms": 1, "path": "users/alice@example.com"}));
+        assert_eq!(email.target.template, "users/{id}");
+        let phone = norm(json!({"op": "get", "ts_ms": 1, "path": "users/+1 (555) 123-4567"}));
+        assert_eq!(phone.target.template, "users/{id}");
+        let ip = norm(json!({"op": "get", "ts_ms": 1, "path": "users/192.168.0.1"}));
+        assert_eq!(ip.target.template, "users/{id}");
+        let long = norm(json!({
+            "op": "get",
+            "ts_ms": 1,
+            "path": format!("users/{}", "a".repeat(41)),
+        }));
+        assert_eq!(long.target.template, "users/{id}");
+
         let root = norm(json!({"op": "get", "ts_ms": 1, "path": "///"}));
         assert_eq!(root.target.template, "/");
         assert_eq!(root.target.id_shape, None);
@@ -446,7 +466,7 @@ mod tests {
             "op": "query",
             "ts_ms": 1,
             "path": "posts/-NabcDEFghi123456789/owner/secretUserId99abcd",
-            "callsite": "src/secret/File.tsx:1",
+            "callsite": "https://secret.example/src/File.tsx:1?q=secret",
             "query": {
                 "order_by": "title",
                 "filters": [{"field": "title", "op": "==", "value": "secret-title"}],
@@ -455,6 +475,7 @@ mod tests {
         }));
         let dump = format!("{env:?}");
         assert!(!dump.contains("secret"), "{dump}");
+        assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/File.tsx:1"));
         assert_eq!(env.target.template, "posts/{id}/owner/{id}");
     }
 
@@ -474,6 +495,11 @@ mod tests {
         assert_eq!(segment_id("-NabcDEFghi123456789"), Some(IdShape::AutoId));
         assert_eq!(segment_id("Xb3kD9aQ2mLp7rT1vY0z"), Some(IdShape::AutoId));
         assert_eq!(segment_id("secretUserId99abcd"), Some(IdShape::Other));
+        assert_eq!(segment_id("alice@example.com"), Some(IdShape::Other));
+        assert_eq!(segment_id("+1 (555) 123-4567"), Some(IdShape::Other));
+        assert_eq!(segment_id("192.168.0.1"), Some(IdShape::Other));
+        assert_eq!(segment_id("[2001:db8::1]"), Some(IdShape::Other));
+        assert_eq!(segment_id(&"a".repeat(41)), Some(IdShape::Other));
         assert_eq!(segment_id("alice"), None);
         assert_eq!(segment_id("room_1"), None);
     }

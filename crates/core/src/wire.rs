@@ -149,6 +149,7 @@ mod tests {
                 template: "users/{id}".into(),
                 session: 9,
                 callsite: Some(3),
+                callsite_label: Some("src/App.tsx:1:1".into()),
                 message: "m".into(),
                 evidence,
                 wasted: Units::new().with("reads", 9),

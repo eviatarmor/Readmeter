@@ -112,7 +112,7 @@ Workspaces are Better Auth organizations, with the organization plugin's `owner`
 | `POST` | `/api/v1/workspaces/:slug/invitations` | admin | `{ email, role }` | `201 Invitation` |
 | `DELETE` | `/api/v1/workspaces/:slug/invitations/:id` | admin | | `{ "ok": true }` |
 
-- `role` is `owner`, `admin` or `member`.
+- `role` is `owner`, `admin` or `member`. An admin who sets a role to `owner`, or who changes or removes a member whose role is `owner`, gets `403 forbidden`. An owner can do those.
 - `:id` on member routes is the membership id, not the user id.
 - Removing or demoting the last owner is `409 conflict`.
 - `Member` is `{ id, role, joined, lastActive, user }`. `lastActive` is the latest session update of that user, or `null`.
@@ -182,7 +182,7 @@ By default findings are grouped into issues: all findings of one project with th
 
 ### Shapes
 
-`Finding` has `id`, `projectId`, `rule`, `severity`, `provider`, `service`, `template`, `session`, `callsite`, `message`, `occurrences`, `sessions`, `firstSeen`, `lastSeen`, `wasted` (unit name to amount), `status`, `assignee`, `note` and `wastedMicros` (the price of `wasted`). For an issue, `occurrences` and `wasted` are sums over its findings, `sessions` counts distinct sessions, and `message`, `severity` and `session` come from the finding seen last. `session` is `"*"` for findings from aggregate rules, which cover all sessions.
+`Finding` has `id`, `projectId`, `rule`, `severity`, `provider`, `service`, `template`, `session`, `callsite`, `callsiteLabel`, `message`, `occurrences`, `sessions`, `firstSeen`, `lastSeen`, `wasted` (unit name to amount), `status`, `assignee`, `note` and `wastedMicros` (the price of `wasted`). `callsite` is the keyed hash (empty when unknown). `callsiteLabel` is the source path with the URL origin and query string removed, or `null`. For an issue, `occurrences` and `wasted` are sums over its findings, `sessions` counts distinct sessions, and `message`, `severity`, `session` and `callsiteLabel` come from the finding seen last. `session` is `"*"` for findings from aggregate rules, which cover all sessions.
 
 `FindingDetail` adds `evidence` (from the latest finding), `rule` (the full catalog entry, or `null`), `members` (the latest 20 findings in the issue as `{ id, session, occurrences, lastSeen, evidence }`) and `occurrencesByDay` (`{ day, occurrences }` per UTC day, gaps of up to 90 days filled with 0).
 
@@ -199,7 +199,7 @@ By default findings are grouped into issues: all findings of one project with th
 
 Parameters: `project`, `op`, `service`, `template` (exact), `session`, `from` and `to` (timestamps on the event time), `limit`, `cursor`. Events are newest first.
 
-`TelemetryEvent` has `id`, `projectId`, `ts`, `session`, `provider`, `service`, `op`, `opDetail`, `template`, `callsite`, `units`, `items`, `bytes`, `fromCache`, `errorCode`, `platform`, `signals`, `targetKey`, `idShape`, `collectionGroup`, `query`, `durationUs`, `listener`, `mount`, `dev` and `attempt`. Hashes such as `targetKey` and `callsite` are 16-character hex strings.
+`TelemetryEvent` has `id`, `projectId`, `ts`, `session`, `provider`, `service`, `op`, `opDetail`, `template`, `callsite`, `callsiteLabel`, `units`, `items`, `bytes`, `fromCache`, `errorCode`, `platform`, `signals`, `targetKey`, `idShape`, `collectionGroup`, `query`, `durationUs`, `listener`, `mount`, `dev` and `attempt`. Hashes such as `targetKey` and `callsite` are 16-character hex strings. `callsiteLabel` is the source path with the URL origin and query string removed, or `null`.
 
 ## Rules and overrides
 
@@ -214,7 +214,7 @@ Parameters: `project`, `op`, `service`, `template` (exact), `session`, `from` an
 - `PUT` needs at least one field and replaces the whole override: a field you leave out is stored as `null`, which means the catalog default. `severity` is one of the five severities or `null`. `params` may only name params the rule defines, with the same type as the default (boolean, integer, number or string). Unknown rule is `404`.
 - The response is the stored row: `{ id, projectId, rule, enabled, severity, params, updatedBy, updatedAt }`.
 - `DELETE` removes the override. `404` if there is none.
-- ingest merges overrides into the bundle it serves at `GET /v1/bundle`; see the [ingest API](/docs/reference/ingest-api#get-v1bundle).
+- ingest merges overrides into the bundle it serves at `GET /v1/bundle`, and applies the same overrides when it runs window and aggregate rules. See the [ingest API](/docs/reference/ingest-api#get-v1bundle).
 
 ## Overview and costs
 

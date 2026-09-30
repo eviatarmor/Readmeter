@@ -254,7 +254,9 @@ function findingColumns(): ColumnDef<DataTableFeatures, FindingRow>[] {
       id: "callsite",
       accessorKey: "callsite",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Callsite" />,
-      cell: ({ row }) => <Truncate text={row.original.callsite || "—"} className="font-mono text-xs" />,
+      cell: ({ row }) => (
+        <Truncate text={callsiteText(row.original.callsiteLabel, row.original.callsite)} className="font-mono text-xs" />
+      ),
       meta: { label: "Callsite" },
     },
     {
@@ -265,6 +267,12 @@ function findingColumns(): ColumnDef<DataTableFeatures, FindingRow>[] {
       meta: { label: "Message" },
     },
   ];
+}
+
+function callsiteText(label: string | null | undefined, hash: string | null | undefined): string {
+  if (label && label.length > 0) return label;
+  if (hash && hash.length > 0) return hash;
+  return "—";
 }
 
 function Truncate({ text, className }: { text: string; className?: string }) {
@@ -357,7 +365,9 @@ function FindingSheet({
               </div>
               <div className="col-span-2">
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Callsite</dt>
-                <dd data-testid="finding-callsite" className="truncate font-mono text-xs">{row.callsite || "—"}</dd>
+                <dd data-testid="finding-callsite">
+                  <Truncate text={callsiteText(row.callsiteLabel, row.callsite)} className="font-mono text-xs" />
+                </dd>
               </div>
               <div className="col-span-2">
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Template</dt>

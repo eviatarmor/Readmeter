@@ -20,7 +20,7 @@ its parameters.
 | Severity | Effective severity for this project: the override if there is one, else the catalog default. |
 | Service | The service the rule applies to. |
 | Catalog | Catalog status of the rule. Rules with status `planned` have no detector yet. |
-| Enabled | Whether the rule runs for this project. |
+| Enabled | Whether the rule runs for this project. Owners and admins flip the switch, which saves an override. Members see it disabled. |
 
 Filter by Rule (text), Severity or Service. The command palette's **Search
 rules** action opens this page.
@@ -48,9 +48,13 @@ as `rule.override`, with the project and rule id as the target.
 
 ## Where overrides apply
 
-Ingest applies the project's overrides to the rule bundle it serves to SDKs
-at `GET /v1/bundle`, so SDKs that use a key for that project run the rules
-with your severity, parameters and enablement. See the
+Ingest applies the project's overrides in two places. `GET /v1/bundle` serves
+them to SDKs, so local rules in the app use your enablement, severity and
+parameters. The evaluator uses the same overrides for window and aggregate
+rules. A disabled rule produces no backend findings. A severity override is
+the severity stored on the finding. Parameter overrides change the detector
+thresholds. Ingest reads the overrides on each batch and rebuilds that
+project's rule state when they change. See the
 [ingest API](/docs/reference/ingest-api).
 
 ## Who can change rules

@@ -6,7 +6,7 @@ import type { Ingested } from "./types.ts";
 
 export interface Core {
   /** Throws {@link CoreError} for batches that must be rejected. */
-  ingest(project: string, body: Uint8Array): Ingested;
+  ingest(project: string, body: Uint8Array, revision: string, overridesJson: string): Ingested;
   /**
    * Applies project rule overrides to an SDK bundle. An empty override map
    * must not be passed: re-encoding is not byte-identical.
@@ -49,7 +49,9 @@ interface WasmServer {
     bundleJson: string,
     maxEvents: number,
     maxFindings: number,
-  ) => { ingest(project: string, body: Uint8Array): string };
+  ) => {
+    ingest(project: string, body: Uint8Array, revision: string, overridesJson: string): string;
+  };
   bundle_with_overrides(bundle: Uint8Array, overridesJson: string): Uint8Array;
 }
 
@@ -61,10 +63,10 @@ export async function loadCore(options: CoreOptions): Promise<Core> {
   mod.initSync({ module: readFileSync(new URL("readmeter_wasm_server_bg.wasm", pkg)) });
   const evaluator = new mod.Evaluator(options.bundleJson, options.maxEvents, options.maxFindings);
   return {
-    ingest(project, body) {
+    ingest(project, body, revision, overridesJson) {
       let json: string;
       try {
-        json = evaluator.ingest(project, body);
+        json = evaluator.ingest(project, body, revision, overridesJson);
       } catch (e) {
         throw toCoreError(e);
       }

@@ -97,12 +97,13 @@ There are three roles:
 | Create, edit and delete projects | | yes | yes |
 | Create and revoke API keys | | yes | yes |
 | Set and clear rule overrides | | yes | yes |
-| Invite, cancel invitations, change roles, remove members | | yes | yes |
+| Invite, cancel invitations, change admin and member roles, remove those members | | yes | yes |
+| Grant the owner role, demote or remove an owner | | | yes |
 | Read the audit log | | yes | yes |
 | Connect, test, sync and disconnect Google Cloud | | yes | yes |
 | Delete the workspace | | | yes |
 
-An admin can change any member's role, including to owner. The last owner of a workspace cannot be removed or demoted (`409 conflict`). Deleting a workspace needs the body `{"confirm": "<slug>"}`.
+An admin can change admin and member roles and remove those members. Granting the owner role, or demoting or removing an owner, is `403 forbidden` for an admin. The last owner of a workspace cannot be removed or demoted (`409 conflict`). Deleting a workspace needs the body `{"confirm": "<slug>"}`.
 
 A finding can only be assigned to a member of the same workspace.
 
@@ -134,8 +135,8 @@ Postgres holds:
 | `projects` | Name, environment, optional Firebase project id, hash key |
 | `api_keys` | SHA-256 of each key, display prefix, allowed origins, usage times |
 | `batches` | One row per accepted request: SDK name and version, session, counts, dropped counters |
-| `events` | One row per recorded call: templates, hashes, counts, sizes, timings, billing units |
-| `findings`, `finding_states` | Findings with message, evidence and wasted units; status, assignee, note |
+| `events` | One row per recorded call: templates, hashes, the callsite label, counts, sizes, timings, billing units |
+| `findings`, `finding_states` | Findings with message, evidence, wasted units and the callsite label; status, assignee, note |
 | `rule_overrides` | Per-project enabled flag, severity and params |
 | `audit_log` | Console changes, as above |
 | `gcp_connections` | Encrypted service account key and connection status |

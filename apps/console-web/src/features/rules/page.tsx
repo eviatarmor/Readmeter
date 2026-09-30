@@ -3,7 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import * as React from "react";
 import { toast } from "sonner";
 
-import { SEVERITY_ORDER, type RuleRow } from "@readmeter/console-api/contract";
+import { SEVERITY_ORDER, type RuleRow, type RulesResponse } from "@readmeter/console-api/contract";
 
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { EmptyState, PageHeader, QueryError } from "@/components/page-header";
@@ -38,7 +38,8 @@ export function RulesPage({ slug, search, role }: { slug: string; search: Worksp
   const query = useRules(slug, search.project);
   const [selected, setSelected] = React.useState<RuleRow | null>(null);
   const manage = canManage(role);
-  const columns = React.useMemo(() => ruleColumns(manage), [manage]);
+  const projectId = search.project ?? "";
+  const columns = React.useMemo(() => ruleColumns(slug, projectId, manage), [slug, projectId, manage]);
   if (!search.project) {
     return (
       <div className="grid gap-4">
@@ -70,7 +71,7 @@ export function RulesPage({ slug, search, role }: { slug: string; search: Worksp
   );
 }
 
-function ruleColumns(manage: boolean): ColumnDef<DataTableFeatures, RuleRow>[] {
+function ruleColumns(slug: string, projectId: string, manage: boolean): ColumnDef<DataTableFeatures, RuleRow>[] {
   return [
     {
       id: "title",
@@ -117,20 +118,94 @@ function ruleColumns(manage: boolean): ColumnDef<DataTableFeatures, RuleRow>[] {
     {
       id: "enabled",
       header: "Enabled",
-      cell: ({ row }) => {
-        const planned = row.original.status === "planned";
-        const checked = row.original.effective?.enabled ?? row.original.default_enabled;
-        const control = <Switch checked={checked} disabled={!manage || planned} aria-label={`Enable ${row.original.id}`} />;
-        if (!planned) return control;
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>{control}</TooltipTrigger>
-            <TooltipContent>Planned rules cannot be enabled yet.</TooltipContent>
-          </Tooltip>
-        );
-      },
+      cell: ({ row }) => <EnabledSwitch slug={slug} projectId={projectId} rule={row.original} manage={manage} />,
     },
   ];
+}
+
+function EnabledSwitch({
+  slug,
+  projectId,
+  rule,
+  manage,
+}: {
+  slug: string;
+  projectId: string;
+  rule: RuleRow;
+  manage: boolean;
+}) {
+  const planned = rule.status === "planned";
+  const checked = rule.effective?.enabled ?? rule.default_enabled;
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api(`/api/v1/workspaces/${slug}/projects/${projectId}/rules/${encodeURIComponent(rule.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          enabled,
+          severity: rule.effective?.severity ?? rule.severity,
+          params: rule.effective?.params ?? rule.params,
+        }),
+      }),
+    onMutate: async (enabled) => {
+      const key = ["rules", slug, projectId] as const;
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<RulesResponse>(key);
+      queryClient.setQueryData<RulesResponse>(key, (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          rules: current.rules.map((item) =>
+            item.id === rule.id
+              ? {
+                  ...item,
+                  effective: {
+                    enabled,
+                    severity: item.effective?.severity ?? item.severity,
+                    params: item.effective?.params ?? item.params,
+                    overridden: true,
+                  },
+                }
+              : item,
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (error, _enabled, context) => {
+      if (context?.previous) queryClient.setQueryData(["rules", slug, projectId], context.previous);
+      toast.error(error instanceof ApiError ? error.message : "Could not save override");
+    },
+    onSuccess: () => toast.success("Override saved"),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["rules", slug] });
+    },
+  });
+  const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+  const control = (
+    <Switch
+      checked={checked}
+      disabled={!manage || planned}
+      aria-label={`Enable ${rule.id}`}
+      onClick={stop}
+      onPointerDown={stop}
+      onCheckedChange={(next) => {
+        if (!manage || planned) return;
+        toggle.mutate(next);
+      }}
+    />
+  );
+  if (manage && !planned) return control;
+  const reason = planned ? "Planned rules cannot be enabled yet." : "Owners and admins can change this.";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex" onClick={stop} onPointerDown={stop}>
+          {control}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{reason}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 function RuleSheet({

@@ -63,6 +63,10 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             session: cx.session,
             call_id: raw.call_id,
             callsite: raw.callsite.as_deref().map(|c| cx.hasher.hash_str(c)),
+            callsite_label: raw
+                .callsite
+                .as_deref()
+                .and_then(readmeter_core::callsite_label),
             listener: None,
             transaction: None,
             mount: None,
@@ -236,7 +240,7 @@ mod tests {
             "op": "callable",
             "name": "https://us-central1-demo-readmeter.cloudfunctions.net/echo",
             "ts_ms": 1,
-            "callsite": "src/secret-payload.ts:1",
+            "callsite": "https://secret-payload.example/src/File.ts:1?q=secret-payload&host=127.0.0.1",
             "error": "functions/secret-payload",
             "url": "http://127.0.0.1:5001/demo-readmeter/us-central1/echo",
             "data": "secret-payload",
@@ -252,6 +256,7 @@ mod tests {
         ] {
             assert!(!dump.contains(secret), "{secret} in {dump}");
         }
+        assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/File.ts:1"));
         assert_eq!(env.target.template, "functions/unknown");
         assert!(env.outcome.is_error());
         let code = match &env.outcome {

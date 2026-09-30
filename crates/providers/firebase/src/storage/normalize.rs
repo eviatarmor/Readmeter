@@ -107,6 +107,10 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             session: cx.session,
             call_id: raw.call_id,
             callsite: raw.callsite.as_deref().map(|c| cx.hasher.hash_str(c)),
+            callsite_label: raw
+                .callsite
+                .as_deref()
+                .and_then(readmeter_core::callsite_label),
             listener: None,
             transaction: None,
             mount: None,
@@ -136,6 +140,13 @@ struct Piece {
 /// A leading-dot name (`.env`, `.jpg`) keeps the whole segment and has no
 /// extension. `file.tar.gz` keeps only `gz`.
 fn piece(seg: &str) -> Piece {
+    if crate::path::personal_segment(seg) {
+        return Piece {
+            template: ID.to_owned(),
+            ext: None,
+            id: Some(IdShape::Other),
+        };
+    }
     let (stem, ext) = split_ext(seg);
     let id = segment_id(stem);
     let template = match (&id, ext.as_deref()) {
@@ -200,6 +211,9 @@ fn segment_id(id: &str) -> Option<IdShape> {
         return Some(IdShape::AutoId);
     }
     if is_long_token(bytes) {
+        return Some(IdShape::Other);
+    }
+    if crate::path::personal_segment(id) {
         return Some(IdShape::Other);
     }
     None
@@ -424,6 +438,22 @@ mod tests {
         assert_eq!(dotted.target.template, "archives/file.tar.gz");
         assert_eq!(attr(&dotted, "ext"), Some("gz"));
 
+        let email =
+            norm(json!({"op": "download", "ts_ms": 1, "path": "users/alice@example.com.png"}));
+        assert_eq!(email.target.template, "users/{id}");
+        assert_eq!(attr(&email, "ext"), None);
+        let ip = norm(json!({"op": "download", "ts_ms": 1, "path": "192.168.0.1.jpg"}));
+        assert_eq!(ip.target.template, "{id}.jpg");
+        assert_eq!(attr(&ip, "ext"), Some("jpg"));
+        let phone = norm(json!({"op": "download", "ts_ms": 1, "path": "+15551234567"}));
+        assert_eq!(phone.target.template, "{id}");
+        let long = norm(json!({
+            "op": "download",
+            "ts_ms": 1,
+            "path": "a".repeat(41),
+        }));
+        assert_eq!(long.target.template, "{id}");
+
         let hidden = norm(json!({"op": "download", "ts_ms": 1, "path": "secrets/.env"}));
         assert_eq!(hidden.target.template, "secrets/.env");
         assert_eq!(attr(&hidden, "ext"), None);
@@ -572,7 +602,7 @@ mod tests {
             "op": "list",
             "ts_ms": 1,
             "path": "users/secretUserId99abcd/secretFileId99abcd.jpg",
-            "callsite": "src/secret/File.tsx:1",
+            "callsite": "https://secret.example/src/File.tsx:1?q=secret",
             "ext": "../../secret-ext",
             "content_type": "<script>alert(1)</script>",
             "cache_control": "max-age=secret",
@@ -581,6 +611,7 @@ mod tests {
         }));
         let dump = format!("{env:?}");
         assert!(!dump.contains("secret"), "{dump}");
+        assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/File.tsx:1"));
         assert!(!dump.contains("script"), "{dump}");
         assert!(!dump.contains("token"), "{dump}");
         assert_eq!(env.target.template, "users/{id}/{id}.jpg");

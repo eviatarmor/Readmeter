@@ -17,7 +17,7 @@ import { cors } from "hono/cors";
 
 import { CoreError, type Core } from "./core.ts";
 import { TokenBucket } from "./rate.ts";
-import type { ProjectAccess, Store } from "./store.ts";
+import { overridesRevision, type ProjectAccess, type Store } from "./store.ts";
 
 export interface Limits {
   maxBodyBytes: number;
@@ -124,9 +124,15 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
       }
 
       const body = new Uint8Array(await c.req.arrayBuffer());
+      const overrides = await store.ruleOverrides(authz.access.projectId);
       let ingested;
       try {
-        ingested = core.ingest(authz.access.projectId, body);
+        ingested = core.ingest(
+          authz.access.projectId,
+          body,
+          overridesRevision(overrides),
+          JSON.stringify(overrideJson(overrides)),
+        );
       } catch (e) {
         if (e instanceof CoreError) return fail(STATUS[e.code], e.code, e.message);
         throw e;

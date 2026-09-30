@@ -158,6 +158,8 @@ export interface Finding {
   /** Latest member session. `"*"` means the finding covers every session. `group=none` is that row's own session. */
   session: string;
   callsite: string;
+  /** Source path with the URL origin and query string removed. Null when the SDK sent no callsite. */
+  callsiteLabel: string | null;
   message: string;
   occurrences: number;
   /** Distinct sessions. `1` on a `group=none` row. */
@@ -229,6 +231,8 @@ export interface TelemetryEvent {
   opDetail: unknown;
   template: string;
   callsite: string | null;
+  /** Source path with the URL origin and query string removed. */
+  callsiteLabel: string | null;
   units: Record<string, number>;
   items: number | null;
   bytes: number | null;
@@ -301,7 +305,7 @@ export interface Overview {
   sdkCoverage: SdkCoverage | null;
   topRules: { rule: string; title: string; wastedMicros: number }[];
   topTemplates: { template: string; events: number }[];
-  topCallsites: { callsite: string | null; events: number }[];
+  topCallsites: { callsite: string | null; callsiteLabel: string | null; events: number }[];
   openFindingsBySeverity: Record<string, number>;
 }
 

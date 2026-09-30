@@ -39,16 +39,17 @@ export function MembersPage({ slug, role }: { slug: string; role: Role | undefin
   const [open, setOpen] = React.useState(false);
   const [links, setLinks] = React.useState<string[]>([]);
   const ownerCount = (members.data ?? []).filter((member) => member.role === "owner").length;
+  const actorIsOwner = role === "owner";
   const columns = React.useMemo(
-    () => memberColumns(slug, manage, ownerCount),
-    [slug, manage, ownerCount],
+    () => memberColumns(slug, manage, actorIsOwner, ownerCount),
+    [slug, manage, actorIsOwner, ownerCount],
   );
   if (members.isError) return <QueryError message="Could not load members" onRetry={() => void members.refetch()} />;
   return (
     <div className="grid gap-4">
       <PageHeader
         title="Members"
-        description="Owners and admins invite people. The last owner cannot be removed."
+        description="Owners and admins invite people. Only an owner can grant or remove the owner role."
         actions={manage ? <Button onClick={() => setOpen(true)}>Invite</Button> : null}
       />
       <Tabs defaultValue="members">
@@ -73,6 +74,7 @@ export function MembersPage({ slug, role }: { slug: string; role: Role | undefin
       </Tabs>
       <InviteDialog
         slug={slug}
+        actorIsOwner={actorIsOwner}
         open={open}
         onOpenChange={setOpen}
         onLinks={setLinks}
@@ -90,7 +92,12 @@ export function MembersPage({ slug, role }: { slug: string; role: Role | undefin
   );
 }
 
-function memberColumns(slug: string, manage: boolean, ownerCount: number): ColumnDef<DataTableFeatures, Member>[] {
+function memberColumns(
+  slug: string,
+  manage: boolean,
+  actorIsOwner: boolean,
+  ownerCount: number,
+): ColumnDef<DataTableFeatures, Member>[] {
   return [
     {
       id: "name",
@@ -114,6 +121,7 @@ function memberColumns(slug: string, manage: boolean, ownerCount: number): Colum
         manage ? (
           <Select
             value={row.original.role}
+            disabled={row.original.role === "owner" && !actorIsOwner}
             onValueChange={(value) => {
               if (!value || value === row.original.role) return;
               void updateRole(slug, row.original, value as Role);
@@ -127,7 +135,10 @@ function memberColumns(slug: string, manage: boolean, ownerCount: number): Colum
                 <SelectItem
                   key={item}
                   value={item}
-                  disabled={row.original.role === "owner" && ownerCount <= 1 && item !== "owner"}
+                  disabled={
+                    (item === "owner" && !actorIsOwner) ||
+                    (row.original.role === "owner" && ownerCount <= 1 && item !== "owner")
+                  }
                 >
                   {item}
                 </SelectItem>
@@ -149,13 +160,20 @@ function memberColumns(slug: string, manage: boolean, ownerCount: number): Colum
       header: "",
       cell: ({ row }) => {
         const lastOwner = row.original.role === "owner" && ownerCount <= 1;
+        const ownerRow = row.original.role === "owner" && !actorIsOwner;
         if (!manage) return null;
         return (
           <Button
             variant="outline"
             size="sm"
-            disabled={lastOwner}
-            title={lastOwner ? "The last owner cannot be removed" : undefined}
+            disabled={lastOwner || ownerRow}
+            title={
+              lastOwner
+                ? "The last owner cannot be removed"
+                : ownerRow
+                  ? "Only an owner can remove an owner"
+                  : undefined
+            }
             onClick={() => void removeMember(slug, row.original)}
           >
             Remove
@@ -220,11 +238,13 @@ function InvitationList({ slug, items }: { slug: string; items: Invitation[] }) 
 
 function InviteDialog({
   slug,
+  actorIsOwner,
   open,
   onOpenChange,
   onLinks,
 }: {
   slug: string;
+  actorIsOwner: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLinks: (links: string[]) => void;
@@ -277,7 +297,7 @@ function InviteDialog({
             </SelectTrigger>
             <SelectContent>
               {roles.map((item) => (
-                <SelectItem key={item} value={item}>
+                <SelectItem key={item} value={item} disabled={item === "owner" && !actorIsOwner}>
                   {item}
                 </SelectItem>
               ))}

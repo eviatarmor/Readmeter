@@ -34,7 +34,7 @@ The Firebase provider (`crates/providers/firebase`) turns the raw call into an e
 - Ids in the path become placeholders, so `users/8f3k/orders` becomes `users/{id}/orders`.
 - A Firestore query becomes a shape: filter fields and operators, ordering, limit, offset, cursor flags, projection, aggregations. Filter values are dropped.
 - The result becomes counts and sizes: items returned, bytes, whether it came from the local cache.
-- Concrete values that rules need to compare (the exact target, a callsite) become keyed hashes.
+- Concrete values that rules need to compare (the exact target, a callsite) become keyed hashes. The callsite also keeps a short label: the source path with any URL origin and query string removed. The console shows that label.
 - The provider computes billing units for the call, such as `reads`, `writes` or `egress_bytes`.
 
 The core then runs the `local` rules on that one envelope and buffers the envelope and any findings. The buffer is bounded. When it is full, the oldest data is dropped. Nothing blocks your app.
@@ -73,7 +73,7 @@ Every rule declares one `evaluation` tier, which decides where it runs and what 
 
 Production SDK builds leave window detectors out to keep the wasm small. `dev: true` loads a separate dev build that includes them and logs each finding in the console, which is how the demo app shows findings on the page.
 
-A rule is a TOML file under `rules/` (id, severity, description, fix, thresholds) plus a Rust detector registered under the same id. Thresholds are parameters in the TOML, and you can override them per project in the console. Browser SDKs pick up those overrides from `GET /v1/bundle`. See [Rules](/docs/console/rules) and the [rule reference](/docs/rules).
+A rule is a TOML file under `rules/` (id, severity, description, fix, thresholds) plus a Rust detector registered under the same id. Thresholds are parameters in the TOML, and you can override them per project in the console. Browser SDKs pick up those overrides from `GET /v1/bundle`. Ingest applies the same overrides to window and aggregate rules. See [Rules](/docs/console/rules) and the [rule reference](/docs/rules).
 
 ## Terms
 
@@ -93,7 +93,7 @@ A random 64-bit id chosen when the SDK starts: one per browser tab, or one per N
 
 ### Callsite
 
-The SDK takes the first stack frame outside its own code and `node_modules` as `file:line:col`, and the core replaces it with a keyed hash before the call leaves the process. Every finding from one line of code carries the same callsite hash, and the console groups findings by it.
+The SDK takes the first stack frame outside its own code and `node_modules` as `file:line:col`. The core keeps a keyed hash of that string, which is what groups findings from one line of code, and a label for the console: `https://app.example.com/assets/index-abc.js:1:2345?v=1` becomes `assets/index-abc.js:1:2345`, and `webpack-internal:///./src/Feed.tsx:42:7` becomes `src/Feed.tsx:42:7`. The label drops the URL origin and query string, strips control characters, and stops at 200 bytes. When there is no label, the console shows the hash.
 
 ## Next steps
 

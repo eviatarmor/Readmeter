@@ -208,10 +208,10 @@ export function workspaceRoutes(db: Db, auth: Auth, mailer: Mailer) {
   });
 
   app.patch("/workspaces/:slug/members/:id", requireRole("admin"), async (c) => {
-    const { workspace, user } = ws(c);
+    const { workspace, user, role } = ws(c);
     const parsed = roleBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return fail(c, 400, "bad_request", "role must be owner, admin, or member");
-    const blocked = await guardLastOwner(c, db, workspace.id, c.req.param("id"), parsed.data.role);
+    const blocked = await guardOwnerChange(c, db, workspace.id, role, c.req.param("id"), parsed.data.role);
     if (blocked) return blocked;
     const [updated] = await db
       .update(schema.members)
@@ -230,8 +230,8 @@ export function workspaceRoutes(db: Db, auth: Auth, mailer: Mailer) {
   });
 
   app.delete("/workspaces/:slug/members/:id", requireRole("admin"), async (c) => {
-    const { workspace, user } = ws(c);
-    const blocked = await guardLastOwner(c, db, workspace.id, c.req.param("id"), null);
+    const { workspace, user, role } = ws(c);
+    const blocked = await guardOwnerChange(c, db, workspace.id, role, c.req.param("id"), null);
     if (blocked) return blocked;
     const [removed] = await db
       .delete(schema.members)
@@ -269,9 +269,12 @@ export function workspaceRoutes(db: Db, auth: Auth, mailer: Mailer) {
   });
 
   app.post("/workspaces/:slug/invitations", requireRole("admin"), async (c) => {
-    const { workspace, user } = ws(c);
+    const { workspace, user, role } = ws(c);
     const parsed = inviteBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return fail(c, 400, "bad_request", parsed.error.issues[0]?.message ?? "invalid body");
+    if (role !== "owner" && parsed.data.role === "owner") {
+      return fail(c, 403, "forbidden", "only an owner can grant the owner role");
+    }
     const box: { link?: string } = {};
     try {
       const invitation = await inviteLinkStore.run(box, () =>
@@ -362,10 +365,11 @@ function inviteJson(row: {
   };
 }
 
-async function guardLastOwner(
+async function guardOwnerChange(
   c: Context<AppEnv>,
   db: Db,
   orgId: string,
+  actor: Role,
   memberId: string,
   nextRole: Role | null,
 ): Promise<Response | null> {
@@ -375,8 +379,10 @@ async function guardLastOwner(
     .where(and(eq(schema.members.id, memberId), eq(schema.members.organizationId, orgId)))
     .limit(1);
   if (!member) return fail(c, 404, "not_found", "member not found");
-  if (member.role !== "owner") return null;
-  if (nextRole === "owner") return null;
+  if (actor !== "owner" && (nextRole === "owner" || member.role === "owner")) {
+    return fail(c, 403, "forbidden", "only an owner can grant, change, or remove the owner role");
+  }
+  if (member.role !== "owner" || nextRole === "owner") return null;
   if ((await ownerCount(db, orgId)) <= 1) {
     return fail(c, 409, "conflict", "the last owner cannot be removed or demoted");
   }

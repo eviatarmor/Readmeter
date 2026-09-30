@@ -34,7 +34,7 @@ The hash key is never sent with events. It comes from `init({ hashKey })` or fro
 | Timing | Timestamp in milliseconds and duration in microseconds |
 | Session | A random 64-bit id created at each `init` |
 | Call, listener and transaction ids | Counters that restart at each `init` |
-| Callsite | Keyed hash of `file:line:col` |
+| Callsite | Keyed hash of the source location, used to group repeated calls, plus a short label: the path with any URL origin and query string removed, control characters stripped, at most 200 bytes |
 | Platform, attempt, dev | `browser` / `server` / `mobile`, retry number, dev flag |
 | Units | Billing units computed by the core, for example document reads |
 
@@ -67,17 +67,13 @@ Field names are sent as written. If your schema puts personal data in field name
 | Child count and JSON size of the snapshot, capped at 10,000,000 | Snapshot values |
 | One connection per explicit `goOnline` | Write payloads |
 
-A segment is treated as an id when it is all digits, a UUID, a 20-character auto id or push id, starts with an ISO date (`YYYY-MM-DD`), or is a 16 to 128 character token of `[A-Za-z0-9_-]` with both letters and digits (Firebase uids match this). Other segments stay in the template as written.
-
-<Callout type="warn">
-A path segment that does not match those shapes is kept. An email address, a phone number or a username used as a key (`users/alice@example.com`) stays readable in the template. Key user data by uid or push id if you do not want it on the envelope.
-</Callout>
+A segment is treated as an id when it is all digits, a UUID, a 20-character auto id or push id, starts with an ISO date (`YYYY-MM-DD`), or is a 16 to 128 character token of `[A-Za-z0-9_-]` with both letters and digits (Firebase uids match this). It is also replaced when it contains `@`, looks like a phone number (7 or more digits once `+`, `-`, parentheses, spaces and `.` are removed), is an IP address, or is longer than 40 characters. Other personal data in a static path segment, such as a bare username, stays in the template. Key that data by a uid or push id if it should not leave the app.
 
 ### Cloud Storage
 
 | Sent | Not sent |
 |---|---|
-| Path template, with the same id rule as Realtime Database, keeping one lowercase extension of at most 8 characters (`avatars/{id}.png`) | Object names that look like ids, the bucket name |
+| Path template. The same id rules as Realtime Database. One lowercase extension of at most 8 characters is kept when the rest of the segment is an id (`avatars/{id}.png`). A segment that is itself an email, a phone number, an IP address, or longer than 40 characters is replaced entirely (`users/alice@example.com.png` becomes `users/{id}`) | Object names that look like ids, the bucket name |
 | Bytes downloaded or uploaded, object size from metadata | Object contents |
 | Content-type major (`image`, `video`, ...) when it is a short alphabetic token | The full content type and its parameters |
 | Cache-control class: `max-age` seconds (capped at ten years) or `none` | The rest of the `Cache-Control` header |
@@ -85,7 +81,7 @@ A path segment that does not match those shapes is kept. An email address, a pho
 | Whether an upload was resumable | Download URLs, signed URLs, access tokens |
 | Error code, at most 64 characters | |
 
-The same warning applies: an object path segment that is not id-shaped, such as a readable file name, stays in the template.
+A static name that is not one of those shapes, such as `photos/room.png`, stays in the template. Other personal data in a static segment is the app's responsibility, the same as on Realtime Database.
 
 ### Authentication
 
@@ -122,7 +118,7 @@ No digest is sent when the payload contains a field transform (`increment`, `ser
 
 ## Findings
 
-A finding carries the rule id, severity, template, session, callsite hash, a message, evidence values and the wasted billing units. The message is one human-readable sentence built from the template and counts, with no identifiers or data values.
+A finding carries the rule id, severity, template, session, callsite hash, the callsite label, a message, evidence values and the wasted billing units. The message is one human-readable sentence built from the template and counts, with no identifiers or data values.
 
 ## Sampling
 
@@ -142,6 +138,6 @@ A finding carries the rule id, severity, template, session, callsite hash, a mes
 - Emails, phone numbers, uids, tokens, claims and verification codes.
 - Callable payloads, function URLs, project ids and auth headers.
 - The hash key and the payload salt.
-- Raw calls, including the plain callsite.
+- Raw calls. The callsite leaves only as a keyed hash plus a label with the URL origin and query string removed.
 
 The field-by-field wire format is in [Raw calls](/docs/reference/raw-calls) and the priced units in [Billing units](/docs/reference/billing-units).

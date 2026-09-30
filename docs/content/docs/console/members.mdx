@@ -25,12 +25,15 @@ role cannot do.
 | Save and reset rule overrides | No | Yes | Yes |
 | View, connect, test, sync and disconnect Google Cloud | No | Yes | Yes |
 | Invite members, list and cancel invitations | No | Yes | Yes |
-| Change member roles, remove members | No | Yes | Yes |
+| Change admin and member roles, remove those members | No | Yes | Yes |
+| Grant the owner role, demote or remove an owner | No | No | Yes |
 | Edit workspace name, slug and logo | No | Yes | Yes |
 | View the audit log | No | Yes | Yes |
 | Delete the workspace | No | No | Yes |
 
-Owners and admins can set any member's role, including `owner`.
+Owners and admins can change admin and member roles and remove those members.
+Only an owner can invite someone as owner, or change or remove an owner. An
+admin's role selector and invite dialog leave the owner option disabled.
 
 A workspace always keeps at least one owner. The API refuses to demote or
 remove the last owner (`409`), and the console disables those options for

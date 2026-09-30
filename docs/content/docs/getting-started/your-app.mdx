@@ -253,7 +253,7 @@ See [Console](/docs/console) for each page.
 
 ## 8. What is sent
 
-A call leaves your app as a path template (`users/{id}/orders`), counts, sizes and keyed hashes. Document fields, snapshot values, filter values, raw ids, object bytes, URLs, tokens, emails, uids and function payloads are not sent. [Privacy](/docs/sdk/privacy) lists every field per service.
+A call leaves your app as a path template (`users/{id}/orders`), counts, sizes, keyed hashes, and a callsite label (the source file and line, without a URL origin or query string). Document fields, snapshot values, filter values, raw ids, object bytes, URLs, tokens, emails, uids and function payloads are not sent. [Privacy](/docs/sdk/privacy) lists every field per service.
 
 To upload only findings and no call events, set `sampleRate: 0`. The value is the fraction of sessions whose events are uploaded, from `0` to `1`, default `1`. Findings are uploaded for every session.
 

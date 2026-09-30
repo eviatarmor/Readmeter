@@ -85,6 +85,7 @@ impl<'a> Emitter<'a> {
             template: env.target.template.clone(),
             session: env.ctx.session,
             callsite: env.ctx.callsite,
+            callsite_label: env.ctx.callsite_label.clone(),
             message: message.into(),
             evidence: VecMap::new(),
             wasted: Units::new(),

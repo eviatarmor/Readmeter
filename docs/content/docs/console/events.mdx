@@ -34,8 +34,10 @@ full value: for a session, copy the id from the sessions table in a
 ## Event detail
 
 Click a row to open a side sheet. The title is the op and template, with the
-service under it. The sheet shows the event id, platform, size and callsite
-(or **No callsite**), followed by a JSON block with the remaining fields:
+service under it. The sheet shows the event id, platform, size and callsite.
+The callsite is the source path when the SDK sent one, the keyed hash when
+only that was stored, or "No callsite". A JSON block follows with the
+remaining fields:
 
 `signals`, `opDetail`, `query`, `durationUs`, `listener`, `mount`, `dev`,
 `attempt`, `targetKey`, `idShape`, `collectionGroup`, `errorCode`, `units`

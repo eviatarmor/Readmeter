@@ -60,6 +60,7 @@ type FindingItem = {
   template: string;
   session: string;
   callsite: string;
+  callsiteLabel: string | null;
   message: string;
   occurrences: number;
   firstSeen: Date;
@@ -245,6 +246,7 @@ export function telemetryRoutes(db: Db, core: ServerCore) {
         op: schema.events.op,
         template: schema.events.template,
         callsite: schema.events.callsite,
+        callsiteLabel: schema.events.callsiteLabel,
         units: schema.events.units,
         items: schema.events.items,
         bytes: schema.events.bytes,
@@ -506,6 +508,7 @@ async function selectFindings(db: Db, where: ReturnType<typeof and>) {
       template: schema.findings.template,
       session: schema.findings.session,
       callsite: schema.findings.callsite,
+      callsiteLabel: schema.findings.callsiteLabel,
       message: schema.findings.message,
       occurrences: schema.findings.occurrences,
       firstSeen: schema.findings.firstSeen,
@@ -846,6 +849,7 @@ async function overview(
   const callsites = await db
     .select({
       callsite: schema.events.callsite,
+      callsiteLabel: sql<string | null>`max(${schema.events.callsiteLabel})`,
       events: sql<number>`count(*)::int`,
     })
     .from(schema.events)

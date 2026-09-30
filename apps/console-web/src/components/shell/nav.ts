@@ -62,4 +62,10 @@ export const pageTitles: Record<string, string> = {
   account: "Profile",
 };
 
-export const DOCS_URL = "https://github.com/eviatarmor/Readmeter";
+const configuredDocsUrl = import.meta.env.VITE_DOCS_URL;
+export const DOCS_URL =
+  typeof configuredDocsUrl === "string" && configuredDocsUrl.length > 0
+    ? configuredDocsUrl
+    : import.meta.env.DEV
+      ? "http://localhost:3100/docs"
+      : "https://github.com/eviatarmor/Readmeter";

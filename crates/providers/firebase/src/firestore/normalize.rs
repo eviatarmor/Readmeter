@@ -151,6 +151,10 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             session: cx.session,
             call_id: raw.call_id,
             callsite: raw.callsite.as_deref().map(|c| cx.hasher.hash_str(c)),
+            callsite_label: raw
+                .callsite
+                .as_deref()
+                .and_then(readmeter_core::callsite_label),
             listener: raw.listener,
             transaction: raw.transaction,
             mount: raw.mount,
@@ -413,11 +417,12 @@ mod tests {
     fn no_raw_values_or_ids_leak() {
         let env = norm(json!({
             "op": "query", "ts_ms": 1, "path": "users/secret-user-id/orders",
-            "callsite": "src/secret/File.tsx:1",
+            "callsite": "https://secret.example/src/File.tsx:1?q=secret",
             "query": {"filters": [{"field": "email", "op": "==", "value": "secret@example.com"}], "start": ["secret-cursor"]}
         }));
         let dump = format!("{env:?}");
         assert!(!dump.contains("secret"), "{dump}");
+        assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/File.tsx:1"));
     }
 
     #[test]
@@ -638,7 +643,7 @@ mod tests {
 
         let leaked = norm(json!({
             "op": "set", "ts_ms": 1, "path": "users/secret-user/orders",
-            "callsite": "src/secret/File.tsx:1",
+            "callsite": "https://secret.example/src/File.tsx:1?q=secret",
             "transaction": 4,
             "write": {
                 "max_field_bytes": 1,

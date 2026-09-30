@@ -26,7 +26,7 @@ The workspace is defined in the root [`Cargo.toml`](https://github.com/eviatarmo
 
 [`crates/core`](https://github.com/eviatarmor/Readmeter/tree/main/crates/core) is the provider-agnostic data model. Nothing in it knows about Firebase or any other provider. Providers turn raw calls into an `Envelope`; rules read envelopes and produce `Finding`s; the `Buffer` batches both for upload.
 
-- `envelope.rs` defines `Envelope` and its parts (`Target`, `QueryShape`, `ResultStats`, `WriteStats`, `CallContext`, `Op`, `Outcome`, and others) and `SCHEMA_VERSION`, currently `2`.
+- `envelope.rs` defines `Envelope` and its parts (`Target`, `QueryShape`, `ResultStats`, `WriteStats`, `CallContext`, `Op`, `Outcome`, and others) and `SCHEMA_VERSION`, currently `3`.
 - `wire.rs` is the upload format: `RM` magic, a little-endian `u16` schema version, then a postcard-encoded `Batch`. Only Rust encodes and decodes it, so SDK shims never touch it.
 - `hash.rs` has `KeyedHasher`, a SipHash-1-3 keyed per project. The key is never sent with events, so hashes of low-entropy values such as emails or small integers cannot be brute forced without it.
 - `buffer.rs` is a bounded queue of events and findings (defaults: 2,000 events, 200 findings). When full it drops the oldest entries and counts them, so memory stays bounded if the host never flushes. It never blocks.
@@ -131,7 +131,7 @@ The bindings expose strings and bytes only.
 
 `bindings/wasm` exposes a `Readmeter` class with `record`, `flush` and `activeRules`. It is the artifact `@readmeter/firebase` ships, and it is size gated.
 
-`bindings/wasm-server` wraps the evaluator for `apps/ingest`. It exports `Evaluator` (`ingest`, `projects`), `catalog_json`, `price_json` (prices a units map as integer USD micros, so no price constants live in TypeScript) and `bundle_with_overrides` (merges project overrides into a `bundle.bin`). Its build script embeds `rules/**/*.toml` and `pricing/**/*.toml`, so the server core needs no filesystem. It never ships to customers and has no size budget.
+`bindings/wasm-server` wraps the evaluator for `apps/ingest`. It exports `Evaluator` (`ingest(project, body, revision, overridesJson)`, `projects`), `catalog_json`, `price_json` (prices a units map as integer USD micros, so no price constants live in TypeScript) and `bundle_with_overrides` (merges project overrides into a `bundle.bin`). `ingest` rebuilds that project's window and aggregate engines when `revision` changes. Its build script embeds `rules/**/*.toml` and `pricing/**/*.toml`, so the server core needs no filesystem. It never ships to customers and has no size budget.
 
 ## Rules the core follows
 
@@ -163,16 +163,16 @@ Do not add heavy dependencies to `core`, `rules`, `provider-api`, providers or `
 
 ```sh
 ./scripts/build-wasm.sh
-# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 93696 B)
+# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 95744 B)
 ```
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BUDGET_GZIP` | `93696` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
+| `BUDGET_GZIP` | `95744` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
 | `FEATURES` | `firebase,database,storage,auth,functions` | Features passed to `readmeter-wasm`. |
 | `OUT` | `target/wasm-pkg` | Output directory. |
 
-The budget is a ratchet: lower it whenever the build shrinks. The last raise was for Cloud Functions, to the measured gzip size (93,498 B) rounded up to the next 256 bytes, with the reason in the script comment. `./scripts/wasm-size-report.sh` breaks the production wasm down by crate before `wasm-opt` (needs `twiggy` and Python).
+The budget is a ratchet: lower it whenever the build shrinks. The last raise was for callsite labels and path redaction, to the measured gzip size (95,712 B) rounded up to the next 256 bytes, with the reason in the script comment. `./scripts/wasm-size-report.sh` breaks the production wasm down by crate before `wasm-opt` (needs `twiggy` and Python).
 
 ### Features: window and aggregate
 

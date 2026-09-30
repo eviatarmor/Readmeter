@@ -244,6 +244,54 @@ test("GET /v1/config returns the project id and hash key", async () => {
   assert.equal((await app.request(new Request("http://x/v1/config"))).status, 401);
 });
 
+test("project overrides disable and retune backend rules", async () => {
+  const missing = (store: MemoryStore) =>
+    store.writes.flatMap((w) => w.ingested.findings).filter((f) => f.rule === "firebase.firestore/missing-cursor");
+
+  const disabled = new MemoryStore({ [KEY]: access("proj_a") });
+  disabled.overrides = [
+    {
+      rule: "firebase.firestore/missing-cursor",
+      enabled: false,
+      severity: null,
+      params: null,
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    },
+  ];
+  const off = await createApp({ core: await core(), store: disabled }).request(post(batch(growingPages), KEY));
+  assert.equal(off.status, 202);
+  assert.equal(missing(disabled).length, 0);
+
+  const raised = new MemoryStore({ [KEY]: access("proj_a") });
+  raised.overrides = [
+    {
+      rule: "firebase.firestore/missing-cursor",
+      enabled: null,
+      severity: null,
+      params: { min_pages: 10 },
+      updatedAt: new Date("2026-01-02T00:00:00Z"),
+    },
+  ];
+  const tuned = await createApp({ core: await core(), store: raised }).request(post(batch(growingPages), KEY));
+  assert.equal(tuned.status, 202);
+  assert.equal(missing(raised).length, 0);
+
+  const lowered = new MemoryStore({ [KEY]: access("proj_a") });
+  lowered.overrides = [
+    {
+      rule: "firebase.firestore/missing-cursor",
+      enabled: null,
+      severity: "low",
+      params: null,
+      updatedAt: new Date("2026-01-03T00:00:00Z"),
+    },
+  ];
+  const sev = await createApp({ core: await core(), store: lowered }).request(post(batch(growingPages), KEY));
+  assert.equal(sev.status, 202);
+  assert.equal(missing(lowered).length, 1);
+  assert.equal(missing(lowered)[0]?.severity, "low");
+});
+
 test("collapseFindings merges repeats of one dedupe key", () => {
   const f = (ts_ms: number, callsite: string | null, message = "m") => ({
     rule: "r",
@@ -255,6 +303,7 @@ test("collapseFindings merges repeats of one dedupe key", () => {
     template: "t",
     session: "s1",
     callsite,
+    callsite_label: null,
     message,
     evidence: {},
     wasted: {},

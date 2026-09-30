@@ -141,6 +141,20 @@ Read in [`apps/console-api/src/env.ts`](https://github.com/eviatarmor/Readmeter/
   }}
 />
 
+## console-web
+
+The console UI is a Vite app ([`apps/console-web`](https://github.com/eviatarmor/Readmeter/blob/main/apps/console-web)). These values are read at build time. A name has to start with `VITE_` or the client bundle cannot see it.
+
+<TypeTable
+  type={{
+    VITE_DOCS_URL: {
+      type: "string",
+      description: "Documentation link in the sidebar, the navbar and the integrations page. When unset, `vite dev` uses the local docs site and a production build uses the GitHub repository README.",
+      default: "http://localhost:3100/docs in dev, https://github.com/eviatarmor/Readmeter in a production build",
+    },
+  }}
+/>
+
 ## connector-gcp
 
 Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/env.ts). The worker has no HTTP port.

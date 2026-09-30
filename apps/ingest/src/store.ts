@@ -18,6 +18,7 @@ export interface StoredOverride {
   enabled: boolean | null;
   severity: string | null;
   params: Record<string, number | boolean | string> | null;
+  updatedAt: Date;
 }
 
 export interface Store {
@@ -29,7 +30,7 @@ export interface Store {
   ruleOverrides(projectId: string): Promise<StoredOverride[]>;
 }
 
-// Postgres caps a statement at 65535 bind parameters; events have ~29 columns.
+// Postgres caps a statement at 65535 bind parameters; events have ~30 columns.
 const EVENT_CHUNK = 1_000;
 const KEY_CACHE_TTL_MS = 30_000;
 const KEY_CACHE_MAX = 10_000;
@@ -53,6 +54,16 @@ export function collapseFindings(findings: FindingRow[]) {
     }
   }
   return [...byKey.values()];
+}
+
+/** `count:max(updated_at)`. Deleting a row changes the count even when the max stays put. */
+export function overridesRevision(rows: { updatedAt: Date }[]): string {
+  let max = 0;
+  for (const row of rows) {
+    const t = row.updatedAt.getTime();
+    if (Number.isFinite(t) && t > max) max = t;
+  }
+  return `${rows.length}:${max}`;
 }
 
 export class PgStore implements Store {
@@ -103,6 +114,7 @@ export class PgStore implements Store {
         enabled: schema.ruleOverrides.enabled,
         severity: schema.ruleOverrides.severity,
         params: schema.ruleOverrides.params,
+        updatedAt: schema.ruleOverrides.updatedAt,
       })
       .from(schema.ruleOverrides)
       .where(eq(schema.ruleOverrides.projectId, projectId));
@@ -171,6 +183,7 @@ export class PgStore implements Store {
             durationUs: e.duration_us,
             callId: e.call_id,
             callsite: e.callsite,
+            callsiteLabel: e.callsite_label,
             listener: e.listener,
             mount: e.mount,
             platform: e.platform,
@@ -198,6 +211,7 @@ export class PgStore implements Store {
             template: row.template,
             session: row.session,
             callsite: row.callsite ?? "",
+            callsiteLabel: row.callsite_label,
             message: row.message,
             evidence: row.evidence,
             wasted: row.wasted,
@@ -214,6 +228,7 @@ export class PgStore implements Store {
             lastSeen: sql`greatest(${f.lastSeen}, excluded.last_seen)`,
             severity: sql`excluded.severity`,
             message: sql`excluded.message`,
+            callsiteLabel: sql`excluded.callsite_label`,
             evidence: sql`excluded.evidence`,
             wasted: sql`excluded.wasted`,
           },

@@ -26,6 +26,7 @@ export interface IssueGroup {
   template: string;
   session: string;
   callsite: string;
+  callsiteLabel: string | null;
   message: string;
   occurrences: number;
   sessions: number;
@@ -180,6 +181,7 @@ type GroupSqlRow = {
   rule: string;
   template: string;
   callsite: string;
+  callsite_label: string | null;
   sessions: number | string;
   occurrences: number | string;
   first_seen: Date | string;
@@ -209,6 +211,7 @@ function groupedSql(where: SQL): SQL {
       sum(${schema.findings.occurrences})::int as occurrences,
       min(${schema.findings.firstSeen}) as first_seen,
       max(${schema.findings.lastSeen}) as last_seen,
+      (array_agg(${schema.findings.callsiteLabel} order by ${schema.findings.lastSeen} desc, ${schema.findings.id} desc))[1] as callsite_label,
       (array_agg(${schema.findings.message} order by ${schema.findings.lastSeen} desc, ${schema.findings.id} desc))[1] as message,
       (array_agg(${schema.findings.severity} order by ${schema.findings.lastSeen} desc, ${schema.findings.id} desc))[1] as severity,
       (array_agg(${schema.findings.provider} order by ${schema.findings.lastSeen} desc, ${schema.findings.id} desc))[1] as provider,
@@ -266,6 +269,7 @@ function mapGroup(row: GroupSqlRow): IssueGroup {
     template: row.template,
     session: row.session,
     callsite: row.callsite,
+    callsiteLabel: row.callsite_label,
     message: row.message,
     occurrences: Number(row.occurrences),
     sessions: Number(row.sessions),

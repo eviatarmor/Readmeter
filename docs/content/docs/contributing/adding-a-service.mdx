@@ -73,7 +73,7 @@ fn no_raw_values_or_ids_leak() {
         "op": "list",
         "ts_ms": 1,
         "path": "users/secretUserId99abcd/secretFileId99abcd.jpg",
-        "callsite": "src/secret/File.tsx:1",
+        "callsite": "https://secret.example/src/File.tsx:1?q=secret",
         "ext": "../../secret-ext",
         "content_type": "<script>alert(1)</script>",
         "cache_control": "max-age=secret",

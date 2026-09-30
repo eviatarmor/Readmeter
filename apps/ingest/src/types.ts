@@ -32,6 +32,7 @@ export interface EventRow {
   duration_us: number | null;
   call_id: string;
   callsite: string | null;
+  callsite_label: string | null;
   listener: string | null;
   mount: string | null;
   platform: string;
@@ -52,6 +53,7 @@ export interface FindingRow {
   template: string;
   session: string;
   callsite: string | null;
+  callsite_label: string | null;
   message: string;
   evidence: Record<string, unknown>;
   wasted: Units;

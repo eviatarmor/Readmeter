@@ -4,7 +4,7 @@
 //! ```js
 //! const ev = new Evaluator(bundleJson, 10000, 1000);
 //! try {
-//!   const { batch, events, findings } = JSON.parse(ev.ingest(projectId, body));
+//!   const { batch, events, findings } = JSON.parse(ev.ingest(projectId, body, revision, overridesJson));
 //! } catch (e) {
 //!   // e.message is "<code>: <detail>", code in bad_batch | batch_too_large | internal
 //! }
@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 
 use readmeter_cost::PriceTable;
 use readmeter_evaluator::{Evaluator as Inner, Limits};
-use readmeter_rules::{Bundle, Catalog, RuleOverride};
+use readmeter_rules::{Bundle, Catalog, RuleConfig, RuleOverride};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -52,10 +52,22 @@ impl Evaluator {
     /// Decodes one SDK batch, runs window and aggregate rules for `project`
     /// and returns `{batch, events, findings}` as JSON. Hashes are 16-char
     /// hex strings. Aggregate findings use session `"*"`.
-    pub fn ingest(&mut self, project: &str, body: &[u8]) -> Result<String, JsError> {
+    ///
+    /// `revision` is the project's override revision. Engines for `project`
+    /// are rebuilt only when it changes. `overrides_json` is a map of rule
+    /// id to `{enabled?, severity?, params?}`; `{}` keeps the bundle defaults.
+    pub fn ingest(
+        &mut self,
+        project: &str,
+        body: &[u8],
+        revision: &str,
+        overrides_json: &str,
+    ) -> Result<String, JsError> {
+        let config = merge_overrides(self.inner.config(), overrides_json)
+            .map_err(|e| JsError::new(&format!("internal: {e}")))?;
         let out = self
             .inner
-            .ingest(project, body, self.limits)
+            .ingest_with_overrides(project, body, self.limits, revision, &config)
             .map_err(|e| JsError::new(&format!("{}: {e}", e.code())))?;
         serde_json::to_string(&out).map_err(|e| JsError::new(&format!("internal: {e}")))
     }
@@ -175,6 +187,19 @@ fn dollars_to_micros(dollars: f64) -> i64 {
     } else {
         micros.round() as i64
     }
+}
+
+fn merge_overrides(base: &RuleConfig, overrides_json: &str) -> Result<RuleConfig, String> {
+    let incoming: BTreeMap<String, RuleOverride> =
+        serde_json::from_str(overrides_json).map_err(|e| format!("overrides: {e}"))?;
+    if incoming.is_empty() {
+        return Ok(base.clone());
+    }
+    let mut config = base.clone();
+    for (id, ov) in incoming {
+        config.overrides.insert(id, ov);
+    }
+    Ok(config)
 }
 
 fn bundle_with_overrides_inner(bytes: &[u8], overrides_json: &str) -> Result<Vec<u8>, String> {

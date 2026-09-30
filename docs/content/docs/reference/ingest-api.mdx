@@ -92,7 +92,7 @@ The checks run in this order, and the first failure answers:
 5. The Rust core decodes the batch (`400 bad_batch`), checks the event and finding counts (`413 batch_too_large`), and runs `window` and `aggregate` rules for the project.
 6. One Postgres transaction inserts the batch row, the events in chunks of 1,000, and upserts the findings (`500 internal` if it fails).
 
-Findings that share project, rule, session, callsite and template are merged: `occurrences` is summed, `first_seen` and `last_seen` are widened, and severity, message, evidence and wasted units take the latest values.
+Findings that share project, rule, session, callsite and template are merged: `occurrences` is summed, `first_seen` and `last_seen` are widened, and severity, message, evidence, wasted units and the callsite label take the latest values. Window and aggregate rules run with the project's rule overrides. Ingest loads those overrides on each batch and rebuilds that project's rule state when they change.
 
 ### Response
 

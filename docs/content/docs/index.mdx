@@ -35,7 +35,7 @@ The console shows findings, the calls that were ingested, and estimated cost in 
 
 ## What is sent
 
-Anything that leaves your app is a path template, a count, a size, or a keyed hash. Document fields, snapshot values, filter values and raw ids stay in the process. Firestore queries are sent as a shape: field names and operators, limits, whether a cursor or offset is used. Writes add payload sizes, the names of field transforms such as `increment`, and a payload hash salted per session so equal payloads cannot be matched across sessions. Cloud Storage never sends object bytes, URLs or tokens. Authentication never sends emails, phone numbers, uids, tokens, claims or verification codes. Cloud Functions never sends payloads, URLs, project ids, tokens or auth headers.
+Anything that leaves your app is a path template, a count, a size, a keyed hash, or a callsite label with the URL origin and query string removed. Document fields, snapshot values, filter values and raw ids stay in the process. Firestore queries are sent as a shape: field names and operators, limits, whether a cursor or offset is used. Writes add payload sizes, the names of field transforms such as `increment`, and a payload hash salted per session so equal payloads cannot be matched across sessions. Cloud Storage never sends object bytes, URLs or tokens. Authentication never sends emails, phone numbers, uids, tokens, claims or verification codes. Cloud Functions never sends payloads, URLs, project ids, tokens or auth headers.
 
 The full list per service is on [Privacy](/docs/sdk/privacy).
 

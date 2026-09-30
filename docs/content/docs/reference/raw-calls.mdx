@@ -5,7 +5,7 @@ description: The JSON object an SDK passes to the Rust core for each recorded ca
 
 A raw call is the JSON object an SDK hands to the Rust core (`Client::record` in [`crates/runtime`](https://github.com/eviatarmor/Readmeter/blob/main/crates/runtime/src/lib.rs)) after a Firebase call returns. In `@readmeter/firebase`, the drop-in wrappers and [`sink`](/docs/sdk/sink) build these objects for you. This page is for writing or debugging an SDK.
 
-Raw calls stay inside the process. They may carry concrete paths, filter values, cursors and page tokens, because the core needs them to build templates and hashes. None of that leaves the process: normalization turns each raw call into an envelope that holds only templates, counts, sizes and keyed hashes. See [Privacy](/docs/sdk/privacy) for what the envelope keeps.
+Raw calls stay inside the process. They may carry concrete paths, filter values, cursors and page tokens, because the core needs them to build templates and hashes. Normalization turns each raw call into an envelope that holds templates, counts, sizes, keyed hashes, and a callsite label with the URL origin and query string removed. See [Privacy](/docs/sdk/privacy) for what the envelope keeps.
 
 ## Parsing rules
 
@@ -27,7 +27,7 @@ The session, platform, `dev` flag and hash key are not part of a raw call. They 
 | `op` | string | yes | Operation, per service below |
 | `ts_ms` | integer | yes | Unix time in milliseconds |
 | `call_id` | integer | no, default `0` | Per-session call id. Later records (`snapshot`, `usage`) refer back to it |
-| `callsite` | string | no | Source location such as `src/Feed.tsx:42:7`. Only its keyed hash leaves the process |
+| `callsite` | string | no | Source location such as `src/Feed.tsx:42:7` or `https://app.example.com/assets/index-abc.js:1:2345?v=1`. The envelope keeps a keyed hash and a label: `assets/index-abc.js:1:2345`, or `src/Feed.tsx:42:7` from `webpack-internal:///./src/Feed.tsx:42:7`. The label drops the URL origin and query string |
 | `duration_us` | integer | no | Call duration in microseconds |
 | `error` | string | no | Error code of a failed call. Failed calls bill nothing, except Cloud Functions invocations |
 | `attempt` | integer | no, default `1` | `1` for the first try, higher for retries |

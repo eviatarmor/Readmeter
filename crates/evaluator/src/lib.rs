@@ -34,7 +34,9 @@ use std::collections::{HashMap, HashSet};
 
 use readmeter_core::{Batch, Finding, WireError};
 use readmeter_provider_api::Provider;
-use readmeter_rules::{Bundle, CatalogError, Engine, EngineError, Evaluation, Registry};
+use readmeter_rules::{
+    Bundle, CatalogError, Engine, EngineError, Evaluation, Registry, RuleConfig,
+};
 use serde::Serialize;
 
 pub mod rows;
@@ -110,6 +112,9 @@ pub struct Ingested {
 
 struct ProjectEngines {
     last_used: u64,
+    /// Override revision this pair was built from. A different revision
+    /// rebuilds both engines and drops that project's window state.
+    revision: String,
     window: Engine,
     aggregate: Engine,
 }
@@ -172,33 +177,36 @@ impl Evaluator {
         )
     }
 
+    /// Bundle defaults. Overrides are layered on a clone of this.
+    pub fn config(&self) -> &RuleConfig {
+        &self.bundle.config
+    }
+
     /// Runs window rules, then aggregate rules, over every event in order.
+    /// Uses the bundle's default config and a stable revision, so repeated
+    /// calls keep the project's window state.
     pub fn process(
         &mut self,
         project: &str,
         batch: &Batch,
     ) -> Result<Vec<Finding>, EvaluatorError> {
-        self.clock += 1;
-        let clock = self.clock;
-        if !self.engines.contains_key(project) {
-            if self.engines.len() >= self.max_projects {
-                self.evict_oldest();
-            }
-            let window = self.build_engine(&[Evaluation::Window])?;
-            let aggregate = self.build_engine(&[Evaluation::Aggregate])?;
-            self.engines.insert(
-                project.to_owned(),
-                ProjectEngines {
-                    last_used: clock,
-                    window,
-                    aggregate,
-                },
-            );
-        }
+        let config = self.bundle.config.clone();
+        self.process_configured(project, batch, "", &config)
+    }
+
+    /// Like [`process`](Self::process), but builds this project's engines
+    /// from `config` and rebuilds them when `revision` changes.
+    pub fn process_configured(
+        &mut self,
+        project: &str,
+        batch: &Batch,
+        revision: &str,
+        config: &RuleConfig,
+    ) -> Result<Vec<Finding>, EvaluatorError> {
+        self.ensure(project, revision, config)?;
         let Some(slot) = self.engines.get_mut(project) else {
             return Ok(Vec::new());
         };
-        slot.last_used = clock;
         let mut out = Vec::new();
         for event in &batch.events {
             out.extend(slot.window.observe(event));
@@ -210,12 +218,26 @@ impl Evaluator {
     /// Decodes `bytes`, checks `limits`, runs window and aggregate rules
     /// for `project` and returns rows for storage. Rejected batches do not
     /// touch detector state. Aggregate findings are stored with session
-    /// `"*"`.
+    /// `"*"`. Uses the bundle's default config.
     pub fn ingest(
         &mut self,
         project: &str,
         bytes: &[u8],
         limits: Limits,
+    ) -> Result<Ingested, IngestError> {
+        let config = self.bundle.config.clone();
+        self.ingest_with_overrides(project, bytes, limits, "", &config)
+    }
+
+    /// Like [`ingest`](Self::ingest), with project overrides applied when
+    /// `revision` differs from the engines already held for `project`.
+    pub fn ingest_with_overrides(
+        &mut self,
+        project: &str,
+        bytes: &[u8],
+        limits: Limits,
+        revision: &str,
+        config: &RuleConfig,
     ) -> Result<Ingested, IngestError> {
         let batch = Batch::decode(bytes)?;
         for (what, count, limit) in [
@@ -227,7 +249,7 @@ impl Evaluator {
             }
         }
         self.max_projects = limits.max_projects.max(1);
-        let found = self.process(project, &batch)?;
+        let found = self.process_configured(project, &batch, revision, config)?;
         let findings = batch
             .findings
             .iter()
@@ -246,6 +268,53 @@ impl Evaluator {
             events: batch.events.iter().map(EventRow::from_envelope).collect(),
             findings,
         })
+    }
+
+    /// Builds engines before inserting them. A bad config leaves the
+    /// previous pair in place.
+    fn ensure(
+        &mut self,
+        project: &str,
+        revision: &str,
+        config: &RuleConfig,
+    ) -> Result<(), EngineError> {
+        self.clock += 1;
+        let clock = self.clock;
+        let rebuild = match self.engines.get(project) {
+            Some(slot) => slot.revision != revision,
+            None => true,
+        };
+        if !rebuild {
+            if let Some(slot) = self.engines.get_mut(project) {
+                slot.last_used = clock;
+            }
+            return Ok(());
+        }
+        let window = Engine::build(
+            &self.bundle.rules,
+            config,
+            &self.registry,
+            &[Evaluation::Window],
+        )?;
+        let aggregate = Engine::build(
+            &self.bundle.rules,
+            config,
+            &self.registry,
+            &[Evaluation::Aggregate],
+        )?;
+        if !self.engines.contains_key(project) && self.engines.len() >= self.max_projects {
+            self.evict_oldest();
+        }
+        self.engines.insert(
+            project.to_owned(),
+            ProjectEngines {
+                last_used: clock,
+                revision: revision.to_owned(),
+                window,
+                aggregate,
+            },
+        );
+        Ok(())
     }
 
     pub fn projects(&self) -> usize {
@@ -430,5 +499,131 @@ mod tests {
         assert_eq!(found[0].source, "evaluator");
         assert!(broadcast(&mut ev, "b", 41).is_empty());
         assert!(broadcast(&mut ev, "a", 51).is_empty());
+    }
+
+    fn page(batch: &Batch, index: usize) -> Batch {
+        Batch {
+            events: vec![batch.events[index].clone()],
+            ..batch.clone()
+        }
+    }
+
+    fn cursor_rule(
+        enabled: Option<bool>,
+        severity: Option<readmeter_core::Severity>,
+        min_pages: Option<i64>,
+    ) -> readmeter_rules::RuleOverride {
+        let mut params = readmeter_core::VecMap::new();
+        if let Some(n) = min_pages {
+            params.insert("min_pages", readmeter_rules::ParamValue::Int(n));
+        }
+        readmeter_rules::RuleOverride {
+            enabled,
+            severity,
+            params,
+        }
+    }
+
+    fn config_with(ev: &Evaluator, ov: readmeter_rules::RuleOverride) -> RuleConfig {
+        let mut config = ev.config().clone();
+        config
+            .overrides
+            .insert("firebase.firestore/missing-cursor", ov);
+        config
+    }
+
+    #[test]
+    fn same_revision_keeps_window_state() {
+        let mut ev = Evaluator::with_all_providers(bundle()).unwrap();
+        let batch = batch_with_growing_limits(1);
+        let config = ev.config().clone();
+        assert!(
+            ev.process_configured("p", &page(&batch, 0), "r1", &config)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            ev.process_configured("p", &page(&batch, 1), "r1", &config)
+                .unwrap()
+                .is_empty()
+        );
+        let third = ev
+            .process_configured("p", &page(&batch, 2), "r1", &config)
+            .unwrap();
+        assert!(
+            third
+                .iter()
+                .any(|f| f.rule == "firebase.firestore/missing-cursor")
+        );
+    }
+
+    #[test]
+    fn revision_change_rebuilds_and_drops_the_window() {
+        let mut ev = Evaluator::with_all_providers(bundle()).unwrap();
+        let batch = batch_with_growing_limits(1);
+        let config = ev.config().clone();
+        assert!(
+            ev.process_configured("p", &page(&batch, 0), "r1", &config)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            ev.process_configured("p", &page(&batch, 1), "r1", &config)
+                .unwrap()
+                .is_empty()
+        );
+        let disabled = config_with(&ev, cursor_rule(Some(false), None, None));
+        let third = ev
+            .process_configured("p", &page(&batch, 2), "r2", &disabled)
+            .unwrap();
+        assert!(
+            third
+                .iter()
+                .all(|f| f.rule != "firebase.firestore/missing-cursor")
+        );
+    }
+
+    #[test]
+    fn disabled_override_emits_no_backend_finding() {
+        let mut ev = Evaluator::with_all_providers(bundle()).unwrap();
+        let batch = batch_with_growing_limits(1);
+        let config = config_with(&ev, cursor_rule(Some(false), None, None));
+        let found = ev.process_configured("p", &batch, "off", &config).unwrap();
+        assert!(
+            found
+                .iter()
+                .all(|f| f.rule != "firebase.firestore/missing-cursor")
+        );
+    }
+
+    #[test]
+    fn param_override_changes_the_threshold() {
+        let mut ev = Evaluator::with_all_providers(bundle()).unwrap();
+        let batch = batch_with_growing_limits(1);
+        let config = config_with(&ev, cursor_rule(None, None, Some(10)));
+        let found = ev
+            .process_configured("p", &batch, "pages", &config)
+            .unwrap();
+        assert!(
+            found
+                .iter()
+                .all(|f| f.rule != "firebase.firestore/missing-cursor")
+        );
+    }
+
+    #[test]
+    fn severity_override_is_what_gets_stored() {
+        let mut ev = Evaluator::with_all_providers(bundle()).unwrap();
+        let batch = batch_with_growing_limits(1);
+        let config = config_with(
+            &ev,
+            cursor_rule(None, Some(readmeter_core::Severity::Low), None),
+        );
+        let found = ev.process_configured("p", &batch, "sev", &config).unwrap();
+        let hit = found
+            .iter()
+            .find(|f| f.rule == "firebase.firestore/missing-cursor")
+            .unwrap();
+        assert_eq!(hit.severity, readmeter_core::Severity::Low);
     }
 }

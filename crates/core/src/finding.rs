@@ -79,6 +79,8 @@ pub struct Finding {
     pub template: String,
     pub session: u64,
     pub callsite: Option<u64>,
+    /// Label copied from the envelope that anchored this finding.
+    pub callsite_label: Option<String>,
     /// Human-readable, one sentence, no identifiers or values.
     pub message: String,
     pub evidence: VecMap<Scalar>,

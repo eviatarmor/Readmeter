@@ -52,6 +52,7 @@ pub struct EventRow {
     pub duration_us: Option<u64>,
     pub call_id: String,
     pub callsite: Option<String>,
+    pub callsite_label: Option<String>,
     pub listener: Option<String>,
     pub mount: Option<String>,
     pub platform: Value,
@@ -75,6 +76,7 @@ pub struct FindingRow {
     pub template: String,
     pub session: String,
     pub callsite: Option<String>,
+    pub callsite_label: Option<String>,
     pub message: String,
     pub evidence: Value,
     pub wasted: Value,
@@ -155,6 +157,7 @@ impl EventRow {
             duration_us: e.duration_us,
             call_id: hex(e.ctx.call_id),
             callsite: e.ctx.callsite.map(hex),
+            callsite_label: e.ctx.callsite_label.clone(),
             listener: e.ctx.listener.map(hex),
             mount: e.ctx.mount.map(hex),
             platform: to_value(&e.ctx.platform),
@@ -261,6 +264,7 @@ impl FindingRow {
             template: f.template.clone(),
             session,
             callsite: f.callsite.map(hex),
+            callsite_label: f.callsite_label.clone(),
             message: f.message.clone(),
             evidence: Value::Object(
                 f.evidence

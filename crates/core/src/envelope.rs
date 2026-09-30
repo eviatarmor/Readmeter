@@ -7,7 +7,7 @@ use crate::units::Units;
 /// Nothing has shipped yet, so ingest decodes only this version and rejects
 /// every other one with [`crate::WireError::UnsupportedVersion`]. Bump on any
 /// breaking change to the serialized shape.
-pub const SCHEMA_VERSION: u16 = 2;
+pub const SCHEMA_VERSION: u16 = 3;
 
 /// One normalized backend call. This is the only shape rules and the backend
 /// ever see. It never contains document contents or filter values, only
@@ -227,6 +227,9 @@ pub struct CallContext {
     pub call_id: u64,
     /// Hash of the source location that issued the call, when known.
     pub callsite: Option<u64>,
+    /// Source path with the URL origin and query string removed.
+    /// The hash stays the grouping key.
+    pub callsite_label: Option<String>,
     /// Subscription id for Subscribe/Snapshot/Unsubscribe.
     pub listener: Option<u64>,
     /// Per-session id of the transaction this call belongs to.

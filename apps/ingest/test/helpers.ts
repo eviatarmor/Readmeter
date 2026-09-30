@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { loadCore, type CoreOptions } from "../src/core.ts";
-import type { ProjectAccess, Store } from "../src/store.ts";
+import type { ProjectAccess, StoredOverride, Store } from "../src/store.ts";
 import type { Ingested } from "../src/types.ts";
 
 const root = new URL("../../../", import.meta.url);
@@ -70,6 +70,7 @@ export function access(projectId: string, allowedOrigins: string[] = [], hashKey
 
 export class MemoryStore implements Store {
   readonly writes: { project: string; ingested: Ingested }[] = [];
+  overrides: StoredOverride[] = [];
   constructor(
     private readonly keys: Record<string, ProjectAccess>,
     private readonly delay?: Promise<void>,
@@ -82,6 +83,6 @@ export class MemoryStore implements Store {
     this.writes.push({ project, ingested });
   }
   async ruleOverrides() {
-    return [];
+    return this.overrides;
   }
 }

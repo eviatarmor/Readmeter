@@ -180,7 +180,7 @@ export function OverviewPage({ slug, search }: { slug: string; search: Workspace
         />
         <SimpleTable
           title="Top callsites"
-          rows={data.topCallsites.map((row) => [row.callsite ?? "—", formatCount(row.events)])}
+          rows={data.topCallsites.map((row) => [row.callsiteLabel || row.callsite || "—", formatCount(row.events)])}
         />
       </div>
       <Card>
@@ -298,7 +298,9 @@ function SimpleTable({ title, rows }: { title: string; rows: [string, string][] 
             ) : (
               rows.map((row) => (
                 <TableRow key={row[0]}>
-                  <TableCell className="max-w-xs truncate font-mono text-xs">{row[0]}</TableCell>
+                  <TableCell className="max-w-xs truncate font-mono text-xs" title={row[0]}>
+                    {row[0]}
+                  </TableCell>
                   <TableCell className="text-right">{row[1]}</TableCell>
                 </TableRow>
               ))

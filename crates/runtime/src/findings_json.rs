@@ -110,6 +110,7 @@ mod tests {
             template: "users/{id}".into(),
             session: 1,
             callsite: None,
+            callsite_label: None,
             message: message.into(),
             evidence,
             wasted: Units::new().with("reads", 3).with("writes", 1),

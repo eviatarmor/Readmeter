@@ -6,6 +6,7 @@
 //! wire.
 
 pub mod buffer;
+pub mod callsite;
 pub mod envelope;
 pub mod finding;
 pub mod hash;
@@ -14,6 +15,7 @@ pub mod units;
 pub mod wire;
 
 pub use buffer::{Buffer, BufferConfig, Sampler};
+pub use callsite::callsite_label;
 pub use envelope::{
     CacheKind, CallContext, ClientSetup, Envelope, FilterShape, IdShape, Op, OrderShape, Outcome,
     Platform, QueryShape, ReadSource, ResultStats, ResultUsage, SCHEMA_VERSION, Target, WriteStats,

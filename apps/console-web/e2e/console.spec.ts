@@ -87,6 +87,24 @@ test("console covers overview, findings, keys, invites, and the sidebar", async 
   expect(box?.width ?? 999).toBeLessThan(48);
 });
 
+test("toggling a rule survives reload", async ({ page }) => {
+  await signIn(page);
+  const filters = encodeURIComponent(
+    JSON.stringify([{ id: "title", value: "Same request", variant: "text", operator: "iLike", filterId: "e2e" }]),
+  );
+  await page.goto(`/w/local/rules?project=demo_local&range=7d&rfilters=${filters}`);
+  const toggle = page.getByRole("switch", { name: "Enable generic/duplicate-read" });
+  await expect(toggle).toBeVisible();
+  const before = (await toggle.getAttribute("aria-checked")) === "true";
+  await toggle.click();
+  await expect(page.getByText("Override saved")).toBeVisible();
+  await page.reload();
+  const again = page.getByRole("switch", { name: "Enable generic/duplicate-read" });
+  await expect(again).toHaveAttribute("aria-checked", before ? "false" : "true");
+  await again.click();
+  await expect(page.getByText("Override saved")).toBeVisible();
+});
+
 test("gcp wizard shows a failed check, then billed costs", async ({ page }) => {
   await signIn(page);
   await page.goto("/w/local/integrations?project=demo_local&range=7d");

@@ -15,6 +15,12 @@ import { formatBytes, formatCount } from "@/lib/format-value";
 import { ServiceName, serviceOptions } from "@/lib/services";
 import type { WorkspaceSearch } from "@/lib/workspace-search";
 
+function callsiteText(label: string | null | undefined, hash: string | null | undefined): string {
+  if (label && label.length > 0) return label;
+  if (hash && hash.length > 0) return hash;
+  return "";
+}
+
 export function EventsPage({ slug, search }: { slug: string; search: WorkspaceSearch }) {
   const query = useEvents(slug, search.project, search.range);
   const [selected, setSelected] = React.useState<TelemetryEvent | null>(null);
@@ -44,7 +50,12 @@ export function EventsPage({ slug, search }: { slug: string; search: WorkspaceSe
               <p>
                 <Mono>{selected.id}</Mono> · {selected.platform} · {formatBytes(selected.bytes ?? 0)}
               </p>
-              <p className="text-muted-foreground">{selected.callsite ?? "No callsite"}</p>
+              <p
+                className="truncate font-mono text-xs text-muted-foreground"
+                title={callsiteText(selected.callsiteLabel, selected.callsite)}
+              >
+                {selected.callsiteLabel || selected.callsite ? callsiteText(selected.callsiteLabel, selected.callsite) : "No callsite"}
+              </p>
               <pre className="overflow-auto rounded-lg border bg-muted/40 p-3 text-xs">
                 {JSON.stringify(
                   {

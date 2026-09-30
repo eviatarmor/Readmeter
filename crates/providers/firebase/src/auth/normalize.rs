@@ -94,6 +94,10 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             session: cx.session,
             call_id: raw.call_id,
             callsite: raw.callsite.as_deref().map(|c| cx.hasher.hash_str(c)),
+            callsite_label: raw
+                .callsite
+                .as_deref()
+                .and_then(readmeter_core::callsite_label),
             listener,
             transaction: invocation,
             mount: None,
@@ -364,7 +368,7 @@ mod tests {
             "op": "sign_in",
             "method": "leak.check@example.com",
             "ts_ms": 1,
-            "callsite": "src/leak.check@example.com:1",
+            "callsite": "https://leak.check@example.com/src/Auth.tsx:1?phone=+15555550123",
             "error": "auth/UidShouldNotLeak99abcd",
             "page_token": "eyJhbGciOiJIUzI1NiJ9.payload.sig",
             "provider": "leak.check@example.com",
@@ -384,6 +388,7 @@ mod tests {
         ] {
             assert!(!dump.contains(secret), "{secret} in {dump}");
         }
+        assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/Auth.tsx:1"));
         assert_eq!(env.target.template, "auth/unknown");
         assert!(env.outcome.is_error());
         assert_eq!(attr(&env, "provider"), None);
