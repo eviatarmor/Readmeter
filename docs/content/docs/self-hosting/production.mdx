@@ -1,9 +1,54 @@
 ---
 title: Production
-description: Build the server core and the console, prepare Postgres, set the secrets and run the services behind TLS.
+description: Deploy the self-hosted Docker stack, or build the services from source and run them behind TLS.
 ---
 
-The repository has no Dockerfiles or deployment manifests. A deployment runs the same Node processes as the local setup, with `tsx` and no TypeScript build step, plus three build artifacts that are not checked in: the rule bundle, the server core and the built console. This page covers what the code needs from you. How you supervise the processes (systemd, containers, a process manager) is up to you.
+Readmeter runs on your own infrastructure. Release images include the rule bundle, Rust server core, built console, and Node services. Use the production Compose stack below, or build from source and supervise the processes yourself.
+
+## Docker deployment
+
+The image `ghcr.io/eviatarmor/readmeter` supports Linux amd64 and arm64. It has four commands: `console` (the default, including the web console), `ingest`, `migrate`, and `connector-gcp`.
+
+From a checkout, copy the environment template:
+
+```sh
+cp deploy/.env.example deploy/.env
+```
+
+Set `POSTGRES_PASSWORD` to a random URL-safe password and `BETTER_AUTH_SECRET` to a random secret of at least 32 characters. Generate the auth secret with `openssl rand -base64 32`. Set `CONSOLE_ORIGIN` and `INGEST_PUBLIC_URL` to your public URLs. Generate a separate `READMETER_SECRET_KEY` with the same command if you use Google Cloud sync; preserve it across upgrades.
+
+Pin `READMETER_IMAGE` to the version you want, for example `ghcr.io/eviatarmor/readmeter:0.1.0`, then start the stack:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yml up -d
+```
+
+Compose waits for Postgres, runs Drizzle migrations once, then starts console and ingest. Postgres has a persistent volume and no public port. HTTP ports bind to `127.0.0.1` by default; put a TLS reverse proxy on the host in front of them. Set `CONSOLE_BIND` and `INGEST_BIND` to `0.0.0.0` if your proxy needs remote access. The console is at port 8091 and ingest at 8090.
+
+Open the console, sign up, create a workspace and project, and generate an API key. The production stack does not seed demo accounts or keys. Install `@readmeter/firebase` from npm and point it at your ingest URL. Before the first release is published, build the image locally:
+
+```sh
+docker build -t readmeter:local .
+# Set READMETER_IMAGE=readmeter:local in deploy/.env, then run Compose.
+```
+
+Enable Google Cloud sync with the optional profile:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yml --profile gcp up -d
+```
+
+For an upgrade, back up Postgres and the secrets, change the pinned image version, pull the new image, and stop the services before migrating:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/compose.yml pull
+docker compose --env-file deploy/.env -f deploy/compose.yml --profile gcp stop console ingest connector-gcp
+docker compose --env-file deploy/.env -f deploy/compose.yml run --rm migrate
+docker compose --env-file deploy/.env -f deploy/compose.yml up -d --force-recreate
+# Include --profile gcp on the last command if you use the worker.
+```
+
+GitHub Releases include `compose.yml`, `readmeter.env.example`, and checksums so deployments can use those files without cloning the source. Rename the environment file to `.env` and run `docker compose --env-file .env -f compose.yml up -d` in that directory. See [release setup](https://github.com/eviatarmor/Readmeter/blob/main/RELEASING.md) for publishing instructions.
 
 ## Build
 

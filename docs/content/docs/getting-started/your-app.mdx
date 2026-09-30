@@ -62,9 +62,9 @@ The key is shown once, in the dialog that follows. Copy it and replace `YOUR_API
 
 The API key is a secret: anyone with it can send data to your project. The hash key only keys the hashes the SDK computes, and ingest hands it to any client that presents a valid API key.
 
-## 3. Build and pack the SDK
+## 3. Install the SDK
 
-The SDK is not on npm yet. Install it from a tarball built in your checkout. `dev-up.sh` already builds and packs it; to do it by hand:
+Use `npm install @readmeter/firebase` after the first npm release. For local changes or before that release, install a tarball built in your checkout. `dev-up.sh` already builds and packs it; to do it by hand:
 
 ```sh
 pnpm sdk:build

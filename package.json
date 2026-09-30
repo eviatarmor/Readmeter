@@ -1,6 +1,6 @@
 {
   "name": "readmeter",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.16.1",

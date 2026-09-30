@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_call:
   push:
     branches: [main, master]
   pull_request:
@@ -11,6 +12,23 @@ env:
   WASM_BINDGEN_VERSION: 0.2.129
 
 jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: readmeter:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: bash scripts/smoke-docker.sh
+
   rust:
     runs-on: ubuntu-latest
     steps:
@@ -141,6 +159,12 @@ jobs:
       - run: pnpm --filter @readmeter/firebase build
       - run: pnpm --filter @readmeter/firebase test
       - run: pnpm --filter @readmeter/firebase test:emulator
+      - run: pnpm --filter @readmeter/firebase test:bundle
+      - name: Verify npm release contents
+        run: |
+          mkdir -p target/releases
+          pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/target/releases"
+          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz
 
   e2e:
     runs-on: ubuntu-latest

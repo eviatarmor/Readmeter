@@ -102,6 +102,36 @@ Each rule is a TOML file in [`rules/`](rules/) (id, severity, description,
 fix, thresholds) plus a Rust detector. The docs site has the full reference,
 generated from those files, and the console lists them on the Rules page.
 
+## Self-hosted deployment
+
+Release images run on Linux amd64 and arm64. The production stack includes
+Postgres, automatic migrations, ingest, and the web console; Google Cloud sync
+is optional. No Rust toolchain or source build is needed on the deployment host.
+
+```sh
+cp deploy/.env.example deploy/.env
+# Fill in POSTGRES_PASSWORD and BETTER_AUTH_SECRET; set your public URLs.
+docker compose --env-file deploy/.env -f deploy/compose.yml up -d
+```
+
+Open the console at `http://localhost:8091`, sign up, create a workspace and
+project, and generate an API key. Use HTTPS behind a reverse proxy for a remote
+deployment. Pin `READMETER_IMAGE` to a release version for production.
+
+Install the released SDK in your app:
+
+```sh
+npm install @readmeter/firebase firebase
+```
+
+Point `init({ apiKey, endpoint })` at your own ingest URL. The package includes
+both wasm builds and the default rules. Before the first npm release, use the
+tarball built by `pnpm sdk:build` and `pnpm pack`.
+
+See [production deployment](docs/content/docs/self-hosting/production.mdx)
+and [release setup](RELEASING.md). Tagged releases publish the SDK to npm,
+the server image to GHCR, and deployment files and an SDK tarball to GitHub Releases.
+
 ## Quick start (local)
 
 Prerequisites: Docker, Node 22 + pnpm 10, Rust with the
@@ -132,7 +162,7 @@ Run the whole loop as a test (web SDK, Cloud Functions, real Chromium, Postgres)
 ```
 
 **Use it with your own app:** [`docs/content/docs/getting-started/your-app.mdx`](docs/content/docs/getting-started/your-app.mdx)
-(create a key, install the SDK tarball, change one import, instrument your
+(create a key, install the SDK, change one import, instrument your
 functions, and expose ingest with a tunnel if your app is deployed).
 
 ## Documentation
@@ -197,10 +227,4 @@ Set `sampleRate: 0` to send findings only.
 
 ## License
 
-[Readmeter Sustainable Use License](LICENSE.md), modeled on n8n's
-Sustainable Use License: you may self-host and use Readmeter for your own
-internal business or for personal and non-commercial purposes, and share it
-free of charge for non-commercial use. You may not sell it, offer it as a
-hosted or managed service to others, or include it in a paid product without
-a commercial license. This is a source-available license, not an OSI open
-source license.
+[MIT](LICENSE.md).

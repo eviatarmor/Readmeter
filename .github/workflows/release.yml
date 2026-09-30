@@ -1,0 +1,132 @@
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/prepare-release.mjs "$GITHUB_REF_NAME"
+
+  checks:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  sdk:
+    needs: checks
+    runs-on: ubuntu-latest
+    env:
+      WASM_BINDGEN_VERSION: 0.2.129
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @readmeter/firebase build
+      - run: pnpm --filter @readmeter/firebase test:bundle
+      - name: Pack and verify public package
+        run: |
+          mkdir -p artifacts
+          pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/artifacts"
+          node scripts/check-sdk-package.mjs artifacts/readmeter-firebase-*.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: artifacts/*.tgz
+          if-no-files-found: error
+
+  npm:
+    needs: sdk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global npm@11
+      # Configure this workflow as a trusted publisher on npmjs.com.
+      - run: npm publish artifacts/*.tgz --access public --provenance
+
+  image:
+    needs: sdk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  github-release:
+    needs: [npm, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: artifacts
+      - name: Publish release and deployment files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp deploy/compose.yml artifacts/compose.yml
+          cp deploy/.env.example artifacts/readmeter.env.example
+          cd artifacts
+          sha256sum *.tgz compose.yml readmeter.env.example > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            --title "Readmeter $GITHUB_REF_NAME" *.tgz compose.yml readmeter.env.example SHA256SUMS

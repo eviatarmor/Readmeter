@@ -1,0 +1,80 @@
+name: readmeter
+
+x-server: &server
+  image: ${READMETER_IMAGE:-ghcr.io/eviatarmor/readmeter:latest}
+  init: true
+  restart: unless-stopped
+  environment: &environment
+    DATABASE_URL: postgres://readmeter:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/readmeter
+    BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+    BETTER_AUTH_URL: ${CONSOLE_ORIGIN:-http://localhost:8091}
+    CONSOLE_ORIGIN: ${CONSOLE_ORIGIN:-http://localhost:8091}
+    INGEST_PUBLIC_URL: ${INGEST_PUBLIC_URL:-http://localhost:8090}
+    READMETER_SECRET_KEY: ${READMETER_SECRET_KEY:-}
+    SMTP_URL: ${SMTP_URL:-}
+    MAIL_FROM: ${MAIL_FROM:-}
+    GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+x-health: &health
+  test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + process.env.PORT + '/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: readmeter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: readmeter
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U readmeter -d readmeter"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *server
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  console:
+    <<: *server
+    command: ["console"]
+    environment:
+      <<: *environment
+      PORT: "8091"
+    ports:
+      - "${CONSOLE_BIND:-127.0.0.1}:${CONSOLE_PORT:-8091}:8091"
+    healthcheck: *health
+
+  ingest:
+    <<: *server
+    command: ["ingest"]
+    environment:
+      <<: *environment
+      PORT: "8090"
+      READMETER_RATE_PER_MIN: ${READMETER_RATE_PER_MIN:-600}
+    ports:
+      - "${INGEST_BIND:-127.0.0.1}:${INGEST_PORT:-8090}:8090"
+    healthcheck: *health
+
+  connector-gcp:
+    <<: *server
+    command: ["connector-gcp"]
+    profiles: ["gcp"]
+
+volumes:
+  pgdata:

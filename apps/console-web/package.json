@@ -1,6 +1,6 @@
 {
   "name": "console-web",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {

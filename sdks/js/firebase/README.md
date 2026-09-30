@@ -4,11 +4,13 @@ Record Cloud Firestore, Realtime Database, Cloud Storage, Authentication, and Cl
 
 ## Install
 
-Install from the package tarball (`pnpm pack` in `sdks/js/firebase`):
+Install the released package from npm:
 
 ```sh
-pnpm add ./readmeter-firebase-0.1.0.tgz
+pnpm add @readmeter/firebase
 ```
+
+Before the first npm release, build with `pnpm sdk:build` in the repository root, then run `pnpm pack` in `sdks/js/firebase` and install the generated tarball. Point the SDK at your self-hosted ingest service.
 
 Peer dependencies are optional. Install the ones you call: `firebase` (web, `>=10 <13`), `firebase-admin` (`>=12`), `@google-cloud/firestore` (`>=7`), and `@google-cloud/storage` (`>=8`) for Cloud Functions.
 

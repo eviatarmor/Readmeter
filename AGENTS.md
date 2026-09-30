@@ -5,12 +5,14 @@ before changing code. Plans and design decisions live in [`.plans/`](.plans/).
 
 ## What Readmeter is
 
-A hosted SaaS that finds cost problems in apps built on backend-as-a-service
+A self-hosted, MIT-licensed tool that finds cost problems in apps built on backend-as-a-service
 providers. Language SDKs report provider calls (Firestore first) through a
 `sink` API, with optional drop-in wrappers on top (`.plans/0004`). A shared
 Rust core normalizes and redacts them and runs rules that detect wasteful
 patterns (`unbounded-list`, `offset-pagination`, `react-double-mount`, ...).
-A TypeScript backend stores batches and findings in Postgres.
+A TypeScript backend stores batches and findings in Postgres. Users operate
+the stack on their own infrastructure; product docs and defaults must focus
+on self-hosting. The repository and SDK are licensed under MIT.
 
 The Rust core is a **library, never a service**: no network, threads,
 storage or clock of its own. SDKs pass calls in and get bytes out; the
@@ -50,6 +52,9 @@ packages/
   db/                      Drizzle schema, migrations, seed (shared by all TS services)
 docs/                      Fumadocs site (Next.js): pnpm --filter docs dev (port 3100);
                            rule pages are generated from rules/ by docs/scripts/gen-rules.mjs
+Dockerfile                 Deployable server image (console, ingest, worker, migrations)
+deploy/                    Production Compose stack and environment template
+RELEASING.md               npm, GHCR and GitHub release setup
 docker-compose.yml         Local Postgres on host port 5442
 rules/<scope>/*.toml       Rule definitions (data). Scope: generic/, firebase/firestore/, ...
 pricing/<provider>/*.toml  Price tables (data)

@@ -1,7 +1,7 @@
 {
   "name": "@readmeter/firebase",
   "version": "0.1.0",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "type": "module",
   "files": [
     "dist",
@@ -82,5 +82,8 @@
     "url": "https://github.com/eviatarmor/Readmeter.git",
     "directory": "sdks/js/firebase"
   },
-  "description": "Find Firestore, Realtime Database, Cloud Storage, Authentication, and Cloud Functions cost problems in Firebase web apps and Cloud Functions, down to the callsite."
+  "description": "Find Firestore, Realtime Database, Cloud Storage, Authentication, and Cloud Functions cost problems in Firebase web apps and Cloud Functions, down to the callsite.",
+  "publishConfig": {
+    "access": "public"
+  }
 }

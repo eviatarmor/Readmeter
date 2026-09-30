@@ -9,18 +9,22 @@ The SDK wraps a small wasm build of the Rust core. Each call you make is turned 
 
 ## Install
 
-The package is installed from its tarball. Build and pack it from a Readmeter checkout:
+Install the released package from npm:
+
+```sh
+pnpm add @readmeter/firebase
+```
+
+Before the first npm release, or to test local changes, build and pack it from a Readmeter checkout:
 
 ```sh
 pnpm sdk:build
 cd sdks/js/firebase && pnpm pack
+# In your app:
+pnpm add /path/to/readmeter-firebase-0.1.0.tgz
 ```
 
-Then add it to your app:
-
-```sh
-pnpm add ./readmeter-firebase-0.1.0.tgz
-```
+Point the SDK at your own self-hosted ingest URL.
 
 The package needs Node 22 or later for server use. Firebase packages are optional peer dependencies. Install the ones you call:
 
