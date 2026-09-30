@@ -20,15 +20,15 @@
     },
     {
       "service": "firestore", "op": "usage", "ts_ms": 2000, "call_id": 1, "path": "posts",
-      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0 }
+      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0, "fields_read": 0, "fields_numeric": false }
     },
     {
       "service": "firestore", "op": "usage", "ts_ms": 2100, "call_id": 2, "path": "posts",
-      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0 }
+      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0, "fields_read": 0, "fields_numeric": false }
     },
     {
       "service": "firestore", "op": "usage", "ts_ms": 2200, "call_id": 3, "path": "posts",
-      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0 }
+      "usage": { "read_items": false, "read_size": false, "read_empty": false, "items_used": 0, "fields_read": 0, "fields_numeric": false }
     }
   ],
   "expect_envelopes": [

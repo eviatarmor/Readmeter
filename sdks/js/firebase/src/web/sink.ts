@@ -99,6 +99,10 @@ function usageBody(flags: UsageFlags): UsageFlags {
     read_empty: flags.read_empty,
   };
   if (typeof flags.items_used === "number") usage.items_used = flags.items_used;
+  if (typeof flags.fields_read === "number") {
+    usage.fields_read = flags.fields_read;
+    usage.fields_numeric = flags.fields_numeric === true;
+  }
   return usage;
 }
 

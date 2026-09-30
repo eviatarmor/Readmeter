@@ -307,6 +307,18 @@ test("web drop-in matches the firestore fixtures", { timeout: 180_000 }, async (
     });
 
     await scenario(async () => {
+      const snap = await rm.getDocs(fb.query(fb.collection(db, "feed"), fb.where("ts", ">=", 0)));
+      let total = 0;
+      snap.forEach((item) => {
+        total += (item.data() as { ts: number }).ts;
+      });
+      assert.equal(total, (59 * 60) / 2);
+      await flush();
+      assertCalls(raw.slice(), loadFixture("client-side-aggregation"));
+      assertRule("firebase.firestore/client-side-aggregation");
+    });
+
+    await scenario(async () => {
       const latest = fb.query(fb.collection(db, "posts"), fb.limit(1));
       for (let i = 0; i < 3; i += 1) await rm.getDocsFromServer(latest);
       assertCalls(raw.slice(), loadFixture("force-server-read"));

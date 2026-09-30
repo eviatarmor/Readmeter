@@ -67,13 +67,13 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
   const emptyFlags = installUsage(empty);
   assert.ok(emptyFlags);
   assert.equal(empty.empty, true);
-  assert.deepEqual(emptyFlags, { read_items: false, read_size: false, read_empty: true, items_used: 0 });
+  assert.deepEqual(emptyFlags, { read_items: false, read_size: false, read_empty: true, items_used: 0, fields_read: 0, fields_numeric: false });
 
   const sized = new Snap(4);
   const sizeFlags = installUsage(sized);
   assert.ok(sizeFlags);
   assert.equal(sized.size, 4);
-  assert.deepEqual(sizeFlags, { read_items: false, read_size: true, read_empty: false, items_used: 0 });
+  assert.deepEqual(sizeFlags, { read_items: false, read_size: true, read_empty: false, items_used: 0, fields_read: 0, fields_numeric: false });
   assert.deepEqual(sized.docs, [1]);
   assert.equal(sizeFlags.read_items, true);
 

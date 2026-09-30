@@ -76,7 +76,7 @@ The session, platform, `dev` flag and hash key are not part of a raw call. They 
 | `from_cache` | boolean | Served from the local cache. Default `false` |
 | `index_entries` | integer | Index entries an aggregation scanned. For `count`, the count |
 
-`usage` has the booleans `read_items`, `read_size` and `read_empty` (default `false`) and the integer `items_used`.
+`usage` has the booleans `read_items`, `read_size` and `read_empty` (default `false`) and the integer `items_used`. Shims that watch field reads on query results also send `fields_read`, the number of distinct top-level fields read across the documents, and `fields_numeric` (default `false`), true when every value read was a number. Field names are never sent.
 
 `write` has `max_field_bytes` and `payload_bytes` (both required integers), `transforms`, an array of transform names, and `digest`, exactly 16 lowercase hex characters. Transform names other than `array_remove`, `array_union`, `delete_field`, `increment`, `maximum`, `minimum` and `server_timestamp` are dropped.
 

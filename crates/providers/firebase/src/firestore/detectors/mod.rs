@@ -8,6 +8,8 @@ pub mod blob_in_document;
 #[cfg(feature = "aggregate")]
 pub mod broadcast_listener;
 #[cfg(feature = "window")]
+pub mod client_side_aggregation;
+#[cfg(feature = "window")]
 pub mod client_side_bulk_delete;
 #[cfg(feature = "window")]
 pub mod count_then_fetch;
@@ -74,6 +76,8 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (blob_in_document::ID, blob_in_document::build),
         #[cfg(feature = "aggregate")]
         (broadcast_listener::ID, broadcast_listener::build),
+        #[cfg(feature = "window")]
+        (client_side_aggregation::ID, client_side_aggregation::build),
         #[cfg(feature = "window")]
         (client_side_bulk_delete::ID, client_side_bulk_delete::build),
         #[cfg(feature = "window")]
