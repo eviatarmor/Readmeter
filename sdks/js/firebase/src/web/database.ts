@@ -5,6 +5,9 @@
  * Query limits and bounds are read from `QueryImpl._queryParams` when a read
  * or listener runs (`database-shape.ts`). Constraint builders themselves are
  * pure and are re-exported unchanged. `keepSynced` is not on this web SDK.
+ *
+ * The first ordered read or listener wraps `console.warn` to catch the SDK's
+ * "Using an unspecified index" warning (`database-index.ts`).
  */
 
 import { callsite } from "../core/callsite.ts";
@@ -26,6 +29,7 @@ import {
   set as realSet,
   update as realUpdate,
 } from "firebase/database";
+import { installIndexWarning, rememberQuery } from "./database-index.ts";
 import { childCount, jsonBytes, readPath, readQueryShape, snapshotValue } from "./database-shape.ts";
 
 export * from "firebase/database";
@@ -73,6 +77,11 @@ function emit(op: string, target: unknown, at: Timing, extra: Record<string, unk
     if (at.site) call.callsite = at.site;
     const query = readQueryShape(target);
     if (query) call.query = query;
+    if (query?.order_by && (op === "subscribe" || op === "get" || op === "query")) {
+      // The SDK reports a missing .indexOn later, on console.warn only.
+      installIndexWarning();
+      rememberQuery(call.path as string, query.order_by, at.site);
+    }
     for (const [key, value] of Object.entries(extra)) {
       if (value !== undefined) call[key] = value;
     }

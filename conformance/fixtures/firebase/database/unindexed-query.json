@@ -1,17 +1,33 @@
 {
-  "description": "orderByChild with limitToLast on posts. The missing-index warning is not on the snapshot, so the planned rule does not fire and the limited result stays under the other rules.",
+  "description": "onValue on query(ref(db, 'rooms/<id>/scores'), orderByChild('pts'), limitToLast(10)) where the rules have no .indexOn for pts. The SDK logs \"Using an unspecified index ... \\\".indexOn\\\": \\\"pts\\\" at /rooms/<id>/scores\" through console.warn after the listen response, and the web drop-in records it as an index_warning with the listener's callsite.",
   "platform": "browser",
   "evaluations": ["local"],
   "calls": [
     {
-      "service": "database", "op": "query", "ts_ms": 1000, "call_id": 1,
-      "path": "posts",
-      "query": { "order_by": "created", "limit": 10, "limit_to_last": true },
+      "service": "database", "op": "subscribe", "ts_ms": 1000, "call_id": 1, "listener": 1,
+      "path": "rooms/-NabcDEFghi123456789/scores",
+      "callsite": "src/Board.tsx:12:3",
+      "query": { "order_by": "pts", "limit": 10, "limit_to_last": true }
+    },
+    {
+      "service": "database", "op": "index_warning", "ts_ms": 1040, "call_id": 2,
+      "path": "rooms/-NabcDEFghi123456789/scores",
+      "order_by_child": "pts",
+      "callsite": "src/Board.tsx:12:3"
+    },
+    {
+      "service": "database", "op": "snapshot", "ts_ms": 1050, "call_id": 3, "listener": 1, "initial": true,
+      "path": "rooms/-NabcDEFghi123456789/scores",
+      "query": { "order_by": "pts", "limit": 10, "limit_to_last": true },
       "result": { "children": 10, "bytes": 1000 }
     }
   ],
   "expect_envelopes": [
-    { "op": "query", "template": "posts", "units": { "download_bytes": 1000 } }
+    { "op": "subscribe", "template": "rooms/{id}/scores", "units": {} },
+    { "op": "other", "template": "rooms/{id}/scores", "units": {} },
+    { "op": "snapshot", "template": "rooms/{id}/scores", "units": { "download_bytes": 1000 } }
   ],
-  "expect_findings": []
+  "expect_findings": [
+    { "rule": "firebase.database/unindexed-query" }
+  ]
 }

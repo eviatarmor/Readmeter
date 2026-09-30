@@ -224,6 +224,27 @@ test("web drop-in records Realtime Database and fires the fixture rules", { time
       assert.ok(calls().some((call) => call.op === "go_offline"));
       assert.ok(calls().some((call) => call.op === "go_online"));
     });
+
+    await scenario(async () => {
+      // No .indexOn for `pts` under leaderboard in database.rules.json.
+      const board = db.ref(database, "leaderboard/season1");
+      await db.set(board, { a: { pts: 1 }, b: { pts: 2 }, c: { pts: 3 } });
+      let snaps = 0;
+      const unsub = db.onValue(db.query(board, db.orderByChild("pts"), db.limitToLast(2)), () => {
+        snaps += 1;
+      });
+      try {
+        await waitUntil(() => snaps >= 1, "ordered snapshot");
+        await waitUntil(() => calls().some((call) => call.op === "index_warning"), "index warning");
+      } finally {
+        unsub();
+      }
+      const warning = calls().find((call) => call.op === "index_warning");
+      assert.equal(warning?.path, "leaderboard/season1");
+      assert.equal(warning?.order_by_child, "pts");
+      assert.equal(typeof warning?.callsite, "string");
+      assertRule("firebase.database/unindexed-query");
+    });
   } finally {
     console.debug = original;
     await deleteApp(app);

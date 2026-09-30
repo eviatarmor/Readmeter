@@ -10,6 +10,7 @@ pub mod duplicate_listeners;
 pub mod listen_on_root;
 #[cfg(feature = "window")]
 pub mod rtdb_write_hotspot;
+pub mod unindexed_query;
 #[cfg(feature = "window")]
 pub mod value_listener_on_list;
 
@@ -21,6 +22,7 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (listen_on_root::ID, listen_on_root::build),
         #[cfg(feature = "window")]
         (rtdb_write_hotspot::ID, rtdb_write_hotspot::build),
+        (unindexed_query::ID, unindexed_query::build),
         #[cfg(feature = "window")]
         (value_listener_on_list::ID, value_listener_on_list::build),
     ]

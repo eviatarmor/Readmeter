@@ -4,7 +4,6 @@
  */
 import {
   child,
-  equalTo,
   get,
   limitToLast,
   onValue,
@@ -97,12 +96,25 @@ export async function duplicateListeners(db: Database): Promise<string> {
 }
 
 /**
- * unindexed-query stays planned: the missing-index warning arrives later on the
- * listen response and is not attached to query() or the snapshot. Emulator
- * rules declare .indexOn for "n" so this limited query is allowed to finish.
+ * unindexed-query: a listener ordered by `pts` where the rules have no
+ * .indexOn for it. The SDK logs "Using an unspecified index" on console.warn
+ * after the listen response; the drop-in records that warning.
  */
 export async function unindexedQuery(db: Database): Promise<string> {
-  const limited = query(ref(db, "posts"), orderByChild("n"), limitToLast(25), equalTo(1));
-  const snap = await get(limited);
-  return `planned unindexed-query read ${snap.size} posts; no_index is not on the snapshot`;
+  const board = ref(db, "leaderboard/season1");
+  await set(board, { a: { pts: 1 }, b: { pts: 2 }, c: { pts: 3 } });
+  let size = 0;
+  let seen = false;
+  const unsub = onValue(query(board, orderByChild("pts"), limitToLast(2)), (snap) => {
+    size = snap.size;
+    seen = true;
+  });
+  try {
+    await waitUntil(() => seen, "ordered snapshot");
+    // The warning comes with the listen response, which can follow the data.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  } finally {
+    unsub();
+  }
+  return `unindexed-query listened to ${size} scores ordered by pts with no .indexOn`;
 }
