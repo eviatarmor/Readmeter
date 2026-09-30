@@ -173,7 +173,7 @@ export const findings = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     rule: text("rule").notNull(),
     severity: text("severity").notNull(),
-    /** `sdk` (local rule) or `evaluator` (window rule, found by ingest). */
+    /** `sdk` (local rule) or `evaluator` (window or aggregate rule, found by ingest). */
     source: text("source").notNull(),
     provider: text("provider").notNull(),
     service: text("service").notNull(),

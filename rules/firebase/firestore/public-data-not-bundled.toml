@@ -1,0 +1,41 @@
+id = "firebase.firestore/public-data-not-bundled"
+title = "Public query read by many clients"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "reads"
+evaluation = "aggregate"
+status = "stable"
+summary = "The same query returns the same result to many sessions, each of which pays for the read."
+
+description = """
+A query bills one read per document on every client that runs it. Public
+data that does not change per user (a catalog, a feature-flag set, a city
+list) is the same bytes over and over. Firestore data bundles are built
+once and downloaded from Hosting or a CDN, so those clients do not each
+query Firestore.
+"""
+
+fix = """
+Build a bundle (`bundle.add(name, query)` in the Admin SDK), serve the
+bytes from Hosting or a CDN, and load them with `loadBundle` and
+`namedQuery` before reading from the cache.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/bundles"]
+
+[params]
+window_ms = 3600000
+min_sessions = 100
+max_size_ratio = 0.05
+
+[[examples]]
+lang = "ts"
+bad = '''
+const snap = await getDocs(query(collection(db, "catalog"), orderBy("name"), limit(50)));
+'''
+good = '''
+const bytes = await fetch("/bundles/catalog").then((res) => res.arrayBuffer());
+await loadBundle(db, bytes);
+const snap = await getDocsFromCache(await namedQuery(db, "catalog"));
+'''

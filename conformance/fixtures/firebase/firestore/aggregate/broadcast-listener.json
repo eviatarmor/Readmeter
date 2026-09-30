@@ -1,0 +1,2916 @@
+{
+  "description": "Fifty open chat tabs each keep onSnapshot on the same latest-messages query. One new message is billed once per tab.",
+  "platform": "browser",
+  "evaluations": [
+    "aggregate"
+  ],
+  "sessions": [
+    {
+      "session": 1,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 1000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 1100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 2000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 2100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 3000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 3100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 4,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 4000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 4100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 5,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 5000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 5100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 6,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 6000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 6100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 7,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 7000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 7100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 8,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 8000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 8100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 9,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 9000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 9100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 10,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 10000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 10100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 11,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 11000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 11100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 12,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 12000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 12100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 13,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 13000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 13100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 14,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 14000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 14100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 15,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 15000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 15100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 16,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 16000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 16100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 17,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 17000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 17100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 18,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 18000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 18100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 19,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 19000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 19100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 20,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 20000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 20100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 21,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 21000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 21100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 22,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 22000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 22100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 23,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 23000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 23100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 24,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 24000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 24100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 25,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 25000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 25100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 26,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 26000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 26100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 27,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 27000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 27100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 28,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 28000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 28100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 29,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 29000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 29100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 30,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 30000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 30100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 31,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 31000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 31100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 32,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 32000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 32100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 33,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 33000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 33100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 34,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 34000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 34100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 35,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 35000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 35100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 36,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 36000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 36100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 37,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 37000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 37100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 38,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 38000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 38100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 39,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 39000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 39100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 40,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 40000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 40100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 41,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 41000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 41100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 42,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 42000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 42100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 43,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 43000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 43100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 44,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 44000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 44100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 45,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 45000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 45100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 46,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 46000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 46100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 47,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 47000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 47100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 48,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 48000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 48100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 49,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 49000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 49100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    },
+    {
+      "session": 50,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "subscribe",
+          "ts_ms": 50000,
+          "call_id": 1,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "callsite": "src/ChatRoom.tsx:16:5"
+        },
+        {
+          "service": "firestore",
+          "op": "snapshot",
+          "initial": false,
+          "ts_ms": 50100,
+          "call_id": 2,
+          "listener": 1,
+          "path": "rooms/general/messages",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ],
+            "limit": 20
+          },
+          "result": {
+            "docs": 1,
+            "bytes": 100
+          }
+        }
+      ]
+    }
+  ],
+  "expect_envelopes": [
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    },
+    {
+      "op": "subscribe",
+      "template": "rooms/{id}/messages",
+      "units": {}
+    },
+    {
+      "op": "snapshot",
+      "template": "rooms/{id}/messages",
+      "units": {
+        "reads": 1,
+        "egress_bytes": 100
+      }
+    }
+  ],
+  "expect_findings": [
+    {
+      "rule": "firebase.firestore/broadcast-listener"
+    }
+  ]
+}

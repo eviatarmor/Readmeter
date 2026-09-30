@@ -11,6 +11,8 @@ use crate::detector::Registry;
 pub mod activity_while_hidden;
 #[cfg(feature = "window")]
 pub mod duplicate_read;
+#[cfg(feature = "aggregate")]
+pub mod hot_callsite;
 #[cfg(feature = "window")]
 pub mod listener_leak;
 #[cfg(feature = "window")]
@@ -34,6 +36,8 @@ pub fn register(r: &mut Registry) {
     r.register(activity_while_hidden::ID, activity_while_hidden::build);
     #[cfg(feature = "window")]
     r.register(duplicate_read::ID, duplicate_read::build);
+    #[cfg(feature = "aggregate")]
+    r.register(hot_callsite::ID, hot_callsite::build);
     #[cfg(feature = "window")]
     r.register(listener_leak::ID, listener_leak::build);
     #[cfg(feature = "window")]

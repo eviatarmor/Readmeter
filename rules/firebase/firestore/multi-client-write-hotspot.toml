@@ -5,17 +5,33 @@ service = "firestore"
 severity = "high"
 category = "hotspots"
 evaluation = "aggregate"
-status = "planned"
-default_enabled = false
+status = "stable"
 summary = "Writes from many sessions to the same document exceed the per-document write rate."
 
 description = """
 The cross-session version of `write-hotspot`: a global counter or shared
-document that every client updates. Each client is under the limit, but
-together they cause contention, failed writes and retries. Needs
-aggregation of document keys across sessions on the backend.
+document that every client updates. Each client stays under the
+single-session limit, but together the writes exceed about one per second.
+Firestore then queues and retries them, and each retry is another billed
+write.
 """
 
 fix = "Shard the document (distributed counter) or move the update into a Cloud Function that batches."
 
 docs = ["https://firebase.google.com/docs/firestore/solutions/counters"]
+
+[params]
+window_ms = 60000
+min_sessions = 10
+max_writes_per_sec = 1.0
+
+[[examples]]
+lang = "ts"
+bad = '''
+await updateDoc(doc(db, "counters", "global"), { views: increment(1) });
+'''
+good = '''
+const shard = Math.floor(Math.random() * 10);
+await updateDoc(doc(db, "counters", "global", "shards", String(shard)), { views: increment(1) });
+'''
+

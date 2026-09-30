@@ -1,0 +1,3416 @@
+{
+  "description": "A hundred sessions each load the same public catalog query and get the same ten documents back.",
+  "platform": "browser",
+  "evaluations": [
+    "aggregate"
+  ],
+  "sessions": [
+    {
+      "session": 1,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 1000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 2000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 3000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 4,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 4000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 5,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 5000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 6,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 6000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 7,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 7000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 8,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 8000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 9,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 9000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 10,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 10000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 11,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 11000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 12,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 12000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 13,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 13000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 14,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 14000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 15,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 15000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 16,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 16000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 17,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 17000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 18,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 18000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 19,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 19000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 20,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 20000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 21,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 21000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 22,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 22000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 23,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 23000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 24,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 24000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 25,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 25000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 26,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 26000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 27,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 27000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 28,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 28000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 29,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 29000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 30,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 30000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 31,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 31000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 32,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 32000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 33,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 33000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 34,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 34000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 35,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 35000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 36,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 36000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 37,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 37000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 38,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 38000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 39,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 39000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 40,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 40000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 41,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 41000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 42,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 42000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 43,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 43000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 44,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 44000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 45,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 45000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 46,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 46000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 47,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 47000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 48,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 48000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 49,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 49000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 50,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 50000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 51,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 51000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 52,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 52000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 53,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 53000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 54,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 54000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 55,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 55000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 56,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 56000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 57,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 57000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 58,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 58000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 59,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 59000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 60,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 60000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 61,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 61000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 62,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 62000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 63,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 63000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 64,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 64000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 65,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 65000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 66,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 66000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 67,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 67000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 68,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 68000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 69,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 69000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 70,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 70000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 71,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 71000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 72,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 72000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 73,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 73000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 74,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 74000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 75,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 75000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 76,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 76000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 77,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 77000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 78,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 78000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 79,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 79000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 80,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 80000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 81,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 81000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 82,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 82000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 83,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 83000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 84,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 84000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 85,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 85000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 86,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 86000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 87,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 87000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 88,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 88000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 89,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 89000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 90,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 90000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 91,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 91000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 92,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 92000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 93,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 93000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 94,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 94000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 95,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 95000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 96,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 96000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 97,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 97000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 98,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 98000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 99,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 99000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    },
+    {
+      "session": 100,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 100000,
+          "call_id": 1,
+          "path": "catalog",
+          "query": {
+            "order_by": [
+              {
+                "field": "name",
+                "direction": "asc"
+              }
+            ],
+            "limit": 50
+          },
+          "result": {
+            "docs": 10,
+            "bytes": 1
+          },
+          "callsite": "src/Catalog.tsx:12:3"
+        }
+      ]
+    }
+  ],
+  "expect_envelopes": [
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    },
+    {
+      "op": "query",
+      "template": "catalog",
+      "units": {
+        "reads": 10,
+        "egress_bytes": 1
+      }
+    }
+  ],
+  "expect_findings": [
+    {
+      "rule": "firebase.firestore/public-data-not-bundled"
+    }
+  ]
+}

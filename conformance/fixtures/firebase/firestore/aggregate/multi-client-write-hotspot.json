@@ -1,0 +1,1116 @@
+{
+  "description": "Ten sessions each increment the same global counter a few times over a minute. No single session is fast, but together they pass one write per second.",
+  "platform": "browser",
+  "evaluations": [
+    "aggregate"
+  ],
+  "sessions": [
+    {
+      "session": 1,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 100,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8100,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16100,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24100,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32100,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40100,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48100,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 200,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8200,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16200,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24200,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32200,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40200,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48200,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 300,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8300,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16300,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24300,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32300,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40300,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48300,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 4,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 400,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8400,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16400,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24400,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32400,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40400,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48400,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 5,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 500,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8500,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16500,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24500,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32500,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40500,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48500,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 6,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 600,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8600,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16600,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24600,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32600,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40600,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48600,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 7,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 700,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8700,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16700,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24700,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32700,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40700,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48700,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 8,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 800,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8800,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16800,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24800,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32800,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40800,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48800,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 9,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 900,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 8900,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 16900,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 24900,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 32900,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 40900,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 48900,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    },
+    {
+      "session": 10,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 1000,
+          "call_id": 1,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 9000,
+          "call_id": 2,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 17000,
+          "call_id": 3,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 25000,
+          "call_id": 4,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 33000,
+          "call_id": 5,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 41000,
+          "call_id": 6,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        },
+        {
+          "service": "firestore",
+          "op": "update",
+          "ts_ms": 49000,
+          "call_id": 7,
+          "path": "counters/global",
+          "callsite": "src/ViewCounter.tsx:9:3"
+        }
+      ]
+    }
+  ],
+  "expect_envelopes": [
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    },
+    {
+      "op": "update",
+      "template": "counters/{id}",
+      "units": {
+        "writes": 1
+      }
+    }
+  ],
+  "expect_findings": [
+    {
+      "rule": "firebase.firestore/multi-client-write-hotspot"
+    }
+  ]
+}

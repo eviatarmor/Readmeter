@@ -141,6 +141,18 @@ impl<K: Eq + Hash, V> BoundedMap<K, V> {
     pub fn values(&self) -> impl Iterator<Item = &V> {
         self.map.values().map(|(_, v)| v)
     }
+
+    /// Every entry, including ones older than the TTL. Callers that want
+    /// live rows filter on the timestamp.
+    pub fn iter(&self) -> impl Iterator<Item = (&K, u64, &V)> {
+        self.map.iter().map(|(k, (ts, v))| (k, *ts, v))
+    }
+
+    /// Drops entries for which `f` returns false. The timestamp is the last
+    /// write of that key.
+    pub fn retain(&mut self, mut f: impl FnMut(&K, u64, &V) -> bool) {
+        self.map.retain(|k, (ts, v)| f(k, *ts, v));
+    }
 }
 
 #[cfg(test)]

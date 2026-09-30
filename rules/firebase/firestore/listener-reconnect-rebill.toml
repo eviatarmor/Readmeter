@@ -12,8 +12,14 @@ summary = "Clients reconnect after 30+ minutes offline and re-read full listener
 description = """
 When a listener has been disconnected for more than 30 minutes, Firestore
 bills it as a new query on reconnect. Mobile apps that background often and
-keep large listeners pay the full result repeatedly. Needs the reconnect
-signal from SDK shims and cross-session aggregation on the backend.
+keep large listeners pay the full result repeatedly.
+
+There is still no reconnect signal on the envelope. An unsubscribe followed
+by a subscribe is ordinary navigation, already reported per session by
+`generic/subscription-churn`. A new session that subscribes after a
+page-visible event is an ordinary cold start. Neither one says the client
+was offline long enough for Firestore to rebill the listener, so this rule
+stays planned until shims report that reconnect.
 """
 
 fix = """

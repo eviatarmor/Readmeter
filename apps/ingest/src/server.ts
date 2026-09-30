@@ -32,6 +32,8 @@ if (!Number.isFinite(ratePerMin) || ratePerMin <= 0) {
   throw new Error("READMETER_RATE_PER_MIN must be a positive number");
 }
 
+// One evaluator for every project. Aggregate state lives in this process
+// and is dropped on restart; see crates/evaluator.
 const core = await loadCore({
   bundleJson: readFileSync(bundlePath, "utf8"),
   maxEvents: 10_000,

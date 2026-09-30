@@ -9,6 +9,16 @@ use crate::config::{ParamError, Params, ResolvedRule};
 pub trait Detector: Send {
     /// Called for every envelope the rule's scope matches, in arrival order.
     fn observe(&mut self, env: &Envelope, out: &mut Emitter<'_>);
+
+    /// State entries held by this detector. Cap tests assert this stays
+    /// bounded. Detectors with no map return `0`.
+    ///
+    /// Gated out of the SDK binary: a `dyn Detector` vtable slot on every
+    /// local rule blows the wasm gzip budget, and production never calls it.
+    #[cfg(any(test, feature = "testing"))]
+    fn tracked(&self) -> usize {
+        0
+    }
 }
 
 /// Builds a detector from resolved params. Parse params here, once, so bad

@@ -5,17 +5,38 @@ service = "*"
 severity = "info"
 category = "reads"
 evaluation = "aggregate"
-status = "planned"
-default_enabled = false
+status = "stable"
 summary = "A single callsite accounts for a large share of the project's billed units."
 
 description = """
-Cost is usually concentrated in a few places in the code. Surfacing the
-callsites behind most of the spend tells teams where optimisation pays off
-first, even when no other rule fires there.
+Cost is usually concentrated in a few places in the code. Over the window
+this rule sums every billed unit on the project and reports a callsite
+whose share of one unit crosses the threshold, once that unit's project
+total is large enough to matter. The finding names the unit with the
+largest share.
 """
 
 fix = "Review the callsite for caching, pagination and subscription scope."
 
 [params]
-min_share = 0.2
+window_ms = 3600000
+min_share = 0.3
+min_reads = 10000
+
+[[examples]]
+lang = "ts"
+bad = '''
+export async function loadHome() {
+  return getDocs(query(collection(db, "posts"), orderBy("at", "desc")));
+}
+'''
+good = '''
+const home = new Map<string, QuerySnapshot>();
+export async function loadHome() {
+  const hit = home.get("posts");
+  if (hit) return hit;
+  const snap = await getDocs(query(collection(db, "posts"), orderBy("at", "desc"), limit(20)));
+  home.set("posts", snap);
+  return snap;
+}
+'''

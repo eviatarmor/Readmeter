@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the server-side core (decode + window rules) for the TypeScript
+# Builds the server-side core (decode + window and aggregate rules) for the TypeScript
 # backend into apps/ingest/wasm. No size budget: this never ships to customers.
 # Needs: rustup target add wasm32-unknown-unknown; wasm-bindgen-cli (Cargo.lock version).
 set -euo pipefail

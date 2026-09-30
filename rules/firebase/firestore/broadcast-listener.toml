@@ -1,0 +1,44 @@
+id = "firebase.firestore/broadcast-listener"
+title = "Many clients listen to the same data"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "realtime"
+evaluation = "aggregate"
+status = "stable"
+summary = "Many sessions are subscribed to the same document or query, so each change is billed once per client."
+
+description = """
+A listener bills one read on every client for each document that changes.
+When dozens of sessions all listen to the same popular document or query,
+one write becomes that many billed reads. The cost grows with the number
+of open clients, not with how much data changed.
+"""
+
+fix = """
+Fan the value out through a smaller summary document that one Cloud
+Function maintains, cache it on your server or a CDN, or ship it as a
+Firestore bundle (`loadBundle`).
+"""
+
+docs = [
+  "https://firebase.google.com/docs/firestore/pricing#listens",
+  "https://firebase.google.com/docs/firestore/bundles",
+]
+
+[params]
+window_ms = 300000
+min_sessions = 50
+
+[[examples]]
+lang = "ts"
+bad = '''
+onSnapshot(query(collection(db, "rooms", roomId, "messages"), orderBy("at", "desc"), limit(50)), (snap) => {
+  setMessages(snap.docs.map((doc) => doc.data()));
+});
+'''
+good = '''
+onSnapshot(doc(db, "rooms", roomId, "summary", "latest"), (snap) => {
+  setPreview(snap.data());
+});
+'''

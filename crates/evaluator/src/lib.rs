@@ -2,20 +2,35 @@
 //!
 //! The ingest service (TypeScript, via `bindings/wasm-server`) hands each
 //! authenticated request body to [`Evaluator::ingest`], which decodes it,
-//! enforces [`Limits`], runs `window` rules and returns JSON-safe rows to
-//! store in Postgres. SDKs run `local` rules in-process; everything that
-//! needs a sequence of calls runs here.
+//! enforces [`Limits`], runs `window` and `aggregate` rules and returns
+//! JSON-safe rows to store in Postgres. SDKs run `local` rules in-process.
+//! `window` rules also run here (and in SDK dev builds). `aggregate` rules
+//! run only here.
 //!
-//! One [`Engine`] per project keeps detector state; detectors key their
-//! state by session, so sessions of one project never mix. One project's
-//! batches must reach one evaluator instance, or window rules miss patterns
-//! split across instances.
+//! Ingest keeps one [`Evaluator`] for the process and feeds every project
+//! through it. Each project has two engines: `window` (detector state keyed
+//! by session) and `aggregate` (state shared across that project's
+//! sessions, still keyed by project-local hashes). Projects do not share
+//! engines. A restart drops both; the next batches start from empty
+//! windows. That is acceptable: a missed cross-session finding is
+//! re-detected once the pattern shows up again.
+//!
+//! Memory is capped in two places. [`Limits::max_projects`] is the total
+//! number of projects kept; past it the least recently active project is
+//! evicted, engines included. Each detector caps its own maps
+//! (`BoundedMap`, `KeyedWindow`), which is the per-project bound. The
+//! detector trait does not take [`Limits`], so those map caps stay inside
+//! the detectors.
+//!
+//! One project's batches must reach this same instance, or window and
+//! aggregate rules miss patterns split across processes.
 //!
 //! Findings may duplicate ones an SDK already produced in dev mode (dev
 //! builds can run window rules too). Storage dedupes on
-//! `(project, rule, session, callsite, template)`.
+//! `(project, rule, session, callsite, template)`. Aggregate findings use
+//! session `"*"` so that key collapses every session into one row.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use readmeter_core::{Batch, Finding, WireError};
 use readmeter_provider_api::Provider;
@@ -38,11 +53,15 @@ pub enum EvaluatorError {
     Engine(#[from] EngineError),
 }
 
-/// Per-batch caps, checked after decoding and before any rule runs.
+/// Per-batch caps, checked after decoding and before any rule runs, plus
+/// the total number of projects whose detector state is kept in memory.
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_events: usize,
     pub max_findings: usize,
+    /// Projects held at once. The least recently active project is evicted
+    /// past this, which drops its window and aggregate state.
+    pub max_projects: usize,
 }
 
 impl Default for Limits {
@@ -50,6 +69,7 @@ impl Default for Limits {
         Self {
             max_events: 10_000,
             max_findings: 1_000,
+            max_projects: DEFAULT_MAX_PROJECTS,
         }
     }
 }
@@ -88,10 +108,18 @@ pub struct Ingested {
     pub findings: Vec<FindingRow>,
 }
 
+struct ProjectEngines {
+    last_used: u64,
+    window: Engine,
+    aggregate: Engine,
+}
+
 pub struct Evaluator {
     bundle: Bundle,
     registry: Registry,
-    engines: HashMap<String, (u64, Engine)>,
+    /// Rule ids with `evaluation = "aggregate"`. Their rows use session `"*"`.
+    aggregate_rules: HashSet<String>,
+    engines: HashMap<String, ProjectEngines>,
     max_projects: usize,
     clock: u64,
 }
@@ -105,15 +133,23 @@ impl Evaluator {
         for p in providers {
             registry.extend(p.detectors());
         }
+        let aggregate_rules = bundle
+            .rules
+            .iter()
+            .filter(|r| r.evaluation == Evaluation::Aggregate)
+            .map(|r| r.id.clone())
+            .collect();
         let evaluator = Self {
             bundle,
             registry,
+            aggregate_rules,
             engines: HashMap::new(),
             max_projects: DEFAULT_MAX_PROJECTS,
             clock: 0,
         };
         // Fail at startup, not on the first batch, if the bundle is unusable.
-        evaluator.build_engine()?;
+        evaluator.build_engine(&[Evaluation::Window])?;
+        evaluator.build_engine(&[Evaluation::Aggregate])?;
         Ok(evaluator)
     }
 
@@ -127,16 +163,16 @@ impl Evaluator {
         self
     }
 
-    fn build_engine(&self) -> Result<Engine, EngineError> {
+    fn build_engine(&self, evaluations: &[Evaluation]) -> Result<Engine, EngineError> {
         Engine::build(
             &self.bundle.rules,
             &self.bundle.config,
             &self.registry,
-            &[Evaluation::Window],
+            evaluations,
         )
     }
 
-    /// Runs window rules over every event in the batch, in order.
+    /// Runs window rules, then aggregate rules, over every event in order.
     pub fn process(
         &mut self,
         project: &str,
@@ -148,23 +184,33 @@ impl Evaluator {
             if self.engines.len() >= self.max_projects {
                 self.evict_oldest();
             }
-            let engine = self.build_engine()?;
-            self.engines.insert(project.to_owned(), (clock, engine));
+            let window = self.build_engine(&[Evaluation::Window])?;
+            let aggregate = self.build_engine(&[Evaluation::Aggregate])?;
+            self.engines.insert(
+                project.to_owned(),
+                ProjectEngines {
+                    last_used: clock,
+                    window,
+                    aggregate,
+                },
+            );
         }
-        let Some((last_used, engine)) = self.engines.get_mut(project) else {
+        let Some(slot) = self.engines.get_mut(project) else {
             return Ok(Vec::new());
         };
-        *last_used = clock;
-        Ok(batch
-            .events
-            .iter()
-            .flat_map(|e| engine.observe(e))
-            .collect())
+        slot.last_used = clock;
+        let mut out = Vec::new();
+        for event in &batch.events {
+            out.extend(slot.window.observe(event));
+            out.extend(slot.aggregate.observe(event));
+        }
+        Ok(out)
     }
 
-    /// Decodes `bytes`, checks `limits`, runs window rules for `project`
-    /// and returns rows for storage. Rejected batches do not touch detector
-    /// state.
+    /// Decodes `bytes`, checks `limits`, runs window and aggregate rules
+    /// for `project` and returns rows for storage. Rejected batches do not
+    /// touch detector state. Aggregate findings are stored with session
+    /// `"*"`.
     pub fn ingest(
         &mut self,
         project: &str,
@@ -180,16 +226,13 @@ impl Evaluator {
                 return Err(IngestError::TooLarge { what, count, limit });
             }
         }
+        self.max_projects = limits.max_projects.max(1);
         let found = self.process(project, &batch)?;
         let findings = batch
             .findings
             .iter()
             .map(|f| FindingRow::from_finding(f, "sdk"))
-            .chain(
-                found
-                    .iter()
-                    .map(|f| FindingRow::from_finding(f, "evaluator")),
-            )
+            .chain(found.iter().map(|f| self.finding_row(f)))
             .collect();
         Ok(Ingested {
             batch: BatchRow {
@@ -209,11 +252,19 @@ impl Evaluator {
         self.engines.len()
     }
 
+    fn finding_row(&self, f: &Finding) -> FindingRow {
+        if self.aggregate_rules.contains(&f.rule) {
+            FindingRow::with_session(f, "evaluator", "*".to_owned())
+        } else {
+            FindingRow::from_finding(f, "evaluator")
+        }
+    }
+
     fn evict_oldest(&mut self) {
         if let Some(oldest) = self
             .engines
             .iter()
-            .min_by_key(|(_, (used, _))| *used)
+            .min_by_key(|(_, slot)| slot.last_used)
             .map(|(k, _)| k.clone())
         {
             self.engines.remove(&oldest);
@@ -321,5 +372,63 @@ mod tests {
         let err = ev.ingest("p", &bytes, tight).unwrap_err();
         assert_eq!(err.code(), "batch_too_large");
         assert_eq!(ev.projects(), 0);
+    }
+
+    fn listen_batch(session: u64) -> Batch {
+        let config = json!({
+            "provider": "firebase",
+            "sdk": {"name": "t", "version": "0"},
+            "session": session,
+            "hash_key": "000102030405060708090a0b0c0d0e0f",
+            "evaluations": ["local"],
+        });
+        let bundle = bundle().encode().unwrap();
+        let mut client = Client::from_bytes(config.to_string().as_bytes(), &bundle).unwrap();
+        let query = json!({"order_by": [{"field": "at", "direction": "desc"}], "limit": 20});
+        let subscribe = json!({
+            "service": "firestore", "op": "subscribe", "ts_ms": session * 1_000,
+            "call_id": 1, "listener": 1, "path": "rooms/general/messages", "query": query,
+        });
+        let snapshot = json!({
+            "service": "firestore", "op": "snapshot", "initial": false,
+            "ts_ms": session * 1_000 + 100, "call_id": 2, "listener": 1,
+            "path": "rooms/general/messages", "query": query,
+            "result": {"docs": 1, "bytes": 100},
+        });
+        for call in [subscribe, snapshot] {
+            let local = client.record(call.to_string().as_bytes()).unwrap();
+            assert!(
+                local.is_empty(),
+                "fixture must not trip a local rule: {local:?}"
+            );
+        }
+        client.drain(10_000).unwrap()
+    }
+
+    #[test]
+    fn aggregate_findings_span_sessions_and_not_projects() {
+        let mut ev = Evaluator::with_all_providers(bundle()).unwrap();
+        let broadcast = |ev: &mut Evaluator, project: &str, session: u64| {
+            let bytes = listen_batch(session).encode().unwrap();
+            ev.ingest(project, &bytes, Limits::default())
+                .unwrap()
+                .findings
+                .into_iter()
+                .filter(|f| f.rule == "firebase.firestore/broadcast-listener")
+                .collect::<Vec<_>>()
+        };
+        for session in 1..=40 {
+            assert!(broadcast(&mut ev, "a", session).is_empty());
+            assert!(broadcast(&mut ev, "b", session).is_empty());
+        }
+        for session in 41..50 {
+            assert!(broadcast(&mut ev, "a", session).is_empty());
+        }
+        let found = broadcast(&mut ev, "a", 50);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].session, "*");
+        assert_eq!(found[0].source, "evaluator");
+        assert!(broadcast(&mut ev, "b", 41).is_empty());
+        assert!(broadcast(&mut ev, "a", 51).is_empty());
     }
 }

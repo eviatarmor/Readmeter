@@ -5,7 +5,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use readmeter_core::{Envelope, Units};
+use readmeter_core::{Batch, Envelope, Units};
+use readmeter_evaluator::Evaluator;
 use readmeter_rules::Catalog;
 use readmeter_runtime::Client;
 use serde::Deserialize;
@@ -17,9 +18,23 @@ struct Fixture {
     description: String,
     platform: String,
     evaluations: Vec<String>,
+    /// One session. Mutually exclusive with [`Fixture::sessions`].
+    #[serde(default)]
     calls: Vec<Value>,
+    /// Several sessions of one project. Aggregate fixtures use this.
+    /// Envelopes are checked in this order; rules see the calls sorted by
+    /// `ts_ms` so a later session can be interleaved in time.
+    #[serde(default)]
+    sessions: Vec<SessionCalls>,
     expect_envelopes: Vec<ExpectEnvelope>,
     expect_findings: Vec<ExpectFinding>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SessionCalls {
+    session: u64,
+    calls: Vec<Value>,
 }
 
 #[derive(Deserialize)]
@@ -64,43 +79,27 @@ fn units_map(u: &Units) -> BTreeMap<String, u64> {
     u.iter().map(|(k, v)| (k.to_owned(), v)).collect()
 }
 
-fn run_fixture(path: &Path, bundle: &[u8]) -> Result<(), String> {
-    let fixture: Fixture =
-        serde_json::from_str(&std::fs::read_to_string(path).map_err(|e| e.to_string())?)
-            .map_err(|e| format!("parse: {e}"))?;
-    if fixture.description.trim().is_empty() {
-        return Err("empty description".into());
-    }
-    if fixture.calls.len() != fixture.expect_envelopes.len() {
-        return Err("calls and expect_envelopes differ in length".into());
-    }
-    let config = json!({
+fn client_config(fixture: &Fixture, session: u64) -> Vec<u8> {
+    serde_json::to_vec(&json!({
         "provider": "firebase",
         "sdk": {"name": "conformance", "version": "0"},
-        "session": 1,
+        "session": session,
         "hash_key": "000102030405060708090a0b0c0d0e0f",
         "platform": fixture.platform,
         "evaluations": fixture.evaluations,
-    });
-    let mut client =
-        Client::from_bytes(config.to_string().as_bytes(), bundle).map_err(|e| e.to_string())?;
+    }))
+    .expect("config json")
+}
 
-    let mut findings = Vec::new();
-    for (i, call) in fixture.calls.iter().enumerate() {
-        let got = client
-            .record(call.to_string().as_bytes())
-            .map_err(|e| format!("call {i}: {e}"))?;
-        findings.extend(got);
-    }
-    let events = client.drain(0).map(|b| b.events).unwrap_or_default();
-    if events.len() != fixture.expect_envelopes.len() {
+fn check_envelopes(events: &[Envelope], want: &[ExpectEnvelope]) -> Result<(), String> {
+    if events.len() != want.len() {
         return Err(format!(
             "expected {} envelopes, got {}",
-            fixture.expect_envelopes.len(),
+            want.len(),
             events.len()
         ));
     }
-    for (i, (env, want)) in events.iter().zip(&fixture.expect_envelopes).enumerate() {
+    for (i, (env, want)) in events.iter().zip(want).enumerate() {
         let got = (
             op_name(env),
             env.target.template.clone(),
@@ -111,17 +110,19 @@ fn run_fixture(path: &Path, bundle: &[u8]) -> Result<(), String> {
             return Err(format!("envelope {i}: got {got:?}, want {want:?}"));
         }
     }
+    Ok(())
+}
 
+fn check_findings(
+    findings: &[readmeter_core::Finding],
+    want: &[ExpectFinding],
+) -> Result<(), String> {
     let got_rules: Vec<&str> = findings.iter().map(|f| f.rule.as_str()).collect();
-    let want_rules: Vec<&str> = fixture
-        .expect_findings
-        .iter()
-        .map(|f| f.rule.as_str())
-        .collect();
+    let want_rules: Vec<&str> = want.iter().map(|f| f.rule.as_str()).collect();
     if got_rules != want_rules {
         return Err(format!("findings: got {got_rules:?}, want {want_rules:?}"));
     }
-    for (f, want) in findings.iter().zip(&fixture.expect_findings) {
+    for (f, want) in findings.iter().zip(want) {
         if let Some(wasted) = &want.wasted {
             if &units_map(&f.wasted) != wasted {
                 return Err(format!(
@@ -135,13 +136,88 @@ fn run_fixture(path: &Path, bundle: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+fn record_session(
+    fixture: &Fixture,
+    bundle: &[u8],
+    session: u64,
+    calls: &[Value],
+) -> Result<Batch, String> {
+    let mut client =
+        Client::from_bytes(&client_config(fixture, session), bundle).map_err(|e| e.to_string())?;
+    for (i, call) in calls.iter().enumerate() {
+        client
+            .record(call.to_string().as_bytes())
+            .map_err(|e| format!("session {session} call {i}: {e}"))?;
+    }
+    client
+        .drain(0)
+        .ok_or_else(|| format!("session {session} produced no batch"))
+}
+
+fn run_fixture(path: &Path, bundle: &[u8], evaluator: &mut Evaluator) -> Result<(), String> {
+    let fixture: Fixture =
+        serde_json::from_str(&std::fs::read_to_string(path).map_err(|e| e.to_string())?)
+            .map_err(|e| format!("parse: {e}"))?;
+    if fixture.description.trim().is_empty() {
+        return Err("empty description".into());
+    }
+    if fixture.calls.is_empty() == fixture.sessions.is_empty() {
+        return Err("fixture needs exactly one of `calls` or `sessions`".into());
+    }
+
+    if fixture.sessions.is_empty() {
+        if fixture.calls.len() != fixture.expect_envelopes.len() {
+            return Err("calls and expect_envelopes differ in length".into());
+        }
+        let mut client =
+            Client::from_bytes(&client_config(&fixture, 1), bundle).map_err(|e| e.to_string())?;
+        let mut findings = Vec::new();
+        for (i, call) in fixture.calls.iter().enumerate() {
+            let got = client
+                .record(call.to_string().as_bytes())
+                .map_err(|e| format!("call {i}: {e}"))?;
+            findings.extend(got);
+        }
+        let events = client.drain(0).map(|b| b.events).unwrap_or_default();
+        check_envelopes(&events, &fixture.expect_envelopes)?;
+        return check_findings(&findings, &fixture.expect_findings);
+    }
+
+    let mut events = Vec::new();
+    let mut shell: Option<Batch> = None;
+    for group in &fixture.sessions {
+        let batch = record_session(&fixture, bundle, group.session, &group.calls)?;
+        if shell.is_none() {
+            shell = Some(Batch {
+                events: Vec::new(),
+                findings: Vec::new(),
+                ..batch.clone()
+            });
+        }
+        events.extend(batch.events);
+    }
+    check_envelopes(&events, &fixture.expect_envelopes)?;
+    let mut ordered: Vec<(u64, usize, Envelope)> = events
+        .into_iter()
+        .enumerate()
+        .map(|(i, env)| (env.ts_ms, i, env))
+        .collect();
+    ordered.sort_by_key(|(ts, i, _)| (*ts, *i));
+    let mut batch = shell.ok_or("no sessions")?;
+    batch.events = ordered.into_iter().map(|(_, _, env)| env).collect();
+    let project = path.to_string_lossy();
+    let findings = evaluator
+        .process(&project, &batch)
+        .map_err(|e| e.to_string())?;
+    check_findings(&findings, &fixture.expect_findings)
+}
+
 #[test]
 fn conformance_fixtures() {
     let catalog = Catalog::load_dir(&root().join("rules")).expect("rules");
-    let bundle = catalog
-        .bundle("conformance", Default::default())
-        .encode()
-        .expect("bundle");
+    let rules = catalog.bundle("conformance", Default::default());
+    let bundle = rules.encode().expect("bundle");
+    let mut evaluator = Evaluator::with_all_providers(rules).expect("evaluator");
     let mut paths = Vec::new();
     fixtures(&root().join("conformance/fixtures"), &mut paths);
     paths.sort();
@@ -150,7 +226,7 @@ fn conformance_fixtures() {
     let failures: Vec<String> = paths
         .iter()
         .filter_map(|p| {
-            run_fixture(p, &bundle)
+            run_fixture(p, &bundle, &mut evaluator)
                 .err()
                 .map(|e| format!("{}: {e}", p.display()))
         })

@@ -2,7 +2,7 @@
 //
 // `POST /v1/batches` with `Authorization: Bearer <api key>` and the bytes
 // from the SDK core's `flush()` as the body. The handler authenticates,
-// hands the body to the Rust core (decode, limits, window rules) and stores
+// hands the body to the Rust core (decode, limits, window and aggregate rules) and stores
 // the result in Postgres before answering 202, so an accepted batch is a
 // stored batch. When too many writes are in flight it answers 503 with
 // `Retry-After`; SDKs keep the batch buffered and retry.

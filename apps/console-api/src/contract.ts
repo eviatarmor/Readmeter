@@ -155,7 +155,7 @@ export interface Finding {
   provider: string;
   service: string;
   template: string;
-  /** Latest member session. `group=none` is that row's own session. */
+  /** Latest member session. `"*"` means the finding covers every session. `group=none` is that row's own session. */
   session: string;
   callsite: string;
   message: string;
@@ -174,6 +174,7 @@ export interface Finding {
 /** One session row inside an issue. Occurrences are this row's own count. */
 export interface FindingMember {
   id: number;
+  /** Session id, or `"*"` for an aggregate finding (shown as "All sessions"). */
   session: string;
   occurrences: number;
   lastSeen: string;

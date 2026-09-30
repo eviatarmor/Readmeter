@@ -1,4 +1,4 @@
-// Loads the Rust core (decode + window rules) built by
+// Loads the Rust core (decode + window and aggregate rules) built by
 // scripts/build-wasm-server.sh into ../wasm.
 import { readFileSync } from "node:fs";
 

@@ -401,7 +401,9 @@ function FindingSheet({
                   <TableBody>
                     {row.members.map((member) => (
                       <TableRow key={member.id}>
-                        <TableCell className="max-w-40 truncate font-mono text-xs">{member.session}</TableCell>
+                        <TableCell className={cn("max-w-40 truncate text-xs", member.session === "*" ? "" : "font-mono")}>
+                          {member.session === "*" ? "All sessions" : member.session}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">{formatCount(member.occurrences)}</TableCell>
                         <TableCell><RelativeTime value={member.lastSeen} /></TableCell>
                       </TableRow>

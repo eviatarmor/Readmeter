@@ -5,6 +5,8 @@ use readmeter_core::Envelope;
 use readmeter_rules::DetectorFactory;
 
 pub mod blob_in_document;
+#[cfg(feature = "aggregate")]
+pub mod broadcast_listener;
 #[cfg(feature = "window")]
 pub mod client_side_bulk_delete;
 #[cfg(feature = "window")]
@@ -37,6 +39,8 @@ pub mod manual_ttl_cleanup;
 pub mod missing_cursor;
 #[cfg(feature = "window")]
 pub mod monotonic_document_ids;
+#[cfg(feature = "aggregate")]
+pub mod multi_client_write_hotspot;
 pub mod multi_tab_without_shared_cache;
 #[cfg(feature = "window")]
 pub mod no_op_write;
@@ -47,6 +51,8 @@ pub mod oversized_limit;
 pub mod persistence_disabled;
 #[cfg(feature = "window")]
 pub mod polled_aggregation;
+#[cfg(feature = "aggregate")]
+pub mod public_data_not_bundled;
 #[cfg(feature = "window")]
 pub mod query_per_keystroke;
 #[cfg(feature = "window")]
@@ -66,6 +72,8 @@ pub mod write_per_keystroke;
 pub fn all() -> Vec<(&'static str, DetectorFactory)> {
     vec![
         (blob_in_document::ID, blob_in_document::build),
+        #[cfg(feature = "aggregate")]
+        (broadcast_listener::ID, broadcast_listener::build),
         #[cfg(feature = "window")]
         (client_side_bulk_delete::ID, client_side_bulk_delete::build),
         #[cfg(feature = "window")]
@@ -101,6 +109,11 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (missing_cursor::ID, missing_cursor::build),
         #[cfg(feature = "window")]
         (monotonic_document_ids::ID, monotonic_document_ids::build),
+        #[cfg(feature = "aggregate")]
+        (
+            multi_client_write_hotspot::ID,
+            multi_client_write_hotspot::build,
+        ),
         (
             multi_tab_without_shared_cache::ID,
             multi_tab_without_shared_cache::build,
@@ -114,6 +127,8 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (persistence_disabled::ID, persistence_disabled::build),
         #[cfg(feature = "window")]
         (polled_aggregation::ID, polled_aggregation::build),
+        #[cfg(feature = "aggregate")]
+        (public_data_not_bundled::ID, public_data_not_bundled::build),
         #[cfg(feature = "window")]
         (query_per_keystroke::ID, query_per_keystroke::build),
         #[cfg(feature = "window")]

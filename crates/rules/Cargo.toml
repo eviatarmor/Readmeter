@@ -12,6 +12,9 @@ default = ["window"]
 # Detectors for `evaluation = "window"` rules. Production SDK builds leave
 # this off (they only run local rules); dev builds and the backend enable it.
 window = []
+# Detectors for `evaluation = "aggregate"` rules. Backend only: SDKs never
+# enable this, including dev builds (those run window rules, not aggregate).
+aggregate = []
 # Load rule definitions from `rules/**/*.toml`. Server and tooling only; SDKs
 # receive a pre-compiled binary bundle (`bundle.bin`) instead.
 catalog-toml = ["dep:toml", "dep:serde_json"]

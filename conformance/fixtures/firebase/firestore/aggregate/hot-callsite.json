@@ -1,0 +1,49 @@
+{
+  "description": "The home screen loads one large posts query from a single callsite, and that callsite is the whole project's read bill.",
+  "platform": "browser",
+  "evaluations": [
+    "aggregate"
+  ],
+  "sessions": [
+    {
+      "session": 1,
+      "calls": [
+        {
+          "service": "firestore",
+          "op": "query",
+          "ts_ms": 1000,
+          "call_id": 1,
+          "path": "posts",
+          "query": {
+            "order_by": [
+              {
+                "field": "at",
+                "direction": "desc"
+              }
+            ]
+          },
+          "result": {
+            "docs": 10000,
+            "bytes": 1
+          },
+          "callsite": "src/Home.tsx:8:3"
+        }
+      ]
+    }
+  ],
+  "expect_envelopes": [
+    {
+      "op": "query",
+      "template": "posts",
+      "units": {
+        "reads": 10000,
+        "egress_bytes": 1
+      }
+    }
+  ],
+  "expect_findings": [
+    {
+      "rule": "generic/hot-callsite"
+    }
+  ]
+}

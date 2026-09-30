@@ -17,10 +17,12 @@ struct Slot {
 
 /// Runs a set of detectors over a stream of envelopes.
 ///
-/// One engine per client (SDK) or per evaluator shard (backend). The engine
-/// throttles repeated findings: the same rule for the same callsite (or
-/// template when no callsite is known) in one session fires at most once per
-/// `cooldown_ms`.
+/// One engine per client (SDK), or one window engine and one aggregate
+/// engine per project on the backend. The engine throttles repeated
+/// findings: the same rule for the same callsite (or template when no
+/// callsite is known) fires at most once per `cooldown_ms`. Window rules
+/// include the session in that key. Aggregate rules do not, because one
+/// finding covers every session of the project.
 pub struct Engine {
     slots: Vec<Slot>,
     cooldown_ms: u64,
@@ -90,25 +92,70 @@ impl Engine {
     /// Feeds one envelope to every matching detector and returns new findings.
     pub fn observe(&mut self, env: &Envelope) -> Vec<Finding> {
         let mut raw = Vec::new();
+        // Parallel to `raw` when aggregate rules are linked: those findings
+        // omit the session from the cooldown key (see [`Engine`]). The SDK
+        // build leaves this off so the extra bookkeeping stays out of wasm.
+        #[cfg(feature = "aggregate")]
+        let mut aggregate = Vec::new();
         for slot in &mut self.slots {
             if !slot.rule.spec.applies_to(env) {
                 continue;
             }
             let mut emitter = Emitter::new(&slot.rule, &mut raw);
             slot.detector.observe(env, &mut emitter);
+            #[cfg(feature = "aggregate")]
+            aggregate.resize(
+                raw.len(),
+                slot.rule.spec.evaluation == Evaluation::Aggregate,
+            );
         }
         if raw.is_empty() {
             return raw;
         }
         self.sweep(env.ts_ms);
-        raw.retain(|f| self.admit(f));
-        raw
+        #[cfg(feature = "aggregate")]
+        let kept = {
+            let mut kept = Vec::with_capacity(raw.len());
+            for (finding, is_aggregate) in raw.into_iter().zip(aggregate) {
+                if self.admit(&finding, is_aggregate) {
+                    kept.push(finding);
+                }
+            }
+            kept
+        };
+        #[cfg(not(feature = "aggregate"))]
+        let kept = {
+            raw.retain(|f| self.admit(f));
+            raw
+        };
+        kept
     }
 
+    /// State entries across detectors. Cap tests use this.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn tracked(&self) -> usize {
+        self.slots.iter().map(|s| s.detector.tracked()).sum()
+    }
+
+    #[cfg(feature = "aggregate")]
+    fn admit(&mut self, f: &Finding, aggregate: bool) -> bool {
+        let mut h = DefaultHasher::new();
+        f.rule.hash(&mut h);
+        if !aggregate {
+            f.session.hash(&mut h);
+        }
+        self.admit_rest(f, h)
+    }
+
+    #[cfg(not(feature = "aggregate"))]
     fn admit(&mut self, f: &Finding) -> bool {
         let mut h = DefaultHasher::new();
         f.rule.hash(&mut h);
         f.session.hash(&mut h);
+        self.admit_rest(f, h)
+    }
+
+    fn admit_rest(&mut self, f: &Finding, mut h: DefaultHasher) -> bool {
         match f.callsite {
             Some(c) => c.hash(&mut h),
             None => f.template.hash(&mut h),
@@ -192,6 +239,37 @@ mod tests {
         assert_eq!(engine.observe(&e(0)).len(), 1);
         assert!(engine.observe(&e(500)).is_empty());
         assert_eq!(engine.observe(&e(1_000)).len(), 1);
+    }
+
+    #[cfg(feature = "aggregate")]
+    #[test]
+    fn aggregate_cooldown_ignores_session() {
+        let mut def = rule_def("generic/always-agg", "*", "*");
+        def.evaluation = Evaluation::Aggregate;
+        let catalog = Catalog::new(vec![def]).unwrap();
+        let mut reg = Registry::new();
+        reg.register("generic/always-agg", always);
+        let mut engine = Engine::build(
+            &catalog.specs(),
+            &RuleConfig {
+                cooldown_ms: 1_000,
+                ..Default::default()
+            },
+            &reg,
+            &[Evaluation::Aggregate],
+        )
+        .unwrap();
+        let hit = |session, callsite, ts| {
+            EnvBuilder::get("x")
+                .session(session)
+                .callsite(callsite)
+                .at(ts)
+                .build()
+        };
+        assert_eq!(engine.observe(&hit(1, 7, 0)).len(), 1);
+        assert!(engine.observe(&hit(2, 7, 500)).is_empty());
+        assert_eq!(engine.observe(&hit(3, 8, 500)).len(), 1);
+        assert_eq!(engine.observe(&hit(1, 7, 1_000)).len(), 1);
     }
 
     #[test]

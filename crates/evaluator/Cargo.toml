@@ -9,15 +9,15 @@ publish.workspace = true
 
 [dependencies]
 readmeter-core.workspace = true
-readmeter-rules = { workspace = true, features = ["window"] }
+readmeter-rules = { workspace = true, features = ["window", "aggregate"] }
 readmeter-provider-api = { workspace = true, features = ["serde"] }
-readmeter-provider-firebase = { workspace = true, features = ["firestore", "database", "storage", "auth", "functions", "window"] }
+readmeter-provider-firebase = { workspace = true, features = ["firestore", "database", "storage", "auth", "functions", "window", "aggregate"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-readmeter-rules = { workspace = true, features = ["window", "catalog-toml"] }
+readmeter-rules = { workspace = true, features = ["window", "aggregate", "catalog-toml"] }
 readmeter-runtime = { workspace = true, features = ["firebase"] }
 
 [lints]

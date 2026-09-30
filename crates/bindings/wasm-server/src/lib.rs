@@ -44,12 +44,14 @@ impl Evaluator {
             limits: Limits {
                 max_events: max_events as usize,
                 max_findings: max_findings as usize,
+                ..Limits::default()
             },
         })
     }
 
-    /// Decodes one SDK batch, runs window rules for `project` and returns
-    /// `{batch, events, findings}` as JSON. Hashes are 16-char hex strings.
+    /// Decodes one SDK batch, runs window and aggregate rules for `project`
+    /// and returns `{batch, events, findings}` as JSON. Hashes are 16-char
+    /// hex strings. Aggregate findings use session `"*"`.
     pub fn ingest(&mut self, project: &str, body: &[u8]) -> Result<String, JsError> {
         let out = self
             .inner

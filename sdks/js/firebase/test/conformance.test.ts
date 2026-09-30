@@ -17,7 +17,8 @@ interface Fixture {
   description: string;
   platform: string;
   evaluations: string[];
-  calls: unknown[];
+  calls?: unknown[];
+  sessions?: unknown[];
   expect_findings: ExpectFinding[];
 }
 
@@ -48,6 +49,8 @@ test("conformance fixtures produce the same findings as the Rust runner", async 
   const failures: string[] = [];
   for (const file of fixtures) {
     const fixture = JSON.parse(readFileSync(file, "utf8")) as Fixture;
+    // Aggregate fixtures name many sessions and run in the Rust evaluator.
+    if (!fixture.calls) continue;
     const platform = fixture.platform;
     if (platform !== "browser" && platform !== "server" && platform !== "mobile") {
       failures.push(`${file}: unknown platform ${platform}`);

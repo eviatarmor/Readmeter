@@ -66,7 +66,8 @@ pub struct EventRow {
 pub struct FindingRow {
     pub rule: String,
     pub severity: Value,
-    /// `sdk` (local rule, came in the batch) or `evaluator` (window rule, found here).
+    /// `sdk` (local rule, came in the batch) or `evaluator` (window or
+    /// aggregate rule, found here).
     pub source: &'static str,
     pub ts_ms: u64,
     pub provider: String,
@@ -242,6 +243,14 @@ fn scalar(s: &Scalar) -> Value {
 
 impl FindingRow {
     pub fn from_finding(f: &Finding, source: &'static str) -> Self {
+        Self::with_session(f, source, hex(f.session))
+    }
+
+    /// `session` replaces the envelope session. Aggregate findings pass
+    /// `"*"` (every session of the project). The unique index is
+    /// `(project, rule, session, callsite, template)`, so `"*"` dedupes
+    /// those findings across sessions without a schema change.
+    pub fn with_session(f: &Finding, source: &'static str, session: String) -> Self {
         Self {
             rule: f.rule.clone(),
             severity: to_value(&f.severity),
@@ -250,7 +259,7 @@ impl FindingRow {
             provider: f.provider.clone(),
             service: f.service.clone(),
             template: f.template.clone(),
-            session: hex(f.session),
+            session,
             callsite: f.callsite.map(hex),
             message: f.message.clone(),
             evidence: Value::Object(

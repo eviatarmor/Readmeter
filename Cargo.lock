@@ -186,6 +186,7 @@ name = "readmeter-runtime"
 version = "0.1.0"
 dependencies = [
  "readmeter-core",
+ "readmeter-evaluator",
  "readmeter-provider-api",
  "readmeter-provider-firebase",
  "readmeter-rules",
