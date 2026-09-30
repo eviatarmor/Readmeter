@@ -93,6 +93,7 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             platform: cx.platform,
             attempt: raw.attempt.max(1),
             dev: cx.dev,
+            in_render: false,
         },
         units: Default::default(),
     };

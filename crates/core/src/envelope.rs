@@ -7,7 +7,7 @@ use crate::units::Units;
 /// Nothing has shipped yet, so ingest decodes only this version and rejects
 /// every other one with [`crate::WireError::UnsupportedVersion`]. Bump on any
 /// breaking change to the serialized shape.
-pub const SCHEMA_VERSION: u16 = 3;
+pub const SCHEMA_VERSION: u16 = 4;
 
 /// One normalized backend call. This is the only shape rules and the backend
 /// ever see. It never contains document contents or filter values, only
@@ -90,6 +90,11 @@ pub enum Op {
     /// The host page became visible or hidden (browser SDKs).
     Page {
         visible: bool,
+    },
+    /// The host lost or regained its connection to the provider (browser
+    /// `offline`/`online`, or the page was frozen/resumed).
+    Connection {
+        online: bool,
     },
     /// Provider-specific operation without a generic equivalent.
     Other(String),
@@ -201,6 +206,11 @@ pub struct ResultUsage {
     /// Distinct returned items whose contents were read (`data()`, `get()`),
     /// when the SDK can observe it. `None`: not tracked.
     pub items_used: Option<u32>,
+    /// Distinct top-level field names whose values the host read across the
+    /// returned items, when the SDK can observe it. `None`: not tracked.
+    pub fields_read: Option<u32>,
+    /// Every field value counted in `fields_read` was a number.
+    pub fields_numeric: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +252,9 @@ pub struct CallContext {
     pub attempt: u32,
     /// Host is running a development build.
     pub dev: bool,
+    /// The call was issued while a UI framework was rendering a component
+    /// (e.g. inside a React function component body), when the SDK can tell.
+    pub in_render: bool,
 }
 
 /// How a read was routed. [`Default`](ReadSource::Default) is the SDK's normal

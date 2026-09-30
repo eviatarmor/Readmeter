@@ -62,3 +62,22 @@ fn page_requires_a_bool_visible_and_a_timestamp() {
             .is_err()
     );
 }
+
+#[test]
+fn connection_event_is_recorded() {
+    let mut c = client();
+    c.record(br#"{"op":"connection","ts_ms":1,"call_id":4,"online":false}"#)
+        .expect("record");
+    assert!(c.record(br#"{"op":"connection","ts_ms":1}"#).is_err());
+    assert!(
+        c.record(br#"{"op":"connection","ts_ms":1,"online":1}"#)
+            .is_err()
+    );
+    let batch = c.drain(10).expect("batch");
+    let event = &batch.events[0];
+    assert_eq!(event.provider, "sdk");
+    assert_eq!(event.service, "connection");
+    assert_eq!(event.op, Op::Connection { online: false });
+    assert_eq!(event.ctx.call_id, 4);
+    assert!(event.units.is_empty());
+}

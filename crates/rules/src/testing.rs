@@ -221,6 +221,18 @@ impl EnvBuilder {
         self
     }
 
+    /// Sets `op` to a connection event.
+    pub fn connection(mut self, online: bool) -> Self {
+        self.0.op = Op::Connection { online };
+        self
+    }
+
+    /// Marks the call as issued during a component render.
+    pub fn in_render(mut self) -> Self {
+        self.0.ctx.in_render = true;
+        self
+    }
+
     /// Sets `usage.items_used`, inserting a default usage report when absent.
     pub fn items_used(mut self, n: u32) -> Self {
         self.0
