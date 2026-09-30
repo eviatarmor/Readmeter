@@ -2,7 +2,9 @@
  * One invoke record per `withFlush` call. While the handler runs, Firestore
  * reads, Realtime Database download bytes, and Storage calls are tallied
  * from the raw records those shims already send. The core prices the invoke.
- * Payloads, URLs, project ids, and tokens are not copied.
+ * For a Firestore trigger event, committed writes matching the trigger's
+ * document pattern are counted as `trigger_writes`; the pattern and paths
+ * are not copied. Payloads, URLs, project ids, and tokens are not copied.
  */
 
 import { callsite } from "../core/callsite.ts";
@@ -11,7 +13,8 @@ import { debugOnce } from "../core/log.ts";
 import { nextCallId } from "../core/session.ts";
 import { MAX_JSON_BYTES, jsonBytes } from "../web/database-shape.ts";
 import { flush } from "../index.ts";
-import { currentInvocation, runInvocation } from "./invocation.ts";
+import { currentInvocationState, runInvocation, type InvocationState } from "./invocation.ts";
+import { triggerPattern } from "./trigger.ts";
 
 const GRPC: Record<number, string> = {
   1: "cancelled",
@@ -131,7 +134,7 @@ function storageOps(call: Record<string, unknown>): number {
 }
 
 function observeRaw(raw: unknown): void {
-  const id = currentInvocation();
+  const id = currentInvocationState()?.id;
   if (id === undefined) return;
   const call = asRecord(raw);
   if (!call || typeof call.service !== "string" || call.service === "functions") return;
@@ -204,6 +207,7 @@ function recordInvoke(input: {
   at: Timing;
   args: unknown[];
   tally: Tally;
+  triggerWrites: number;
   cold: boolean;
   failed: boolean;
   returned: unknown;
@@ -234,6 +238,7 @@ function recordInvoke(input: {
     if (input.tally.reads > 0) call.reads = input.tally.reads;
     if (input.tally.rtdbBytes > 0) call.rtdb_download_bytes = input.tally.rtdbBytes;
     if (input.tally.storageOps > 0) call.storage_ops = input.tally.storageOps;
+    if (input.triggerWrites > 0) call.trigger_writes = input.triggerWrites;
     recordRaw(call);
   } catch (error) {
     debugOnce(sdkDebug(), error);
@@ -244,33 +249,36 @@ function recordInvoke(input: {
  * Awaits `flush` after `handler` settles. A handler error is rethrown unchanged.
  * Records one invoke with duration, cold start, memory when `FUNCTION_MEMORY_MB`
  * is set, and the Firestore / RTDB / Storage totals observed during the handler.
+ * When the first argument is a Firestore trigger event, also the number of
+ * committed writes that match the trigger (only the count leaves the process).
  */
 export function withFlush<A extends unknown[], R>(handler: (...args: A) => R): (...args: A) => Promise<Awaited<R>> {
   return async (...args: A): Promise<Awaited<R>> => {
     const at = timing();
     const written = watchEnd(args);
-    let invocation: number | undefined;
+    let invocation: InvocationState | undefined;
     let returned: Awaited<R> | undefined;
     let thrown: unknown;
     let failed = false;
     try {
       returned = await runInvocation(() => {
-        invocation = currentInvocation();
+        invocation = currentInvocationState();
         return handler(...args);
-      });
+      }, triggerPattern(args));
       return returned;
     } catch (error) {
       thrown = error;
       failed = true;
       throw error;
     } finally {
-      const tally = takeTally(invocation);
+      const tally = takeTally(invocation?.id);
       const cold = coldLeft;
       coldLeft = false;
       recordInvoke({
         at,
         args,
         tally,
+        triggerWrites: invocation?.triggerWrites ?? 0,
         cold,
         failed,
         returned,

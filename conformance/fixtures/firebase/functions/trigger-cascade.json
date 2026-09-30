@@ -1,12 +1,14 @@
 {
-  "description": "A Firestore-triggered function that writes the collection that triggers it. firebase-functions v2 stores the trigger path on CloudFunction.__endpoint at registration, not on the event withFlush wraps, and the event document is a concrete id. The rule stays planned and this invoke produces no finding.",
+  "description": "A function wrapped with withFlush handles an onDocumentWritten(\"posts/{id}\") event for posts/abc and writes posts/abc and posts/def. The SDK matches both writes against the trigger pattern in memory and sends only trigger_writes = 2 on the invoke. The rule fires and wastes one invocation per matching write.",
   "platform": "server",
-  "evaluations": ["window"],
+  "evaluations": ["local"],
   "calls": [
-    { "service": "functions", "op": "invoke", "name": "onPost", "ts_ms": 1000, "call_id": 1, "response_bytes": 2 }
+    { "service": "functions", "op": "invoke", "name": "onPost", "ts_ms": 1000, "call_id": 1, "trigger_writes": 2 }
   ],
   "expect_envelopes": [
-    { "op": "other", "template": "functions/onPost", "units": { "egress_bytes": 2, "invocations": 1 } }
+    { "op": "other", "template": "functions/onPost", "units": { "invocations": 1 } }
   ],
-  "expect_findings": []
+  "expect_findings": [
+    { "rule": "firebase.functions/trigger-cascade", "wasted": { "invocations": 2 } }
+  ]
 }

@@ -4,29 +4,34 @@ provider = "firebase"
 service = "functions"
 severity = "high"
 category = "writes"
-evaluation = "window"
-status = "planned"
-default_enabled = false
-summary = "A Firestore-triggered function writes back to the collection that invoked it."
+evaluation = "local"
+status = "beta"
+summary = "A Firestore-triggered function writes documents that match its own trigger."
 
 description = """
-`onDocumentWritten` runs again for every document it writes in the
-collection named by its trigger. That loop bills a new invocation and
-the writes, and it can run away. The trigger path is stored on the
-function object returned by `onDocumentWritten`
-(`CloudFunction.__endpoint.eventTrigger`), not on the event handed to
-the handler `withFlush` wraps. The event's document path is the concrete
-id, which is not the trigger pattern and would leak that id if it were
-recorded. Until the handler can see the trigger path without that id,
-this rule stays planned.
+`onDocumentWritten("posts/{id}")` runs again for every document it
+writes that matches `posts/{id}`. That loop bills a new invocation and
+the writes each time, and it can run away. When `withFlush` wraps a
+Firestore-triggered handler, the SDK reads the event's document path
+and params in memory, turns the path into a pattern (each segment that
+holds a param value becomes a wildcard), and counts the Firestore
+writes made during that invocation whose document path matches it.
+Batch and transaction commits count each matching write. Only the
+count is recorded. The pattern, the event's document path, and the
+written paths never leave the process. Each counted write is one extra
+invocation.
 """
 
 fix = """
 Write to a different collection, or guard the handler so a write made
-by the function itself does not match the trigger again.
+by the function itself does not match the trigger again, for example
+by returning early when the fields it sets are already set.
 """
 
 docs = ["https://firebase.google.com/docs/functions/firestore-events"]
+
+[params]
+min_writes = 1
 
 [[examples]]
 lang = "ts"
