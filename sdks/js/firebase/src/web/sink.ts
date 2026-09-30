@@ -3,7 +3,7 @@
  * Manual `sink*` omits `duration_us`. Drop-in wrappers pass `timing.start`.
  */
 
-import { callsite } from "../core/callsite.ts";
+import { callsite, readSite } from "../core/callsite.ts";
 import { recordRaw, sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
 import type { WriteSignal } from "../core/payload.ts";
@@ -35,6 +35,8 @@ export interface Timing {
   site?: string;
   attempt?: number;
   callId?: number;
+  /** Read issued from a React component body (dev builds only). */
+  inRender?: boolean;
 }
 
 interface Emit {
@@ -62,6 +64,7 @@ interface Emit {
 }
 
 const WRITES = new Set<WriteOp>(["set", "update", "create", "delete"]);
+const READS = new Set(["get", "query", "aggregate"]);
 
 function elapsed(start: number | undefined): number | undefined {
   if (start === undefined) return undefined;
@@ -116,6 +119,7 @@ function emit(input: Emit): number {
     const duration = elapsed(input.timing.start);
     if (duration !== undefined) raw.duration_us = duration;
     if (input.timing.site) raw.callsite = input.timing.site;
+    if (input.timing.inRender && READS.has(input.op)) raw.in_render = true;
   }
   if (input.timing.attempt !== undefined && input.timing.attempt !== 1) raw.attempt = input.timing.attempt;
   if (input.listener !== undefined) raw.listener = input.listener;
@@ -554,7 +558,8 @@ export function watch<T>(pending: Promise<T>, ok: (value: T) => void, fail: (err
 /** Returns `result`. Plain objects that are not Firestore values are ignored. */
 export function sink<T>(target: unknown, result: T): T {
   try {
-    const timing: Timing = { ts: Date.now(), site: callsite() };
+    const { site, inRender } = readSite();
+    const timing: Timing = { ts: Date.now(), site, inRender };
     if (isAggregateSnapshot(result)) {
       let names = aggregationsFromSpec((target as { _aggregateSpec?: unknown } | null)?._aggregateSpec);
       if (!names) {

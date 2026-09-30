@@ -58,6 +58,8 @@ pub mod query_per_keystroke;
 #[cfg(feature = "window")]
 pub mod read_after_write;
 #[cfg(feature = "window")]
+pub mod read_in_render;
+#[cfg(feature = "window")]
 pub mod read_modify_write_counter;
 #[cfg(feature = "window")]
 pub mod tiny_batches;
@@ -133,6 +135,8 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (query_per_keystroke::ID, query_per_keystroke::build),
         #[cfg(feature = "window")]
         (read_after_write::ID, read_after_write::build),
+        #[cfg(feature = "window")]
+        (read_in_render::ID, read_in_render::build),
         #[cfg(feature = "window")]
         (
             read_modify_write_counter::ID,

@@ -209,6 +209,21 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
       assert.equal(recorded.path, "posts");
       assert.equal(recorded.duration_us, undefined);
       assert.deepEqual(recorded.query, {});
+      assert.equal((recorded as { in_render?: unknown }).in_render, undefined);
+
+      // A function named like React's render entry point stands in for a dev-build render.
+      const renderWithHooks = (run: () => void): void => run();
+      renderWithHooks(() => {
+        sink(query(collection(db, "posts")), snap);
+        sinkWrite(ref, "set");
+      });
+      const renderedRead = JSON.parse(logged.at(-2) ?? "{}") as { op?: string; in_render?: unknown; callsite?: string };
+      const renderedWrite = JSON.parse(logged.at(-1) ?? "{}") as { op?: string; in_render?: unknown };
+      assert.equal(renderedRead.op, "query");
+      assert.equal(renderedRead.in_render, true);
+      assert.match(renderedRead.callsite ?? "", /web\.test\.ts:\d+:\d+$/);
+      assert.equal(renderedWrite.op, "set");
+      assert.equal(renderedWrite.in_render, undefined);
 
       logged.length = 0;
       fakeDocument.visibilityState = "hidden";

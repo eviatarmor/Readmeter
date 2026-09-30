@@ -75,3 +75,81 @@ export function callsiteFromStack(stack: string | undefined): string | undefined
 export function callsite(): string | undefined {
   return callsiteFromStack(new Error().stack);
 }
+
+/**
+ * React dev-build functions that call a function component's body.
+ * React 18 and 19: `renderWithHooks`; React 19 re-renders through
+ * `renderWithHooksAgain`. Production builds minify these names.
+ */
+const RENDER_FRAMES = new Set(["renderWithHooks", "renderWithHooksAgain"]);
+
+/** Commit-phase frames: effects and lifecycles run below these, never in render. */
+function isCommitFrame(name: string): boolean {
+  return /^commit[A-Z]/.test(name) || name === "flushPassiveEffects" || name === "flushLayoutEffects";
+}
+
+/** Function name of one stack line (V8 `at a.b (...)`, Firefox/Safari `a/b@...`). */
+function frameName(line: string): string | undefined {
+  let s = line.trim();
+  if (s.startsWith("at ")) {
+    s = s.slice(3);
+    if (s.startsWith("async ")) s = s.slice(6);
+    const paren = s.indexOf(" (");
+    if (paren < 0) return undefined;
+    s = s.slice(0, paren);
+    const alias = s.indexOf(" [as ");
+    if (alias >= 0) s = s.slice(0, alias);
+    if (s.startsWith("new ")) s = s.slice(4);
+  } else {
+    const at = s.indexOf("@");
+    if (at <= 0) return undefined;
+    s = s.slice(0, at);
+  }
+  const parts = s.split(/[./<]+/).filter((part) => part.length > 0);
+  return parts[parts.length - 1];
+}
+
+/**
+ * True when the nearest React frame is a render entry point, i.e. the call
+ * ran in a component body. Effects and event handlers return false.
+ */
+export function inRenderFromStack(stack: string | undefined): boolean {
+  if (!stack) return false;
+  for (const line of stack.split("\n")) {
+    const name = frameName(line);
+    if (!name) continue;
+    if (RENDER_FRAMES.has(name)) return true;
+    if (isCommitFrame(name)) return false;
+  }
+  return false;
+}
+
+/** V8 keeps 10 frames by default, often too few to reach React's render frame. */
+const STACK_FRAMES = 50;
+
+/** `new Error().stack` with a deeper frame limit. Never throws. */
+export function captureStack(): string | undefined {
+  try {
+    const ctor = Error as { stackTraceLimit?: unknown };
+    const previous = ctor.stackTraceLimit;
+    const raise = typeof previous === "number" && previous < STACK_FRAMES;
+    try {
+      if (raise) ctor.stackTraceLimit = STACK_FRAMES;
+      return new Error().stack;
+    } finally {
+      if (raise) ctor.stackTraceLimit = previous;
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/** Callsite plus the in-render flag for reads, from one captured stack. */
+export function readSite(): { site: string | undefined; inRender: boolean } {
+  try {
+    const stack = captureStack();
+    return { site: callsiteFromStack(stack), inRender: inRenderFromStack(stack) };
+  } catch {
+    return { site: undefined, inRender: false };
+  }
+}

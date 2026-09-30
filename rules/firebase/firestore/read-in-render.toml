@@ -5,21 +5,32 @@ service = "firestore"
 severity = "high"
 category = "reads"
 evaluation = "window"
-status = "planned"
-default_enabled = false
+status = "beta"
 summary = "A read runs in the component body, so every render bills it again."
 
 description = """
 A `getDoc`, `getDocs`, or `getCountFromServer` call in the render path
 runs again on every render, and each call is billed. React state updates
-and parent renders multiply that cost. Needs render ids from the callsite,
-which this build does not record yet.
+and parent renders multiply that cost. The rule fires when one callsite
+issues several billed reads during render within a short window; reads
+after the first count as waste.
+
+The web SDK marks a read as in render when the call stack contains React's
+render entry point (`renderWithHooks`, or `renderWithHooksAgain` in React
+19). Effects and event handlers run from other frames and are not marked.
+This only works with development builds of React: production builds
+minify function names, so reads there are never marked and the rule stays
+silent.
 """
 
 fix = """
 Move the read into `useEffect` (or a cache such as TanStack Query) so it
 runs when its inputs change, not on every render.
 """
+
+[params]
+min_reads = 3
+window_ms = 10000
 
 [[examples]]
 lang = "ts"
