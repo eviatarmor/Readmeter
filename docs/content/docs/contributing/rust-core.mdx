@@ -163,12 +163,12 @@ Do not add heavy dependencies to `core`, `rules`, `provider-api`, providers or `
 
 ```sh
 ./scripts/build-wasm.sh
-# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 95744 B)
+# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 96512 B)
 ```
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BUDGET_GZIP` | `95744` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
+| `BUDGET_GZIP` | `96512` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
 | `FEATURES` | `firebase,database,storage,auth,functions` | Features passed to `readmeter-wasm`. |
 | `OUT` | `target/wasm-pkg` | Output directory. |
 
