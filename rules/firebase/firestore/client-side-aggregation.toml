@@ -5,16 +5,20 @@ service = "firestore"
 severity = "high"
 category = "reads"
 evaluation = "window"
-status = "planned"
-default_enabled = false
+status = "beta"
 summary = "Documents were fetched only to sum or average a field on the client."
 
 description = """
 Reading every document to add up one field bills one read per document and
 downloads the whole result. `sum()` and `average()` bill about one read per
-1,000 index entries and return the aggregate without the documents. Needs
-field-access tracking across a query result, which this build does not
-record yet.
+1,000 index entries and return the aggregate without the documents.
+
+The web SDK records which top-level fields the app reads from the documents
+of a query result (`data()` properties and `get()` paths; only the count of
+distinct fields and whether every value read was a number leave the
+process). The rule fires when nearly every document was read and the only
+field touched was one numeric field. A chart that plots that one field per
+document reads the same way, so the rule is beta.
 """
 
 fix = """
@@ -23,6 +27,11 @@ Replace the client loop with `getAggregateFromServer(q, { total: sum("amount") }
 """
 
 docs = ["https://firebase.google.com/docs/firestore/query-data/aggregation-queries"]
+
+[params]
+min_docs = 50
+min_used_ratio = 0.9
+max_fields = 1
 
 [[examples]]
 lang = "ts"

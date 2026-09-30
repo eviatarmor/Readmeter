@@ -1,0 +1,23 @@
+{
+  "description": "Dashboard calls getDocs(query(collection(db, 'feed'), where('ts', '>=', 0))), gets 60 documents, and adds up data().ts of every document in a loop.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "feed",
+      "query": { "filters": [{ "field": "ts", "op": ">=", "value": 0 }] },
+      "result": { "docs": 60, "bytes": 3000 }, "callsite": "src/Dashboard.tsx:21:5"
+    },
+    {
+      "service": "firestore", "op": "usage", "ts_ms": 2000, "call_id": 1, "path": "feed",
+      "usage": { "read_items": true, "read_size": false, "read_empty": false, "items_used": 60, "fields_read": 1, "fields_numeric": true }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "feed", "units": { "reads": 60, "egress_bytes": 3000 } },
+    { "op": "usage", "template": "feed", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/client-side-aggregation", "wasted": { "reads": 59 } }
+  ]
+}
