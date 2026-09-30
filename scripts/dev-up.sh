@@ -86,6 +86,7 @@ if port_open 8091; then
   echo "port 8091 is still in use after stopping the recorded console-api pid" >&2
   exit 1
 fi
+export CONSOLE_DEV_RESET_LINKS=1   # local only: show reset links in the console without SMTP
 start_detached "$root/target/dev/console-api.pid" "$root/target/dev/console-api.log" \
   pnpm --filter @readmeter/console-api start
 if ! wait_http "http://127.0.0.1:8091/healthz" 90; then

@@ -1,0 +1,134 @@
+---
+title: Cloud Firestore
+description: What the Firestore drop-in wraps, what each call records, and its limits.
+---
+
+## Import
+
+Change `firebase/firestore` to `@readmeter/firebase/firestore`. The module re-exports all of `firebase/firestore`, so builders such as `collection`, `query`, `where`, `limit` and `doc` keep working unchanged.
+
+<Tabs items={["Web", "Cloud Functions"]}>
+<Tab value="Web">
+
+```ts
+import { init } from "@readmeter/firebase";
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  query,
+  updateDoc,
+  where,
+} from "@readmeter/firebase/firestore";
+
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090" });
+
+const open = query(collection(db, "orders"), where("status", "==", "open"), limit(20));
+const snap = await getDocs(open);
+
+await updateDoc(doc(db, "orders", id), { status: "shipped" });
+
+const unsub = onSnapshot(open, (next) => render(next.docs));
+```
+
+</Tab>
+<Tab value="Cloud Functions">
+
+```ts
+import { init } from "@readmeter/firebase";
+import { instrument, withFlush } from "@readmeter/firebase/admin";
+import { getFirestore } from "firebase-admin/firestore";
+import { onRequest } from "firebase-functions/v2/https";
+
+init({ apiKey: "rm_...", endpoint: "https://ingest.example", platform: "server" });
+
+const db = instrument(getFirestore());
+
+export const openOrders = onRequest(withFlush(async (_req, res) => {
+  const snap = await db.collection("orders").where("status", "==", "open").limit(20).get();
+  res.json({ n: snap.size });
+}));
+```
+
+The Admin SDK is covered on [Cloud Functions (server)](/docs/sdk/cloud-functions-server).
+
+</Tab>
+</Tabs>
+
+## Wrapped functions
+
+| Function | Recorded as | Notes |
+|---|---|---|
+| `getDocs` | `query` | Also tracks which parts of the result you read. |
+| `getDocsFromServer`, `getDocsFromCache` | `query` | Records the source (`server` or `cache`). |
+| `getDoc` | `get` | Also tracks whether you read the document. |
+| `getDocFromServer`, `getDocFromCache` | `get` | Records the source. |
+| `getCountFromServer` | `aggregate` | Records the count as index entries scanned. |
+| `getAggregateFromServer` | `aggregate` | Records `count`, `sum:<field>` and `avg:<field>`. |
+| `setDoc`, `updateDoc`, `addDoc` | `set`, `update`, `create` | Records a write signal (below). |
+| `deleteDoc` | `delete` | |
+| `writeBatch` | `commit` | Wraps the returned batch's `commit()`. Records write and delete counts. |
+| `runTransaction` | `get` and `commit` | Reads and the commit of the attempt that succeeded. |
+| `onSnapshot` | `subscribe`, `snapshot`, `unsubscribe` | Each callback and the returned unsubscribe function. |
+| `initializeFirestore`, `persistentLocalCache`, `enableIndexedDbPersistence`, `enableMultiTabIndexedDbPersistence` | `init` | Remembers the cache setup. See below. |
+
+Everything else is re-exported from `firebase/firestore` unchanged.
+
+## What each call records
+
+Every record has the operation, the document or collection path, a call id, a timestamp, the duration in microseconds and the callsite (the first stack frame outside `@readmeter/firebase` and `node_modules`, as `file:line:col`). Failed calls record the error code with the `firestore/` prefix removed, for example `permission-denied`.
+
+Reads also record:
+
+- The query shape: filters (field, operator, value), `orderBy` fields and direction, `limit`, `limitToLast`, `offset`, and `startAt` / `endAt` cursor values. A collection group query is flagged as one.
+- The result: document count, estimated stored bytes, and whether it came from the cache. Bytes follow Firestore's [storage size formula](https://firebase.google.com/docs/firestore/storage-size): each document's name, field names and field values, plus 32 bytes.
+- For aggregations, the aggregation list and, for `count`, the number returned.
+
+The core turns this into the envelope. Paths become templates such as `users/{id}/orders`, filter values and cursors are folded into keyed hashes, and only field names and operators stay readable. See [Privacy](/docs/sdk/privacy#cloud-firestore).
+
+### Result usage
+
+`getDocs`, `getDoc` and their `FromServer` / `FromCache` variants patch the snapshot they return so the SDK can tell what you used. On a query snapshot it watches `size`, `empty`, `docs`, `forEach` and `docChanges`, and which documents had `data()` or `get()` called. On a document snapshot it watches `data()`, `get()` and `exists()`. The snapshot stays the same object with the same values.
+
+One `usage` record follows the read, one second later or at the next flush, whichever comes first. The rules [emptiness check without a limit](/docs/rules/firestore#emptiness-check-without-limit), [count via fetch](/docs/rules/firestore#count-via-fetch), [overfetch](/docs/rules/firestore#overfetch) and [unused result](/docs/rules/generic#unused-result) use it.
+
+### Writes
+
+`setDoc`, `updateDoc` and `addDoc` record a write signal computed from the data you pass:
+
+| Field | Meaning |
+|---|---|
+| `max_field_bytes` | Size of the largest top-level field (name plus value). |
+| `payload_bytes` | Sum over the top-level fields. |
+| `transforms` | Field transforms in the payload: `increment`, `array_union`, `array_remove`, `server_timestamp`, `delete_field`, `maximum`, `minimum`. |
+| `digest` | A salted hash of the payload, only when there are no transforms. |
+
+The digest lets rules such as [no-op write](/docs/rules/firestore#no-op-write) see that the same payload was written twice in a session. The salt is random per session and never leaves the process. See [Privacy](/docs/sdk/privacy#salted-payload-hashes).
+
+### Listeners
+
+`onSnapshot` records a `subscribe` when the listener opens, a `snapshot` for each callback, and an `unsubscribe` when you call the function it returns. Each listener has its own id. The first snapshot is marked `initial` and counts every document. Later snapshots count only the changed documents. A snapshot that comes from the cache with only pending local writes, and no document changes, is skipped. A listener error is recorded on a `snapshot` record with the error code.
+
+Both callback forms work: `(snap) => ...` with optional error and complete callbacks, and an observer object with `next`, `error` and `complete`. Listen options (`includeMetadataChanges`, `source`) are passed through.
+
+### Transactions
+
+`runTransaction` wraps your update function. Firestore re-runs it when a commit fails, so the SDK waits until the outer promise settles and records only the attempt that succeeded: one `get` per `transaction.get()` and one `commit` with the write and delete counts and the attempt number. A transaction that fails records one `commit` with the error. All records from one `runTransaction` share a transaction id.
+
+### Cache setup
+
+The first time a call touches a Firestore instance, the SDK records one `init` for it with the cache kind (`memory`, `persistent` or `unknown`) and whether a persistent cache is shared across tabs. It reads this from `initializeFirestore` settings, `persistentLocalCache` with `persistentMultipleTabManager()`, the legacy `enableIndexedDbPersistence` / `enableMultiTabIndexedDbPersistence` calls, or the instance's own settings. The rules [persistence disabled](/docs/rules/firestore#persistence-disabled) and [multi-tab without shared cache](/docs/rules/firestore#multi-tab-without-shared-cache) use it. The instance is reported once per process, even across `init` calls.
+
+## Known limits
+
+- Query constraints are read from Firestore's internal query object. If a future `firebase` release changes its shape, the SDK logs one `console.debug` line (`Firestore query shape was not recognized (firebase <version>)`) and records the call with its path only.
+- Byte sizes are estimates. Class instances other than `Timestamp`, `Date`, `Bytes`, `GeoPoint` and `DocumentReference` count as 0 bytes in a write.
+- The payload digest is left out when the payload contains a field transform or has more than 10,000 elements.
+- Result usage is tracked only on the drop-in `getDocs` / `getDoc` family. Listener snapshots and the manual [`sink()`](/docs/sdk/sink) do not track it.
+- Calls that bypass the drop-in module, for example through another library that imports `firebase/firestore` itself, are not recorded. Use [`sink()`](/docs/sdk/sink) for those.
+
+## Rules
+
+Firestore calls feed the [Cloud Firestore rules](/docs/rules/firestore) and the [generic rules](/docs/rules/generic), for example [unbounded list](/docs/rules/firestore#unbounded-list), [offset pagination](/docs/rules/firestore#offset-pagination), [listener per item](/docs/rules/firestore#listener-per-item) and [N+1 reads](/docs/rules/generic#n-plus-one).

@@ -1,0 +1,51 @@
+---
+title: Events
+description: Browse the normalized provider calls that ingest stored, newest first, and open one to see its signals and billing units.
+---
+
+The Events page (`/w/<slug>/events`) lists the events ingest stored for the
+selected project (or all projects) in the selected time range, newest first.
+Each event is one provider call after the SDK normalized and redacted it, so
+it carries a template, sizes, counts and hashes, never document ids or
+field values. See [How it works](/docs/getting-started/how-it-works) and
+[Privacy](/docs/sdk/privacy).
+
+## Columns
+
+| Column | Meaning |
+| --- | --- |
+| Time | When the call happened, as a relative time. |
+| Op | Operation name reported for the call. |
+| Service | Cloud Firestore, Realtime Database, Cloud Storage, Authentication or Cloud Functions. |
+| Template | Redacted path, for example `users/{id}/orders`. |
+| Session | First 8 characters of the session id. |
+| Bytes | Response size. |
+| Items | Number of items returned. |
+| Error | Error code, or a dash when the call succeeded. |
+
+## Filters
+
+**Filter** works on Op, Template and Session (text) and Service
+(multi-select). A filter with a single value is also sent to the API as an
+exact match, so it narrows what is loaded as well as what is shown. Use the
+full value: for a session, copy the id from the sessions table in a
+[finding's detail sheet](/docs/console/findings#detail-sheet).
+
+## Event detail
+
+Click a row to open a side sheet. The title is the op and template, with the
+service under it. The sheet shows the event id, platform, size and callsite
+(or **No callsite**), followed by a JSON block with the remaining fields:
+
+`signals`, `opDetail`, `query`, `durationUs`, `listener`, `mount`, `dev`,
+`attempt`, `targetKey`, `idShape`, `collectionGroup`, `errorCode`, `units`
+and `items`.
+
+`units` holds the billing units the provider computed for the call (reads,
+bytes and so on). These are what the console prices to get estimated cost.
+[Billing units](/docs/reference/billing-units) lists them per service, and
+[Raw calls](/docs/reference/raw-calls) describes what the SDK reports before
+normalization.
+
+To go from a finding to its events, use **View events** in the finding
+detail sheet, then filter by template or session.

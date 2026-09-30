@@ -1,0 +1,142 @@
+---
+title: Contributing
+description: Repository layout, toolchain, the checks every change must pass, and the conventions contributors follow.
+---
+
+Readmeter is one Rust core used by every SDK and by the backend, a TypeScript backend on Postgres, and a TypeScript SDK for Firebase. This section covers how the repository is organized and how to change it. [`AGENTS.md`](https://github.com/eviatarmor/Readmeter/blob/main/AGENTS.md) at the repository root is the source for these rules; read it before a large change. Design notes and plans live in [`.plans/`](https://github.com/eviatarmor/Readmeter/tree/main/.plans).
+
+<Cards>
+  <Card title="Rust core" href="/docs/contributing/rust-core">What each crate owns, and the rules the core follows.</Card>
+  <Card title="Adding a rule" href="/docs/contributing/adding-a-rule">TOML definition, detector, tests and a conformance fixture.</Card>
+  <Card title="Adding a service" href="/docs/contributing/adding-a-service">A new Firebase service or a new provider, end to end.</Card>
+  <Card title="Testing" href="/docs/contributing/testing">Every test suite, how to run it, and what CI runs.</Card>
+</Cards>
+
+## Repository map
+
+<Files>
+  <File name="Cargo.toml" />
+  <Folder name="crates" defaultOpen>
+    <Folder name="core" />
+    <Folder name="rules" />
+    <Folder name="cost" />
+    <Folder name="provider-api" />
+    <Folder name="providers">
+      <Folder name="firebase" />
+    </Folder>
+    <Folder name="runtime" />
+    <Folder name="evaluator" />
+    <Folder name="bindings">
+      <Folder name="ffi" />
+      <Folder name="wasm" />
+      <Folder name="wasm-server" />
+    </Folder>
+  </Folder>
+  <Folder name="apps">
+    <Folder name="ingest" />
+    <Folder name="console-api" />
+    <Folder name="console-web" />
+    <Folder name="connector-gcp" />
+  </Folder>
+  <Folder name="packages">
+    <Folder name="db" />
+  </Folder>
+  <Folder name="sdks">
+    <Folder name="js">
+      <Folder name="firebase" />
+    </Folder>
+  </Folder>
+  <Folder name="rules" />
+  <Folder name="pricing" />
+  <Folder name="conformance" />
+  <Folder name="examples" />
+  <Folder name="scripts" />
+  <Folder name="docs" />
+  <Folder name=".plans" />
+</Files>
+
+| Path | Contents |
+|---|---|
+| `crates/` | The Rust workspace: envelope and wire format, rules engine, pricing, provider contract, Firebase provider, SDK runtime, server evaluator, and the C, wasm and server wasm bindings. See [Rust core](/docs/contributing/rust-core). |
+| `apps/ingest/` | HTTP ingest service (TypeScript, Hono). Authenticates batches and writes events and findings to Postgres through the server core. |
+| `apps/console-api/` | Console API (TypeScript, Hono, Better Auth): workspaces, projects, keys, findings, events, rules, costs. |
+| `apps/console-web/` | The console (Vite, React). |
+| `apps/connector-gcp/` | Google Cloud connector worker. |
+| `packages/db/` | Drizzle schema, migrations and seed, shared by every TypeScript service. |
+| `sdks/js/firebase/` | `@readmeter/firebase`: web drop-in wrappers, `sink`, and Admin SDK / Cloud Functions instrumentation. |
+| `rules/<scope>/*.toml` | Rule definitions. Scopes are `generic/` and `firebase/<service>/`. |
+| `pricing/<provider>/*.toml` | Price tables, one per service. |
+| `conformance/fixtures/` | Raw calls with the envelopes and findings they must produce, shared by the Rust runtime and the SDK. |
+| `examples/` | Demo web app, Cloud Functions, and the end-to-end runner. |
+| `scripts/` | Build, size gate, smoke tests, local dev loop and `e2e.sh`. |
+| `docs/` | This site (Fumadocs). The rule reference under `/docs/rules` is generated from `rules/` by `docs/scripts/gen-rules.mjs`. |
+
+## Toolchain
+
+| Tool | Used for |
+|---|---|
+| Rust (stable, edition 2024, `rust-version = "1.85"`) with `rustfmt` and `clippy` | The workspace. |
+| `wasm32-unknown-unknown` target | SDK wasm and the server core: `rustup target add wasm32-unknown-unknown`. |
+| `wasm-bindgen-cli`, same version as `wasm-bindgen` in `Cargo.lock` | Generating the JS glue. CI installs `0.2.129`: `cargo install --locked wasm-bindgen-cli --version 0.2.129`. |
+| Node 22 and pnpm 10 | The TypeScript workspace (`packageManager` is `pnpm@10.16.1`). `build-wasm.sh` also runs `wasm-opt` through `npx` from the npm `binaryen` package. |
+| Docker | Local Postgres from `docker-compose.yml` on host port 5442. |
+| Java 21 or newer | The Firebase emulators used by SDK emulator tests and `e2e.sh`. |
+| `cbindgen` | Regenerating `crates/bindings/ffi/include/readmeter.h` after changing the C ABI. |
+| A C compiler | `scripts/smoke-ffi.sh` (`cc` by default, `CC=cl` from a Visual Studio developer shell on Windows). |
+| `twiggy` and Python (optional) | `scripts/wasm-size-report.sh`, a per-crate size breakdown. Not used in CI. |
+
+On Windows, run the shell scripts from Git Bash.
+
+## Checks that must pass
+
+Run these three before you consider any change done:
+
+```sh
+cargo test --workspace --all-features
+cargo clippy --workspace --all-features --all-targets -- -D warnings
+cargo fmt --all
+```
+
+Depending on what you touched, also run:
+
+```sh
+# Rule TOML changed
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
+
+# SDK path changed (core, rules, provider-api, providers, runtime, bindings/wasm)
+./scripts/build-wasm.sh && node scripts/smoke-wasm.mjs
+
+# C ABI changed: regenerate the checked-in header, then smoke test
+(cd crates/bindings/ffi && cbindgen --config cbindgen.toml --crate readmeter-ffi --output include/readmeter.h)
+./scripts/smoke-ffi.sh
+
+# crates/evaluator or a TypeScript app changed
+./scripts/build-wasm-server.sh
+pnpm typecheck && DATABASE_URL=postgres://readmeter:readmeter@127.0.0.1:5442/readmeter pnpm test
+```
+
+`smoke-wasm.mjs` reads `target/rules/bundle.bin`, so build the rule bundle first if it is missing (`readmeter-rulec -- build rules target/rules`). [Testing](/docs/contributing/testing) lists every suite and the CI jobs.
+
+## Conventions
+
+The rules in `AGENTS.md` that most often come up in review:
+
+- Privacy. Raw calls from SDK shims can hold ids, filter values and cursors. Envelopes cannot. Anything that leaves the process is a template such as `users/{id}/orders`, a size, a count, or a keyed hash. Add a leak test when you add a field.
+- Library code never panics. Clippy denies `unwrap`, `expect` and `panic` outside tests, the FFI layer catches unwinds, and bad input returns an error.
+- Memory is bounded. Detector state uses `KeyedWindow`, `BoundedMap` or an explicit cap. Buffers drop the oldest data when full and never block.
+- The core is provider agnostic. `core`, `rules`, `runtime`, `cost` and the bindings know nothing about Firebase. Provider logic lives in `crates/providers/<name>` behind the `Provider` trait and cargo features.
+- Rules are data plus a detector. Metadata, severity and thresholds live in `rules/**/*.toml`; thresholds are params, never constants in the detector.
+- Providers compute billing units at normalization time. Prices live only in `pricing/`.
+- The wire format is versioned. Changing a serialized type in `core` means bumping `SCHEMA_VERSION` and keeping ingest able to decode older versions.
+- Postgres is the only database, and schema changes go through `packages/db` migrations.
+- No detection logic in TypeScript. The backend calls the Rust core through `bindings/wasm-server`. Hashes cross into JavaScript as 16-character hex strings because JS numbers cannot hold a u64.
+
+Rust code uses `thiserror` for library errors (no `anyhow` in libraries), writes comments that explain why, and puts shared test helpers in `readmeter_rules::testing` behind the `testing` feature. TypeScript is a pnpm workspace of strict ESM run directly with `tsx`; services take their dependencies (`core`, `store`) as arguments, and tests use the real Rust core instead of mocks.
+
+<Callout type="info">
+Non-Firebase providers are out of scope for now. Keep the seams open for Supabase, Vercel and others, but do not build them yet.
+</Callout>
+
+## License of contributions
+
+Readmeter is released under the [Readmeter Sustainable Use License](https://github.com/eviatarmor/Readmeter/blob/main/LICENSE.md), and every crate declares `license = "LicenseRef-Readmeter-SUL"`. It is a source-available license modeled on n8n's Sustainable Use License: self-hosting and internal use are allowed, and selling Readmeter or hosting it for others is not. The repository has no separate contributor agreement; `LICENSE.md` is the only license text. Read it before you submit a change.

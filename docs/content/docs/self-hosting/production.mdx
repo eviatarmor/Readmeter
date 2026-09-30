@@ -1,0 +1,159 @@
+---
+title: Production
+description: Build the server core and the console, prepare Postgres, set the secrets and run the services behind TLS.
+---
+
+The repository has no Dockerfiles or deployment manifests. A deployment runs the same Node processes as the local setup, with `tsx` and no TypeScript build step, plus three build artifacts that are not checked in: the rule bundle, the server core and the built console. This page covers what the code needs from you. How you supervise the processes (systemd, containers, a process manager) is up to you.
+
+## Build
+
+Build on a machine with Node 22 or newer, pnpm 10, Rust with the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` at the version in `Cargo.lock`.
+
+<Steps>
+<Step>
+Install dependencies.
+
+```sh
+pnpm install
+```
+</Step>
+<Step>
+Build the rule artifacts. ingest reads `bundle.json` to build its evaluator and serves `bundle.bin` to SDKs.
+
+```sh
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+```
+
+The default paths are `target/rules/bundle.json` and `target/rules/bundle.bin` under the repository root. Point `READMETER_BUNDLE` and `READMETER_SDK_BUNDLE` at other paths if you move them.
+</Step>
+<Step>
+Build the server core. It is the Rust evaluator compiled to wasm, with every file in `rules/` and `pricing/` embedded. ingest loads it for decoding and rules, and console-api loads the same files for the rule catalog and prices.
+
+```sh
+./scripts/build-wasm-server.sh
+```
+
+The output goes to `apps/ingest/wasm`. Both services load it from there, so keep that location. This build has no size budget; it never ships to browsers.
+</Step>
+<Step>
+Build the console.
+
+```sh
+pnpm --filter console-web build
+```
+
+Vite writes the static files to `apps/console-web/dist`.
+</Step>
+</Steps>
+
+Rebuild the rule artifacts and the server core whenever you pull changes to `crates/`, `rules/` or `pricing/`. A price change in `pricing/firebase/*.toml` only takes effect after the server core is rebuilt and console-api is restarted.
+
+## Prepare Postgres
+
+Readmeter needs one Postgres database. The local setup uses Postgres 17. Apply the migrations from `packages/db/migrations`:
+
+```sh
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB pnpm db:migrate
+```
+
+Run this before starting the services, and again after each upgrade. Do not run `pnpm db:seed`: it creates a demo project with a known API key (`rm_dev_key`) and a user with a known password. With `NODE_ENV=production` both seed scripts exit without writing anything.
+
+## Secrets
+
+Two secrets must be generated for a deployment. Any tool that prints 32 random bytes as base64 works:
+
+```sh
+openssl rand -base64 32
+```
+
+`BETTER_AUTH_SECRET` is used by Better Auth for the console's sessions. console-api refuses to start with `NODE_ENV=production` when it is unset. Without it (outside production) console-api falls back to a fixed development secret that is public in the source code.
+
+`READMETER_SECRET_KEY` must decode to exactly 32 bytes. It is the AES-256-GCM key that encrypts Google Cloud service account keys in `gcp_connections`. Set the same value on console-api, which encrypts on connect, and on connector-gcp, which decrypts on every sync. If you lose it, the stored keys cannot be decrypted and every Google Cloud connection has to be saved again. You can leave it unset if you do not connect Google Cloud; console-api still starts and reports the missing key when someone tries to connect.
+
+## Run the services
+
+Set the environment from [Configuration](/docs/self-hosting/configuration) for each process, then start them from the repository checkout:
+
+```sh
+pnpm --filter @readmeter/ingest start
+pnpm --filter @readmeter/console-api start
+pnpm --filter @readmeter/connector-gcp start   # only if you connect Google Cloud
+```
+
+Each HTTP service exposes `GET /healthz`, which answers `200 ok`. ingest and console-api stop cleanly on `SIGINT` and `SIGTERM`: they close the HTTP server and the database pool before exiting. connector-gcp stops after the pass it is running and closes its pools.
+
+A minimal ingest environment:
+
+```sh
+DATABASE_URL=postgres://...
+PORT=8090
+READMETER_RATE_PER_MIN=600
+```
+
+## Serve the console from console-api
+
+console-web calls `/api/auth` and `/api/v1` on the origin it was loaded from. In production, let console-api serve the built files so both share one origin:
+
+```sh
+CONSOLE_STATIC_DIR=/srv/readmeter/apps/console-web/dist
+CONSOLE_ORIGIN=https://readmeter.example.com
+BETTER_AUTH_URL=https://readmeter.example.com
+```
+
+With `CONSOLE_STATIC_DIR` set, console-api serves files from that directory and returns `index.html` for any other `GET` path, so client-side routes load on refresh. Use an absolute path; a relative one resolves from the process working directory, which is `apps/console-api` when started with `pnpm --filter`.
+
+`CONSOLE_ORIGIN` has to be the exact origin users open in the browser (scheme, host and port, no trailing slash). console-api uses it as the only allowed CORS origin, rejects `/api/v1` writes whose `Origin` header is different, passes it to Better Auth as the trusted origin, and builds invitation links from it (`<CONSOLE_ORIGIN>/accept-invitation/<id>`). `BETTER_AUTH_URL` is the public URL of console-api itself. When the console is served by console-api, the two are the same.
+
+Set `INGEST_PUBLIC_URL` to the URL your apps will send batches to. The console puts it in the `init` snippets on each project page.
+
+## TLS and cookies
+
+ingest and console-api speak plain HTTP. Terminate TLS in a reverse proxy or load balancer in front of them.
+
+Better Auth session cookies use `SameSite=Lax`. They are marked `Secure`, and Better Auth uses its secure cookie names, only when `BETTER_AUTH_URL` starts with `https:`. Set it to the `https://` URL even though console-api itself listens on HTTP behind the proxy.
+
+ingest must be reachable from wherever your app runs: your users' browsers for the web SDK, and your Cloud Functions for the Admin SDK instrumentation. A page served over HTTPS cannot post to an `http://` ingest URL, so give ingest an HTTPS address too.
+
+## First user and workspace
+
+Sign-up with email and password is open on every deployment. Open the console, choose sign-up, then create a workspace in onboarding. The user who creates a workspace is its owner. Other people join through invitations; see [Members](/docs/console/members). Passwords must be at least 10 characters.
+
+## Mail
+
+Set `SMTP_URL` (a Nodemailer connection URL such as `smtps://user:pass@smtp.example.com`) and `MAIL_FROM`. Invitations and password reset links are then sent by mail.
+
+<Callout type="warn">
+Without both variables, console-api logs mail to stdout instead of sending it. Read invitation and reset links from the log, or configure SMTP. Do not set `CONSOLE_DEV_RESET_LINKS` on a deployment: it returns reset links to whoever asks (it is ignored when `NODE_ENV=production`).
+</Callout>
+
+## Google sign-in
+
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from a Google OAuth client. Better Auth's callback for Google is `<BETTER_AUTH_URL>/api/auth/callback/google`; register that URL as an authorized redirect URI on the OAuth client. The console shows the Google button only when both variables are set (`GET /api/v1/auth-config` returns `{"google": true}`).
+
+## Process state
+
+Some state lives in the ingest process, not in Postgres, and is lost on restart:
+
+- window and aggregate rule state, per project (up to 1,024 projects; the least recently active is dropped past that),
+- the per-key rate limit buckets, which refill on restart,
+- the 30-second API key cache.
+
+Each ingest process keeps its own copy of this state.
+
+## Backups
+
+All durable data is in Postgres: accounts and sessions, workspaces, projects, API key hashes, events, findings, finding states, rule overrides, the audit log, Google Cloud connections and the imported usage and cost rows. Back it up with your usual Postgres tooling, for example `pg_dump`. Store `READMETER_SECRET_KEY` and `BETTER_AUTH_SECRET` separately from the dump; the service account ciphertext in a backup is useless without the key, and useful to an attacker who has both.
+
+Readmeter has no retention job. The `events`, `batches` and `findings` tables grow until you delete rows yourself.
+
+## Upgrade
+
+```sh
+git pull
+pnpm install
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+./scripts/build-wasm-server.sh
+pnpm --filter console-web build
+DATABASE_URL=... pnpm db:migrate
+# restart ingest, console-api and connector-gcp
+```

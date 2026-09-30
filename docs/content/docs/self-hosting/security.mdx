@@ -1,0 +1,155 @@
+---
+title: Security
+description: How Readmeter handles API keys, hash keys, origins, rate limits, console sessions, roles, Google Cloud credentials and stored data.
+---
+
+## API keys
+
+An API key authenticates an app to ingest. It belongs to one project and lets the holder do three things for that project: post batches (`POST /v1/batches`), download the rule bundle (`GET /v1/bundle`) and read the project id and hash key (`GET /v1/config`). It gives no access to the console API.
+
+Keys created in the console are `rm_live_` followed by 32 base62 characters from `crypto.randomBytes`, with rejection sampling so every character is equally likely. The key is shown once, in the response to the create request. Postgres stores only:
+
+- `key_hash`: the SHA-256 of the full key as lowercase hex, with a unique index,
+- `prefix`: the first 16 characters (`rm_live_` plus 8), so you can tell keys apart in the console,
+- a name, the creator, the allowed origins, `created_at`, `last_used_at` and `revoked_at`.
+
+ingest hashes the presented key and looks it up among keys whose `revoked_at` is null. Lookups, including misses, are cached in memory for 30 seconds, so a revocation or an origin change reaches ingest within 30 seconds. `last_used_at` is written at most once a minute per key.
+
+The local seed scripts create keys in other formats (`rm_dev_key`, and `rm_` plus 32 base62 characters for `demo_local`). They are for development. See [Run locally](/docs/self-hosting/local#seed-data).
+
+### Keys in the browser
+
+A key used by the web SDK is visible to anyone who opens your app. Plan for that:
+
+- Give browser keys an origin allowlist (see below).
+- Use a separate key with no allowlist for Cloud Functions and other servers, and keep it in server configuration only.
+- Revoke and replace a key from the project's keys page if it is abused. See [Projects and keys](/docs/console/projects-and-keys).
+
+## Origin allowlists
+
+Each key has a list of allowed origins, up to 20 entries of at most 200 characters each. An empty list allows any origin.
+
+When the list is not empty and the request carries an `Origin` header, the header must equal one of the entries exactly (scheme, host and port). Otherwise ingest answers `403 {"error": "origin_not_allowed"}`. The check applies to all three key-authenticated routes.
+
+A request with no `Origin` header is accepted, because servers and Cloud Functions do not send one. So the allowlist stops other websites from using your key through their visitors' browsers, and it does not stop a script that calls ingest directly with the key.
+
+CORS preflight requests (`OPTIONS /v1/*`) carry no key, so ingest reflects any origin on them. It allows the methods `POST, GET, OPTIONS` and the headers `authorization, content-type`, and lets browsers cache the preflight for 600 seconds. The allowlist is enforced on the request that follows.
+
+## Hash keys
+
+Every project has a hash key: 32 lowercase hex characters (128 bits) generated with `crypto.randomBytes` when the project is created. The SDK uses it to compute keyed hashes of ids, filter values and callsites before anything leaves the app, so the same value always maps to the same hash within a project and to different hashes in different projects.
+
+The hash key authenticates nothing, and it is readable by several parties. The SDK fetches it from `GET /v1/config` with its API key, the console shows it on the project page to every workspace member, and the `init` snippet includes it. Keyed hashes keep raw values out of Postgres and away from anyone who reads the stored hashes without the hash key. Someone who holds both the hash key and the stored hashes can test guesses against them.
+
+What the SDK sends in the first place is listed on [Privacy](/docs/sdk/privacy).
+
+## Rate limits and backpressure
+
+ingest limits each API key with a token bucket: `READMETER_RATE_PER_MIN` batches per minute (default 600), with a bucket of 100. When the bucket is empty it answers `429 {"error": "rate_limited"}` with a `Retry-After` header in whole seconds, at least 1. The buckets are held in the ingest process for up to 10,000 keys; past that the oldest bucket is dropped. A restart refills every bucket.
+
+Other limits protect the process and the database:
+
+- Request bodies over 1 MiB get `413 batch_too_large` before the body is decoded.
+- Batches with more than 10,000 events or 1,000 findings get `413 batch_too_large`.
+- When 64 store writes are already in flight, new batches get `503 busy` with `Retry-After: 5`. The SDK keeps the batch and retries.
+
+console-api has no rate limit of its own in this codebase.
+
+## Console sign-in and sessions
+
+The console uses [Better Auth](https://www.better-auth.com) on the same Postgres database, mounted at `/api/auth`. Email and password sign-in is always on, with a minimum password length of 10. Google sign-in is added when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
+
+Sign-up is open: anyone who can reach the console can create an account and their own workspace. A new account sees no existing workspace until someone invites it.
+
+Sessions are cookies signed with `BETTER_AUTH_SECRET`. They use `SameSite=Lax`, and are `Secure` when `BETTER_AUTH_URL` starts with `https:`. console-api refuses to start with `NODE_ENV=production` and no `BETTER_AUTH_SECRET`; outside production it falls back to a fixed secret from the source code.
+
+Password reset and invitation messages are sent through SMTP when `SMTP_URL` and `MAIL_FROM` are set. Without them:
+
+- the password reset link is written to the console-api log only. With `CONSOLE_DEV_RESET_LINKS=1` (local development, ignored when `NODE_ENV=production`) it is also returned in the JSON response of `POST /api/auth/request-password-reset`,
+- the invitation link is logged and returned to the admin who created the invitation.
+
+<Callout type="error">
+Never set `CONSOLE_DEV_RESET_LINKS=1` on a deployment other people can reach. With it, anyone who knows an account's email can request a reset link and read it from the response.
+</Callout>
+
+Invitations expire after 7 days.
+
+## Cross-site request checks
+
+console-api only allows CORS from `CONSOLE_ORIGIN`, with credentials. On top of that, every `POST`, `PUT`, `PATCH` and `DELETE` under `/api/v1`:
+
+- must send `Content-Type: application/json`, or it gets `403` with code `csrf`. A cross-site HTML form cannot send that content type.
+- must not send an `Origin` header other than `CONSOLE_ORIGIN`, or it gets `403` with code `csrf`.
+
+Better Auth receives `CONSOLE_ORIGIN` as its only trusted origin and applies its own origin checks to `/api/auth`.
+
+## Workspaces and roles
+
+Every `/api/v1/workspaces/:slug/...` route first loads the workspace by slug and the caller's membership. If the caller is not a member, the answer is `404 not_found`, the same as for a workspace that does not exist. Every query then filters by that workspace's projects.
+
+There are three roles:
+
+| Action | member | admin | owner |
+|---|---|---|---|
+| Read the workspace, projects, hash keys, key list (no secrets), findings, events, rules, overview, costs | yes | yes | yes |
+| Change finding status, assignee and note, one or in bulk | yes | yes | yes |
+| Rename the workspace, change its slug or logo | | yes | yes |
+| Create, edit and delete projects | | yes | yes |
+| Create and revoke API keys | | yes | yes |
+| Set and clear rule overrides | | yes | yes |
+| Invite, cancel invitations, change roles, remove members | | yes | yes |
+| Read the audit log | | yes | yes |
+| Connect, test, sync and disconnect Google Cloud | | yes | yes |
+| Delete the workspace | | | yes |
+
+An admin can change any member's role, including to owner. The last owner of a workspace cannot be removed or demoted (`409 conflict`). Deleting a workspace needs the body `{"confirm": "<slug>"}`.
+
+A finding can only be assigned to a member of the same workspace.
+
+## Audit log
+
+console-api writes an `audit_log` row for each change, with the actor's user id, the action, a target and a metadata object. Actions: `workspace.create`, `workspace.update`, `workspace.delete`, `member.invite`, `member.role`, `member.remove`, `invitation.cancel`, `project.create`, `project.update`, `project.delete`, `key.create`, `key.revoke`, `rule.override`, `finding.status`, `gcp.connect`, `gcp.test`, `gcp.sync`, `gcp.disconnect`. Key entries record the prefix, never the key. The log is deleted with its workspace.
+
+## Google Cloud service accounts
+
+Connecting Google Cloud stores a service account JSON key for one project. console-api accepts it only if it is at most 16 KiB, has `"type": "service_account"`, and has `client_email`, `private_key` and `project_id`.
+
+- The whole JSON is encrypted with AES-256-GCM before it is written. The key is `READMETER_SECRET_KEY` (32 bytes, base64). Each save uses a new random 12-byte IV, and the IV and authentication tag are stored next to the ciphertext.
+- No console API response contains the ciphertext, IV or tag. Responses include only the Google Cloud project id, the service account email, the billing table, status, last sync and last error.
+- Only connector-gcp, and the connection test in console-api, decrypt the key, in memory.
+- Error messages from Google client libraries are cleaned before they are stored or returned: the private key and any PEM block are replaced with `[redacted]`, and the message is cut to 500 characters.
+- The billing export table name cannot be a query parameter in BigQuery, so it must match `project.dataset.table` with a strict pattern and each part is quoted. Each billing query sets `maximumBytesBilled` (1 GiB by default) and filters on `_PARTITIONTIME`.
+- Disconnecting deletes the connection and the project's imported `usage_daily` and `cost_daily` rows.
+
+The service account needs only read roles, which `GET .../gcp` lists: `roles/monitoring.viewer` on the Firebase project, and, when a billing table is set, `roles/bigquery.dataViewer` on the billing export dataset and `roles/bigquery.jobUser` on the project that runs the query. See [Google Cloud](/docs/console/google-cloud).
+
+## What is stored
+
+Postgres holds:
+
+| Table | Contents |
+|---|---|
+| `users`, `sessions`, `accounts`, `verifications` | Better Auth: name, email, image, session records, credentials for email sign-in or the linked Google account, and verification tokens |
+| `organizations`, `members`, `invitations` | Workspaces, memberships with roles, invitations with email, role and expiry |
+| `projects` | Name, environment, optional Firebase project id, hash key |
+| `api_keys` | SHA-256 of each key, display prefix, allowed origins, usage times |
+| `batches` | One row per accepted request: SDK name and version, session, counts, dropped counters |
+| `events` | One row per recorded call: templates, hashes, counts, sizes, timings, billing units |
+| `findings`, `finding_states` | Findings with message, evidence and wasted units; status, assignee, note |
+| `rule_overrides` | Per-project enabled flag, severity and params |
+| `audit_log` | Console changes, as above |
+| `gcp_connections` | Encrypted service account key and connection status |
+| `usage_daily`, `cost_daily` | Daily Cloud Monitoring totals and billing export rows |
+
+Events and findings contain no document data, raw ids or filter values; the SDK core replaces them with templates, counts, sizes and keyed hashes before sending. The schema comment in [`packages/db/src/schema.ts`](https://github.com/eviatarmor/Readmeter/blob/main/packages/db/src/schema.ts) states the same rule.
+
+Deleting a project deletes its keys, batches, events, findings, overrides, Google Cloud connection and imported usage and cost. Deleting a workspace deletes its projects and everything under them. Nothing is deleted on a schedule.
+
+## Development defaults to replace
+
+These values are public in the repository and only fit a local machine:
+
+- the Compose database credentials `readmeter` / `readmeter`,
+- the seeded user `admin@readmeter.local` / `readmeter-dev` and the key `rm_dev_key`,
+- the fallback `BETTER_AUTH_SECRET` in `apps/console-api/src/env.ts`,
+- the `READMETER_SECRET_KEY` that `scripts/dev-up.sh` and `scripts/e2e.sh` set when none is given.

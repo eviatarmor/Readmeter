@@ -1,0 +1,330 @@
+---
+title: Adding a rule
+description: Write the TOML definition, implement and register the detector, test it, and add a conformance fixture.
+---
+
+A rule is a TOML file in `rules/` (id, severity, text, default thresholds) plus a Rust detector registered under the same id. This page walks through both halves using a real local rule, `firebase.firestore/offset-pagination`, which flags `offset(n)` queries because Firestore bills every skipped document as a read. Every file shown here exists in the repository, so you can copy it as a template.
+
+## Before you start
+
+Decide three things.
+
+The scope. Use `generic/<name>` if the rule only needs envelope fields and applies to every provider. Otherwise use `<provider>.<service>/<name>`, for example `firebase.firestore/offset-pagination`. The name is kebab case.
+
+The severity, ranked by cost impact:
+
+| Severity | Use when |
+|---|---|
+| `critical` | Cost grows without bound with data size or traffic. |
+| `high` | A large multiplier on cost, roughly 5x or more. |
+| `medium` | Measurable waste on a hot path. |
+| `low` | Minor waste, or latency and throughput only. |
+| `info` | An observation with no direct waste. |
+
+The evaluation tier:
+
+| Evaluation | Sees | Runs in |
+|---|---|---|
+| `local` | One envelope. | SDKs, always. |
+| `window` | One session's recent envelopes. | The backend, and SDKs in dev mode. |
+| `aggregate` | Envelopes across sessions of one project. | The backend only. |
+
+`offset-pagination` needs only the envelope in front of it, so it is `local` and runs in every SDK.
+
+<Steps>
+<Step>
+
+## Write the definition
+
+Create `rules/<scope>/<name>.toml`. For a Firebase rule the folder is `rules/firebase/<service>/`; for a generic rule it is `rules/generic/`.
+
+```toml title="rules/firebase/firestore/offset-pagination.toml"
+id = "firebase.firestore/offset-pagination"
+title = "Pagination with offset()"
+provider = "firebase"
+service = "firestore"
+severity = "high"
+category = "pagination"
+evaluation = "local"
+status = "stable"
+summary = "offset(n) bills every skipped document as a read."
+
+description = """
+Firestore still reads the documents that `offset()` skips, and bills them.
+Page 50 of a 20-item list costs 1,000 reads, and every page costs more than
+the one before it.
+"""
+
+fix = """
+Paginate with query cursors. Keep the last document of the current page and
+start the next query with `startAfter(lastDoc)`.
+"""
+
+docs = ["https://firebase.google.com/docs/firestore/query-data/query-cursors"]
+
+[params]
+min_offset = 1
+
+[[examples]]
+lang = "ts"
+bad = '''
+const page = await db.collection("posts").orderBy("createdAt").offset(page * 20).limit(20).get();
+'''
+good = '''
+const page = await db.collection("posts").orderBy("createdAt").startAfter(lastDoc).limit(20).get();
+'''
+```
+
+<TypeTable
+  type={{
+    id: { type: "string", description: "`<scope>/<name>`. The scope must be `generic` when provider is `*`, else `<provider>.<service>`." },
+    title: { type: "string", description: "Short title for lists and headings. Must not be empty." },
+    provider: { type: "string", description: "Provider id, or `*` for a generic rule." },
+    service: { type: "string", description: "Service id, or `*` for a generic rule." },
+    severity: { type: '"critical" | "high" | "medium" | "low" | "info"', description: "Ranked by cost impact." },
+    category: { type: '"reads" | "writes" | "realtime" | "pagination" | "payload" | "aggregation" | "hotspots" | "reliability"', description: "Grouping in the console and docs." },
+    evaluation: { type: '"local" | "window" | "aggregate"', description: "Where the detector can run." },
+    status: { type: '"stable" | "beta" | "planned"', description: "`planned` rules are documented but never evaluated." },
+    default_enabled: { type: "boolean", description: "Whether the rule is on when a project has no override.", default: "true" },
+    summary: { type: "string", description: "One line, shown in lists. Must not be empty." },
+    description: { type: "string", description: "Why this costs money. Markdown. Must not be empty." },
+    fix: { type: "string", description: "How to fix it. Markdown. Must not be empty." },
+    docs: { type: "string[]", description: "Links to provider documentation.", default: "[]" },
+    params: { type: "table", description: "Default thresholds (bool, int, float or string). Overrides may only set keys declared here.", default: "{}" },
+    examples: { type: "table[]", description: "`lang`, `bad` and `good` code samples.", default: "[]" },
+  }}
+/>
+
+Unknown keys are rejected. Thresholds always go in `[params]`, never as constants in the detector, so a project can change them without an SDK release.
+
+A rule whose detector does not exist yet uses `status = "planned"` and `default_enabled = false`. You can stop here for a planned rule.
+
+</Step>
+<Step>
+
+## Implement the detector
+
+Put the detector in the crate that matches the scope:
+
+- generic: `crates/rules/src/detectors/<name>.rs`
+- provider: `crates/providers/<provider>/src/<service>/detectors/<name>.rs`
+
+The file name is the rule name in snake case. It exports `pub const ID` (the rule id) and `pub fn build(&Params)`, which parses every param once and returns the detector. Bad params fail when the engine is built, never per event.
+
+```rust title="crates/providers/firebase/src/firestore/detectors/offset_pagination.rs"
+use readmeter_core::{Envelope, Op};
+use readmeter_rules::{Detector, Emitter, ParamError, Params};
+
+use super::billed;
+use crate::firestore::billing::READS;
+
+pub const ID: &str = "firebase.firestore/offset-pagination";
+
+pub fn build(p: &Params) -> Result<Box<dyn Detector>, ParamError> {
+    Ok(Box::new(OffsetPagination {
+        min_offset: p.u64("min_offset")?.max(1),
+    }))
+}
+
+/// `offset(n)` bills the n skipped documents as reads.
+struct OffsetPagination {
+    min_offset: u64,
+}
+
+impl Detector for OffsetPagination {
+    fn observe(&mut self, env: &Envelope, out: &mut Emitter<'_>) {
+        if env.op != Op::Query || !billed(env) {
+            return;
+        }
+        let offset = env
+            .query
+            .as_ref()
+            .and_then(|q| q.offset)
+            .map_or(0, u64::from);
+        if offset < self.min_offset {
+            return;
+        }
+        out.emit(
+            env,
+            format!(
+                "offset({offset}) on `{}` bills every skipped document; paginate with startAfter()",
+                env.target.template
+            ),
+        )
+        .evidence("offset", offset)
+        .wasted(READS, offset);
+    }
+}
+```
+
+Things to copy from this pattern:
+
+- `observe` is called for every envelope in the rule's scope, in arrival order. Return early for anything that does not apply.
+- `billed(env)` is true when the call succeeded and was not served from cache. Most services define it in their `detectors/mod.rs`; generic detectors use `readmeter_rules::detectors::billed`. Cached and failed calls were not billed, so they are not waste.
+- `out.emit(env, message)` anchors the finding on the envelope (template, session, callsite). Messages use the template, never raw values. Chain `.evidence(key, value)` for numbers the console shows and `.wasted(unit, amount)` when the waste is computable. Use the unit constants from the service's `billing.rs` (`READS` here) so the name matches what billing produces.
+- `Params` has `u64`, `f64` and `bool` accessors that return a `ParamError` when a key is missing or has the wrong type.
+
+Detectors must never panic and must keep bounded state. A local detector like this one holds nothing. A `window` or `aggregate` detector keeps its state in `readmeter_rules::window::KeyedWindow` or `BoundedMap` (or another explicit cap). `listener_per_item.rs` in the same folder is a `window` detector with a hard cap. Aggregate detectors such as `broadcast_listener.rs` also implement `tracked()` and assert in a test that the count stays under the cap.
+
+</Step>
+<Step>
+
+## Register it
+
+Add the module and the registration to the `mod.rs` next to the file. Entries are kept in alphabetical order.
+
+For a provider rule, `crates/providers/<provider>/src/<service>/detectors/mod.rs` has a `pub mod` line and an entry in `all()`:
+
+```rust title="crates/providers/firebase/src/firestore/detectors/mod.rs"
+pub mod offset_pagination;
+
+pub fn all() -> Vec<(&'static str, DetectorFactory)> {
+    vec![
+        // ...
+        (offset_pagination::ID, offset_pagination::build),
+        // ...
+    ]
+}
+```
+
+For a generic rule, `crates/rules/src/detectors/mod.rs` has a `pub mod` line and a call in `register()`:
+
+```rust title="crates/rules/src/detectors/mod.rs"
+pub mod oversized_payload;
+
+pub fn register(r: &mut Registry) {
+    // ...
+    r.register(oversized_payload::ID, oversized_payload::build);
+}
+```
+
+Gate a `window` detector's module and its registration with `#[cfg(feature = "window")]`, and an `aggregate` detector's with `#[cfg(feature = "aggregate")]`. Production SDK builds leave `window` off, and only the backend evaluator enables `aggregate`.
+
+```rust
+#[cfg(feature = "window")]
+pub mod missing_cursor;
+
+// in all():
+        #[cfg(feature = "window")]
+        (missing_cursor::ID, missing_cursor::build),
+```
+
+Nothing else needs wiring. The provider's `detectors()` collects every service's `all()`, and `Registry::with_generic()` calls `register()`.
+
+</Step>
+<Step>
+
+## Test the detector
+
+Tests go in the detector file. Use the shared helpers in `readmeter_rules::testing` (the provider crate enables the `testing` feature for its dev dependency on `readmeter-rules`):
+
+- `single_rule_engine(ID, build, &[("param", int(n))])` builds an engine that runs only this detector, with cooldown `0` so repeated findings are not suppressed. It builds the params once up front, so a param parsing bug fails the test.
+- `EnvBuilder` builds envelopes. It defaults to provider `firebase`, service `firestore`, session 1 and an ok outcome. `query(template)`, `get(template)`, `.items(n)` (a non-cached result billed as `n` reads), `.cached()`, `.error(code)`, `.at(ts_ms)`, `.callsite(c)`, `.with_query(|q| ...)` and `.provider(p, s)` cover most cases.
+- `run(&mut engine, envelopes)` feeds envelopes and returns every finding.
+
+Write at least one firing case and one close non-firing case. The repository test for this rule:
+
+```rust title="crates/providers/firebase/src/firestore/detectors/offset_pagination.rs"
+#[cfg(test)]
+mod tests {
+    use readmeter_rules::testing::{EnvBuilder, int, run, single_rule_engine};
+
+    use super::*;
+
+    #[test]
+    fn offset_reads_are_wasted() {
+        let mut e = single_rule_engine(ID, build, &[("min_offset", int(1))]);
+        let env = EnvBuilder::query("posts")
+            .with_query(|q| q.offset = Some(200))
+            .items(20)
+            .build();
+        let f = run(&mut e, [env, EnvBuilder::query("posts").items(20).build()]);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].wasted.get(READS), 200);
+    }
+}
+```
+
+The second envelope, the same query without an offset, is the non-firing case. Near-miss cases worth their own test are an offset below `min_offset` and a query served from cache:
+
+```rust
+#[test]
+fn small_or_cached_offsets_are_ignored() {
+    let mut e = single_rule_engine(ID, build, &[("min_offset", int(100))]);
+    let below = EnvBuilder::query("posts")
+        .with_query(|q| q.offset = Some(50))
+        .items(20)
+        .build();
+    let cached = EnvBuilder::query("posts")
+        .with_query(|q| q.offset = Some(200))
+        .cached()
+        .build();
+    assert!(run(&mut e, [below, cached]).is_empty());
+}
+```
+
+The runtime end-to-end tests in `crates/runtime/tests/end_to_end.rs` also check the pairing: `every_enabled_rule_has_a_detector` fails if an enabled non-aggregate rule has no detector, and `every_detector_has_a_rule_definition` fails if a detector has no TOML.
+
+</Step>
+<Step>
+
+## Add a conformance fixture
+
+For behavior a user can see, add a fixture under `conformance/fixtures/<provider>/<service>/<scenario>.json`. It pins the raw calls an SDK shim sends, the envelopes the core produces from them, and the findings. The Rust runner (`crates/runtime/tests/conformance.rs`) and the SDK test (`sdks/js/firebase/test/conformance.test.ts`) both read every fixture.
+
+```json title="conformance/fixtures/firebase/firestore/offset-pagination.json"
+{
+  "description": "db.collection('posts').orderBy('createdAt').offset(200).limit(20).get()",
+  "platform": "server",
+  "evaluations": ["local"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1,
+      "path": "posts",
+      "query": { "order_by": [{ "field": "createdAt" }], "limit": 20, "offset": 200 },
+      "result": { "docs": 20, "bytes": 20000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "posts", "units": { "reads": 220, "egress_bytes": 20000 } }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/offset-pagination", "wasted": { "reads": 200 } }
+  ]
+}
+```
+
+`calls` use the provider's raw-call schema (see [Raw calls](/docs/reference/raw-calls)). `expect_envelopes` has one entry per call. `units` and `wasted` are compared exactly, with a missing unit counted as 0; omit `wasted` to skip that check. `expect_findings` is exact and in order, so a fixture also proves that no other rule fires. Set `evaluations` to the tiers the rule needs: `["local", "window"]` for a window rule. Aggregate rules use `sessions` instead of `calls`; the full format is on [Testing](/docs/contributing/testing#conformance-fixtures).
+
+</Step>
+<Step>
+
+## Check and run everything
+
+```sh
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
+cargo test --workspace --all-features
+cargo clippy --workspace --all-features --all-targets -- -D warnings
+cargo fmt --all
+```
+
+`rulec check` validates the id and scope, kebab-case names, non-empty text fields and duplicate ids. A new detector on the SDK path adds wasm bytes, so a `local` rule also needs the size gate:
+
+```sh
+./scripts/build-wasm.sh
+```
+
+The backend and console read the catalog from the server core, which embeds `rules/**/*.toml` at build time. Rebuild it with `./scripts/build-wasm-server.sh` before running the TypeScript tests or the local stack. The rule reference on this site is generated from the same TOML files by `docs/scripts/gen-rules.mjs`, so the new rule appears under [/docs/rules](/docs/rules) without edits.
+
+</Step>
+</Steps>
+
+## Checklist
+
+- `rules/<scope>/<name>.toml` with every required field, thresholds in `[params]`.
+- Detector file with `pub const ID` and `pub fn build(&Params)`, all params parsed in `build`.
+- `wasted` filled when the waste is computable.
+- Registered in `mod.rs`, gated by `window` or `aggregate` when the tier needs it.
+- A firing test and a close non-firing test with `EnvBuilder`.
+- A conformance fixture for user-visible behavior.
+- `rulec check`, test, clippy and fmt pass; the size gate passes for SDK-path changes.

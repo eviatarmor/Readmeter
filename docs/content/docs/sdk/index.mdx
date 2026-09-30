@@ -1,0 +1,140 @@
+---
+title: JavaScript SDK
+description: Install @readmeter/firebase, call init(), and swap Firebase imports for the drop-in modules.
+---
+
+`@readmeter/firebase` records Cloud Firestore, Realtime Database, Cloud Storage, Authentication and Cloud Functions calls and sends them to a Readmeter ingest service. It covers the Firebase web modular SDK and the Firebase Admin SDK used by Cloud Functions.
+
+The SDK wraps a small wasm build of the Rust core. Each call you make is turned into a redacted record (a path template, sizes, counts and keyed hashes), checked against the `local` rules in the process, buffered, and posted to ingest in batches. See [How it works](/docs/getting-started/how-it-works) for the full pipeline.
+
+## Install
+
+The package is installed from its tarball. Build and pack it from a Readmeter checkout:
+
+```sh
+pnpm sdk:build
+cd sdks/js/firebase && pnpm pack
+```
+
+Then add it to your app:
+
+```sh
+pnpm add ./readmeter-firebase-0.1.0.tgz
+```
+
+The package needs Node 22 or later for server use. Firebase packages are optional peer dependencies. Install the ones you call:
+
+| Peer | Version | Used by |
+|---|---|---|
+| `firebase` | `>=10 <13` | Web drop-in modules |
+| `firebase-admin` | `>=12` | `@readmeter/firebase/admin` |
+| `@google-cloud/firestore` | `>=7` | `instrument()` on Cloud Functions |
+| `@google-cloud/storage` | `>=8` | `instrumentStorage()` on Cloud Functions |
+
+## Call init() once
+
+```ts title="src/readmeter.ts"
+import { init } from "@readmeter/firebase";
+
+init({
+  apiKey: "rm_...",
+  hashKey: "0123456789abcdef0123456789abcdef",
+  endpoint: "http://127.0.0.1:8090",
+});
+```
+
+`apiKey` and `endpoint` are required. `hashKey` is the project's 32-character hash key. When you leave it out, the SDK fetches it once from `GET {endpoint}/v1/config`. The console shows both values on the project's SDK tab (see [Projects and keys](/docs/console/projects-and-keys)). Every option is listed on [Configuration](/docs/sdk/configuration).
+
+`init` never throws. A bad option, a failed hash-key fetch, or a wasm file that does not load logs one `console.error` line (`[readmeter] ... The SDK is disabled.`) and turns recording off. Your Firebase calls keep working either way.
+
+Calls made before the wasm core is ready are queued (up to 1000, oldest dropped first) and replayed once it loads. Calling `init` again replaces the previous session: the old buffer is flushed and a new session id is created.
+
+The root module exports:
+
+| Export | What it does |
+|---|---|
+| `init(options)` | Starts the SDK. See [Configuration](/docs/sdk/configuration). |
+| `flush()` | Sends what is buffered. Resolves even when the request fails. |
+| `shutdown()` | Flushes, then stops the flush timer and the exit hooks. |
+| `sink`, `sinkWrite`, `sinkListener` | Manual Firestore recording. See [Manual sink API](/docs/sdk/sink). |
+| `Finding`, `InitOptions`, `Platform`, `WriteOp` | Types. |
+
+## Drop-in imports
+
+On the web you change import paths. Each drop-in module re-exports everything from the Firebase module it replaces and swaps in wrapped versions of the functions that cost money. A wrapper calls the real function, returns the same value (the same promise, for async calls) and rethrows the same error. Recording happens after your call returns.
+
+| Replace | With | Page |
+|---|---|---|
+| `firebase/firestore` | `@readmeter/firebase/firestore` | [Cloud Firestore](/docs/sdk/firestore) |
+| `firebase/database` | `@readmeter/firebase/database` | [Realtime Database](/docs/sdk/realtime-database) |
+| `firebase/storage` | `@readmeter/firebase/storage` | [Cloud Storage](/docs/sdk/storage) |
+| `firebase/auth` | `@readmeter/firebase/auth` | [Authentication](/docs/sdk/authentication) |
+| `firebase/functions` | `@readmeter/firebase/functions` | [Callable functions](/docs/sdk/functions) |
+
+```ts
+import { init } from "@readmeter/firebase";
+import { collection, getDocs, query, where } from "@readmeter/firebase/firestore";
+
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090" });
+
+const snap = await getDocs(query(collection(db, "orders"), where("status", "==", "open")));
+```
+
+Functions you import from the original `firebase/*` module are not recorded. You can mix the two; only the calls that go through a drop-in module show up. When you cannot change an import (a library owns the call), use the [manual sink API](/docs/sdk/sink) for Firestore.
+
+## Web and server
+
+The SDK runs in two places:
+
+- In the browser, through the drop-in modules above.
+- In Cloud Functions and other Node servers, through `@readmeter/firebase/admin`, which patches Firebase Admin SDK instances you pass to `instrument()`, `instrumentDatabase()`, `instrumentStorage()` and `instrumentAuth()`, and records one invocation per handler wrapped in `withFlush()`. See [Cloud Functions (server)](/docs/sdk/cloud-functions-server).
+
+`@readmeter/firebase/admin` imports Node built-ins (`node:async_hooks`, `node:module`, `node:stream`), so keep it out of browser bundles.
+
+`platform` is detected at `init`: `browser` when both `window` and `document` exist, `server` otherwise. Set it yourself on servers where that check could be wrong. `mobile` is accepted but never detected.
+
+The runtime changes how batches leave the process:
+
+| | Browser | Node |
+|---|---|---|
+| Timer flush | Every `flushIntervalMs` (default 10 s) | Same |
+| Early flush | After `maxBatchEvents` recorded calls (default 200) | Same |
+| On exit | `pagehide` flushes with `keepalive` | `beforeExit` and `SIGTERM` flush |
+| Page visibility | `visibilitychange` is recorded as a page event | Not recorded |
+| Rule bundle cache | `localStorage` | `~/.readmeter/cache`, or `READMETER_BUNDLE_CACHE` |
+
+## Dev mode
+
+```ts
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090", dev: true });
+```
+
+With `dev: true` the SDK loads the dev wasm build, which also runs `window` rules (rules that look at one session's recent calls) in the process. Each finding is printed with `console.warn`:
+
+```text
+[readmeter] high firebase.firestore/unbounded-list orders: ...
+```
+
+Leave `dev` off in production. The production build runs only `local` rules and is smaller. A bundler puts the prod and dev wasm in separate chunks and loads only the one `dev` selects.
+
+To handle findings in code instead of the console, pass `onFinding`. It is called for every local finding, with or without `dev`. Set `debug: true` to log every raw call with `console.debug`.
+
+## Where findings show up
+
+Findings found in the SDK are uploaded with the batch that carries the calls. The backend decodes each batch, runs the `window` rules for that session and the cross-session `aggregate` rules, and stores events and findings in Postgres.
+
+Open the console and select the project:
+
+- [Findings](/docs/console/findings) lists every match with the rule, the template, the evidence and a status.
+- [Events](/docs/console/events) lists the ingested calls.
+- [Overview](/docs/console/overview) and [Costs](/docs/console/costs) show estimated spend.
+
+![Findings page in the console](/images/console-findings.png)
+
+The rules themselves are documented in the [rule reference](/docs/rules).
+
+<Cards>
+  <Card title="Configuration" href="/docs/sdk/configuration">Every init option, its type and its default.</Card>
+  <Card title="Privacy" href="/docs/sdk/privacy">What leaves the app for each service.</Card>
+  <Card title="Try it on your app" href="/docs/getting-started/your-app">The local loop against your own Firebase project.</Card>
+</Cards>

@@ -4,3 +4,4 @@ packages:
   - sdks/*/*
   - examples/web
   - examples/e2e
+  - docs

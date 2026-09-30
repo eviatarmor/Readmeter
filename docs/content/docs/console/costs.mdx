@@ -1,0 +1,73 @@
+---
+title: Costs
+description: Estimated cost grouped by service, rule, template or day, and billed cost from the Cloud Billing export when Google Cloud is connected.
+---
+
+The Costs page (`/w/<slug>/costs`) shows what the selected project (or all
+projects) cost over `7d`, `30d` or `90d`. A badge in the header says whether
+the page is showing **Estimated** or **Billed** numbers.
+
+## Estimated and billed
+
+Readmeter has two sources of cost.
+
+Estimated cost is computed from your own events. Each event carries billing
+units that the provider computed at normalization time (for example
+Firestore reads, or bytes downloaded from Storage). The console API sums the
+units per service and prices them with the tables in `pricing/`, using the
+Rust core. Waste is priced the same way, from the `wasted` units on
+findings. Estimates cover only the calls the SDK saw.
+
+Billed cost comes from the Google Cloud Billing export in BigQuery. It is
+available after you [connect Google Cloud](/docs/console/google-cloud) with a
+billing export table and a sync has imported rows. Billed amounts are what
+Google charged per day, service and SKU, with credits listed separately.
+
+When no billed rows exist for the range, a banner says the numbers are
+estimates and links to Integrations.
+
+<Callout type="info">
+The overview's cost card switches from **Estimated** to **Billed** as soon as
+billed rows exist for the range. The Costs page keeps the estimate and adds
+the billed sections next to it.
+</Callout>
+
+## Grouping
+
+Tabs change how the estimate is grouped:
+
+| Tab | Groups by |
+| --- | --- |
+| Service | Provider and service, such as Cloud Firestore or Cloud Storage. |
+| Rule | Rule id. This shows priced waste per rule, not total cost. |
+| Template | Redacted path, such as `users/{id}/orders`. |
+| Day | UTC day. |
+
+A bar chart and a table below it show each group's estimated USD, largest
+first.
+
+## Estimate and billed comparison
+
+With billed data present, two more sections appear:
+
+- **Estimate and billed**: a bar chart with estimated and billed cost side by
+  side for each day in the range.
+- A SKU table with Service, SKU, Usage (amount and unit), Cost, Credits and
+  Net (cost plus credits).
+
+## SDK coverage
+
+When the range has both SDK-reported Firestore reads and Firestore reads
+imported from Cloud Monitoring, the page shows an **SDK coverage** line: SDK
+reads as a percentage of the reads Google counted, with both numbers.
+
+This tells you how much of the project's real read traffic goes through
+instrumented code. A low figure means some clients or servers are not
+reporting, so estimates and findings undercount.
+
+## Export CSV
+
+**Export CSV** downloads `readmeter-costs.csv` with the columns
+`kind,key,micros,usd`. Rows with kind `estimate` are the groups on the
+current tab; rows with kind `billed` are per service and SKU, net of
+credits. `micros` is millionths of a dollar.

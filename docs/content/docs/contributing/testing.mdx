@@ -1,0 +1,160 @@
+---
+title: Testing
+description: Every test suite in the repository, how to run it locally, the conformance fixture format, and what CI runs.
+---
+
+Tests run at five levels: Rust unit and integration tests, shared conformance fixtures, TypeScript service tests against Postgres, SDK tests against the Firebase emulators, and a full end-to-end run in a real browser. Every level runs the real Rust core.
+
+## Rust
+
+These three must pass for every change:
+
+```sh
+cargo test --workspace --all-features
+cargo clippy --workspace --all-features --all-targets -- -D warnings
+cargo fmt --all
+```
+
+CI runs `cargo fmt --all -- --check`, so format before you push.
+
+`cargo test` covers:
+
+- Unit tests in each crate, including detector tests written with `readmeter_rules::testing` (see [Adding a rule](/docs/contributing/adding-a-rule#test-the-detector)).
+- A leak test in each service's `normalize.rs` that asserts no raw id, path, callsite or value survives into the envelope.
+- `crates/cost` tests that parse every table in `pricing/` and spot-check estimates.
+- `crates/runtime/tests/end_to_end.rs`: the real catalog from `rules/`, raw JSON in, findings and an encoded batch out. `every_enabled_rule_has_a_detector` and `every_detector_has_a_rule_definition` fail when a TOML file and a detector do not pair up.
+- `crates/runtime/tests/conformance.rs`: every fixture under `conformance/fixtures/`.
+- `crates/evaluator` tests for window rules across batches, per-project isolation and the project cap.
+
+Production SDK builds leave the `window` feature off. CI also runs clippy on that feature set, so check it when you gate code by feature:
+
+```sh
+cargo clippy -p readmeter-wasm -p readmeter-ffi --no-default-features --features firebase,database,storage,auth,functions -- -D warnings
+```
+
+### Rule catalog
+
+```sh
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
+```
+
+`check` loads every file under `rules/` and fails on a parse error, an unknown key, a duplicate id, an id whose scope does not match `provider` and `service`, a name that is not kebab case, or an empty `title`, `summary`, `description` or `fix`. `build rules target/rules` writes `catalog.json`, `bundle.json` and `bundle.bin`; the wasm and FFI smoke tests read `target/rules/bundle.bin`.
+
+### wasm and C ABI
+
+```sh
+./scripts/build-wasm.sh          # production SDK wasm, fails over the gzip budget
+node scripts/smoke-wasm.mjs      # loads target/wasm-pkg in Node and records one raw call
+./scripts/smoke-ffi.sh           # builds readmeter-ffi and runs crates/bindings/ffi/tests/c/smoke.c
+```
+
+`smoke-wasm.mjs` takes an optional package directory and bundle path (`node scripts/smoke-wasm.mjs [pkg-dir] [bundle.bin]`). `smoke-ffi.sh` uses `$CC` (default `cc`); on Windows run it from a Visual Studio developer shell with `CC=cl`. After changing `bindings/ffi`, regenerate the header, because CI fails if the checked-in copy differs:
+
+```sh
+(cd crates/bindings/ffi && cbindgen --config cbindgen.toml --crate readmeter-ffi --output include/readmeter.h)
+```
+
+## Conformance fixtures
+
+A fixture is one contract checked from both sides. SDK shims must turn the scenario in `description` into exactly the raw calls in `calls`. The Rust runtime must turn `calls` into envelopes matching `expect_envelopes` and findings matching `expect_findings`.
+
+- Rust runner: `crates/runtime/tests/conformance.rs`, part of `cargo test`.
+- SDK runner: `sdks/js/firebase/test/conformance.test.ts`, part of `pnpm --filter @readmeter/firebase test`. It feeds each fixture's raw calls through the SDK's wasm core and checks the findings and their `wasted` units. It skips `sessions` fixtures, because aggregate rules do not run in the SDK.
+
+Layout: `conformance/fixtures/<provider>/<service>/<scenario>.json`. Aggregate fixtures for Firestore are in `conformance/fixtures/firebase/firestore/aggregate/`.
+
+```jsonc title="conformance/README.md"
+{
+  "description": "What the app does, in words an SDK test can reproduce.",
+  "platform": "browser",               // browser | server | mobile
+  "evaluations": ["local", "window"],  // tiers to run
+  "calls": [ /* raw calls, provider schema */ ],
+  // Or, for aggregate rules, several sessions of one project. Exactly one
+  // of `calls` and `sessions` is set. The Rust runner normalizes each
+  // session, checks envelopes in this order, then runs the backend
+  // evaluator on the calls sorted by `ts_ms`. SDK shims skip `sessions`
+  // fixtures: aggregate rules do not run in the SDK.
+  "sessions": [ { "session": 1, "calls": [ /* raw calls */ ] } ],
+  "expect_envelopes": [                // same length as calls, or as every session's calls concatenated
+    { "op": "query", "template": "users/{id}/orders", "units": { "reads": 20 } }
+  ],
+  "expect_findings": [                 // exact, in order
+    { "rule": "firebase.firestore/offset-pagination", "wasted": { "reads": 200 } }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `description` | The scenario, written so an SDK test can reproduce it. |
+| `platform` | `browser`, `server` or `mobile`. |
+| `evaluations` | Tiers the client runs: `local`, `window`, `aggregate`. |
+| `calls` | Raw calls in the provider schema ([Raw calls](/docs/reference/raw-calls)). |
+| `sessions` | Instead of `calls`: a list of `{ session, calls }` for aggregate rules. |
+| `expect_envelopes` | One `{ op, template, units }` per call, in order. |
+| `expect_findings` | Every expected `{ rule, wasted }`, exact and in order. |
+
+`ts_ms`, `call_id`, `listener` and `callsite` values only need to be consistent within one fixture. `units` and `wasted` are compared exactly, with a missing unit counted as 0. Omit `wasted` to skip that check. Unknown keys fail the Rust runner. The runner builds its client with provider `firebase` and a fixed test hash key.
+
+## TypeScript services
+
+The backend tests need the server core and Postgres:
+
+```sh
+pnpm install
+pnpm db:up && pnpm db:migrate
+./scripts/build-wasm-server.sh
+pnpm typecheck && DATABASE_URL=postgres://readmeter:readmeter@127.0.0.1:5442/readmeter pnpm test
+```
+
+`apps/ingest`, `apps/console-api` and `apps/connector-gcp` use `node --test` (`node --import tsx --test test/*.test.ts`). `apps/console-web` uses Vitest (`vitest run`). Tests that need Postgres skip unless `DATABASE_URL` is set. Services take their dependencies (`core`, `store`) as arguments, so a test can swap the store while still calling the real Rust core.
+
+Rebuild the server core whenever `crates/evaluator`, a rule TOML or a price table changes, since the server wasm embeds `rules/` and `pricing/` at build time. After a schema change, `pnpm db:generate` must produce no diff in `packages/db/migrations`; CI checks this.
+
+## SDK
+
+```sh
+pnpm --filter @readmeter/firebase build          # prod and dev wasm, rule bundle, tsc to dist/
+pnpm --filter @readmeter/firebase test           # unit tests and conformance, no emulators
+pnpm --filter @readmeter/firebase test:emulator  # web and Admin SDK against the Firebase emulators
+pnpm --filter @readmeter/firebase test:bundle    # Vite bundle check
+```
+
+The root `package.json` has shortcuts: `pnpm sdk:build`, `pnpm sdk:test` and `pnpm sdk:test:emulator`.
+
+`build` runs `scripts/build-wasm.sh` twice: a production build with the size gate, and a dev build with `window` and no budget. It then builds the rule bundle and compiles TypeScript. `test` needs that build.
+
+### Emulator tests
+
+`test:emulator` runs `sdks/js/firebase/scripts/emulator-test.sh`. It needs Java (firebase-tools requires JDK 21 or newer) and starts the Firestore (8085), Realtime Database (9000), Cloud Storage (9199), Authentication (9099) and Functions (5001) emulators with `firebase emulators:exec` and the config in `test/firebase.json`. Each file in `test/emulator/` runs in its own Node process, web before admin for each service, so the two SDKs do not share prototype patches or a core client.
+
+## End to end
+
+```sh
+./scripts/e2e.sh
+```
+
+Run it from Git Bash on Windows or bash on Linux. It needs Docker, Java 21 or newer, Node, pnpm and the Rust wasm toolchain. It:
+
+1. Runs `scripts/dev-up.sh`: Postgres, migrations and seed, the rule bundle, the server core, the SDK build, the `demo_local` project, then ingest on 8090, the console API on 8091, the GCP connector (with fixture data, `READMETER_GCP_FAKE=1`) and the console on 5174.
+2. Type-checks `examples/web` and `examples/e2e` and installs Playwright Chromium.
+3. Finds Java 21 or newer, falling back to common install paths when `java` on the `PATH` is older.
+4. Starts the Firestore, Functions, Realtime Database, Storage and Auth emulators with `examples/firebase.json` and runs `scripts/e2e-inside.sh` inside them. That script runs the Node scenarios and Cloud Functions (`examples/e2e/run.ts`), builds and previews the demo web app on 5173, runs its Playwright spec (`examples/web/e2e/browser.spec.ts`), and asserts that the expected browser findings reached Postgres.
+5. Runs the console Playwright spec (`apps/console-web/e2e/console.spec.ts`), which signs in as `admin@readmeter.local` and walks the overview, findings, keys, invites and sidebar. It also saves the screenshots in `docs/public/images/`.
+
+`./scripts/dev-down.sh` stops ingest, the console API, the GCP connector, the console and the preview server, then runs `docker compose down`, keeping the Postgres volume. Pass `--keep-postgres` to leave the container running.
+
+When you add a rule that the demo triggers, add its id to the `--assert-only` list in `scripts/e2e-inside.sh`.
+
+## CI
+
+[`.github/workflows/ci.yml`](https://github.com/eviatarmor/Readmeter/blob/main/.github/workflows/ci.yml) runs on pushes to `main` or `master` and on pull requests. Every job uses stable Rust and caches with `Swatinem/rust-cache`; jobs that need `wasm-bindgen-cli` install version `0.2.129`, which must match `Cargo.lock`.
+
+| Job | Runs |
+|---|---|
+| `rust` | `cargo fmt --all -- --check`, workspace clippy with `-D warnings`, `cargo test --workspace --all-features`, clippy on the production SDK feature set (no `window`), and `readmeter-rulec check rules`. |
+| `wasm` | `scripts/build-wasm.sh` (size gate), the rule bundle build and `scripts/smoke-wasm.mjs` in Node 22, then a dev build with `window` to report its size. |
+| `ffi` | Regenerates `include/readmeter.h` with cbindgen and fails on any diff, then `scripts/smoke-ffi.sh`. |
+| `backend` | Postgres 17 service on 5442. Builds the rule bundle, SDK wasm and server core; typechecks `apps/*` and `packages/*`; runs migrations and checks `pnpm db:generate` leaves `packages/db/migrations` unchanged; runs the GCP connector tests and every `apps/*` and `packages/*` test; builds `console-web`. |
+| `sdk-js` | Java 21. Builds `@readmeter/firebase`, then runs `test` and `test:emulator`. |
+| `e2e` | Postgres 17 and Java 21. Installs Playwright's Chromium system libraries and runs `scripts/e2e.sh`. |

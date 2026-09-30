@@ -1,0 +1,298 @@
+---
+title: Use it with your app
+description: Connect a real Firebase web app and its Cloud Functions to a local Readmeter and read the findings in the console.
+---
+
+This guide takes a Firebase web app and Cloud Functions you already have and sends their calls to Readmeter running on your machine. You need the local backend from the [Quickstart](/docs/getting-started/quickstart). The demo emulators and demo app are optional.
+
+Commands are for bash. On Windows, use Git Bash.
+
+## 1. Start the local backend
+
+From the Readmeter checkout:
+
+```sh
+./scripts/dev-up.sh
+```
+
+When it finishes, ingest is at `http://127.0.0.1:8090` and the console at `http://localhost:5174`. Check ingest with:
+
+```sh
+curl http://127.0.0.1:8090/healthz
+```
+
+It answers `ok`.
+
+## 2. Create a project and an API key
+
+You can reuse the demo project `demo_local`: its key and hash key are in `.readmeter/local.env`, and the key allows only `http://127.0.0.1:5173` and `http://localhost:5173`. For your own app, create a project and a key of its own.
+
+<Steps>
+<Step>
+
+### Sign in
+
+Open `http://localhost:5174` and sign in as `admin@readmeter.local` with password `readmeter-dev`. The seeded workspace is `local`. To use another workspace, open the workspace switcher at the top of the sidebar and create one.
+
+</Step>
+<Step>
+
+### Create a project
+
+Open Projects and click Create project. Give it a name, pick an environment (`production`, `staging` or `development`), and optionally enter the Firebase project id. Open the new project.
+
+</Step>
+<Step>
+
+### Copy the hash key and snippets
+
+The project's SDK tab shows the hash key and two `init` snippets, one for the web and one for Cloud Functions. The snippets already contain the hash key and the ingest URL. Copy them. They contain the placeholder `YOUR_API_KEY`.
+
+</Step>
+<Step>
+
+### Create an API key
+
+On the project's Keys tab, click Manage API keys. That opens API keys with the project selected. Click Create key, enter a name, and fill in Allowed origins with every browser origin that will send data, separated by commas. Include `http://localhost:5173` if that is where your dev server runs. An empty list allows any origin.
+
+The key is shown once, in the dialog that follows. Copy it and replace `YOUR_API_KEY` in the snippets.
+
+</Step>
+</Steps>
+
+The API key is a secret: anyone with it can send data to your project. The hash key only keys the hashes the SDK computes, and ingest hands it to any client that presents a valid API key.
+
+## 3. Build and pack the SDK
+
+The SDK is not on npm yet. Install it from a tarball built in your checkout. `dev-up.sh` already builds and packs it; to do it by hand:
+
+```sh
+pnpm sdk:build
+cd sdks/js/firebase
+pnpm pack
+```
+
+That writes `sdks/js/firebase/readmeter-firebase-0.1.0.tgz`.
+
+## 4. Instrument the web app
+
+### Install
+
+In your web app, install the tarball next to `firebase`:
+
+```sh
+npm install /path/to/Readmeter/sdks/js/firebase/readmeter-firebase-0.1.0.tgz firebase
+```
+
+The SDK supports `firebase` 10, 11 and 12. The package declares Node.js 22 or newer.
+
+### Call init once at startup
+
+Paste the web snippet from the console where your app starts, before the first Firebase call:
+
+```ts title="src/readmeter.ts"
+import { init } from "@readmeter/firebase";
+
+init({
+  apiKey: "rm_...",
+  hashKey: "0123456789abcdef0123456789abcdef",
+  endpoint: "http://127.0.0.1:8090",
+  dev: true,
+});
+```
+
+`dev: true` loads the dev build, which also runs window rules in the page and logs each finding with `console.warn`. Use it while you test locally and leave it off in production. `init` never throws. A bad config or a wasm load failure logs once and turns recording off, and your app keeps working.
+
+If you leave out `hashKey`, the SDK fetches it once from ingest. All options are on [Configuration](/docs/sdk/configuration).
+
+### Change the Firebase imports
+
+Each wrapped module re-exports everything from the Firebase module it replaces, so you only change the import path. Types, `connect*Emulator` functions and query builders come through unchanged.
+
+| Service | Before | After |
+|---|---|---|
+| Cloud Firestore | `firebase/firestore` | `@readmeter/firebase/firestore` |
+| Realtime Database | `firebase/database` | `@readmeter/firebase/database` |
+| Cloud Storage | `firebase/storage` | `@readmeter/firebase/storage` |
+| Authentication | `firebase/auth` | `@readmeter/firebase/auth` |
+| Cloud Functions callables | `firebase/functions` | `@readmeter/firebase/functions` |
+
+Keep `firebase/app` as it is.
+
+```ts title="src/orders.ts"
+import { initializeApp } from "firebase/app";
+import { collection, getDocs, getFirestore, query, where } from "@readmeter/firebase/firestore";
+import { getDatabase, ref, get } from "@readmeter/firebase/database";
+import { getStorage, ref as storageRef, getBytes } from "@readmeter/firebase/storage";
+import { getAuth, onAuthStateChanged } from "@readmeter/firebase/auth";
+import { getFunctions, httpsCallable } from "@readmeter/firebase/functions";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const snap = await getDocs(query(collection(db, "orders"), where("status", "==", "open")));
+```
+
+Wrapped functions return the same values and rethrow the same errors as Firebase. The per-service pages ([Firestore](/docs/sdk/firestore), [Realtime Database](/docs/sdk/realtime-database), [Storage](/docs/sdk/storage), [Authentication](/docs/sdk/authentication), [Functions](/docs/sdk/functions)) list which calls are recorded.
+
+If you cannot change an import, record calls by hand with [`sink`](/docs/sdk/sink).
+
+### Vite and other bundlers
+
+The SDK loads its wasm with `new URL(..., import.meta.url)` and a dynamic `import()`. The bundler must leave both alone. Vite does, but if its dev server pre-bundles the SDK, exclude it:
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  optimizeDeps: {
+    exclude: ["@readmeter/firebase"],
+  },
+});
+```
+
+## 5. Instrument Cloud Functions
+
+### Install
+
+In your `functions/` directory, install the same tarball:
+
+```sh
+cd functions
+npm install /path/to/Readmeter/sdks/js/firebase/readmeter-firebase-0.1.0.tgz
+```
+
+The Admin side needs `firebase-admin` 12 or newer.
+
+### Initialize, instrument and wrap
+
+Call `init` with `platform: "server"`, instrument each Admin SDK instance once, and wrap every handler in `withFlush`:
+
+```ts title="functions/src/index.ts"
+import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getDatabase } from "firebase-admin/database";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import { onCall, onRequest } from "firebase-functions/v2/https";
+import { init } from "@readmeter/firebase";
+import {
+  instrument,
+  instrumentAuth,
+  instrumentDatabase,
+  instrumentStorage,
+  withFlush,
+} from "@readmeter/firebase/admin";
+
+initializeApp();
+
+init({
+  apiKey: process.env.READMETER_API_KEY ?? "",
+  hashKey: process.env.READMETER_HASH_KEY,
+  endpoint: process.env.READMETER_ENDPOINT ?? "http://127.0.0.1:8090",
+  platform: "server",
+});
+
+const db = instrument(getFirestore());
+const rtdb = instrumentDatabase(getDatabase());
+const bucket = instrumentStorage(getStorage().bucket());
+const auth = instrumentAuth(getAuth());
+
+export const report = onRequest(
+  withFlush(async (_req, res) => {
+    const snap = await db.collection("orders").where("status", "==", "open").get();
+    res.json({ n: snap.size });
+  }),
+);
+
+export const echo = onCall(withFlush(async () => ({ ok: true })));
+```
+
+Each `instrument*` call returns the same instance it was given, is safe to call more than once, and never throws. Only instrument the services you use.
+
+`withFlush` works for `onRequest` and `onCall` handlers. It awaits `flush()` after the handler finishes, on success or error, and rethrows a handler error unchanged. It also records the invocation: duration, whether it was the first call in the process (a cold start), `FUNCTION_MEMORY_MB` when that variable is set, and the Firestore reads, Realtime Database download bytes and Storage calls made while the handler ran. Without `withFlush`, a function instance can be frozen before the batch is sent. On Node the SDK also flushes on `beforeExit` and `SIGTERM`.
+
+Set `READMETER_API_KEY`, `READMETER_HASH_KEY` and `READMETER_ENDPOINT` the way your functions read configuration. The example in [`examples/functions/src/index.ts`](https://github.com/eviatarmor/Readmeter/blob/main/examples/functions/src/index.ts) reads them from a `.env` file next to `package.json`.
+
+### Rebuild after an SDK change
+
+The tarball name stays `readmeter-firebase-0.1.0.tgz` when the SDK changes, and `package-lock.json` pins the hash of the previous one, so npm can keep the old copy. After you repack, remove the installed copy and the lock file, then install again:
+
+```sh
+rm -rf node_modules/@readmeter package-lock.json
+npm install
+```
+
+## 6. Deployed apps
+
+The Functions emulator and a local dev server can reach `http://127.0.0.1:8090`. A deployed web app or a deployed function cannot reach your laptop. Expose ingest through a tunnel, for example with `cloudflared`:
+
+```sh
+cloudflared tunnel --url http://127.0.0.1:8090
+```
+
+Then:
+
+1. Put the tunnel URL in `endpoint` (origin only, no path) in the web `init` and in `READMETER_ENDPOINT` for your functions.
+2. Create a key whose allowed origins include the deployed site, for example `https://your-app.web.app`.
+3. Leave `dev` off for a deployed build.
+
+To have the console print the tunnel URL in its snippets, start the console API with `INGEST_PUBLIC_URL` set to it. It defaults to `http://127.0.0.1:8090`.
+
+## 7. See the results
+
+Open `http://localhost:5174` and choose your project in the project selector at the top.
+
+- Findings lists every match. Filter by severity, status, rule, service or template, and open a row for the rule, the evidence and the fix. Mark findings resolved or ignored.
+- Events lists the calls that were ingested, filterable by operation, service, template and session.
+- Overview and Costs show estimated cost in USD for the selected time range, computed from the price tables in the repository.
+
+While `dev: true` is on, each finding also appears in the browser console as it happens. Pass `onFinding` to `init` to handle local findings in your own code.
+
+See [Console](/docs/console) for each page.
+
+## 8. What is sent
+
+A call leaves your app as a path template (`users/{id}/orders`), counts, sizes and keyed hashes. Document fields, snapshot values, filter values, raw ids, object bytes, URLs, tokens, emails, uids and function payloads are not sent. [Privacy](/docs/sdk/privacy) lists every field per service.
+
+To upload only findings and no call events, set `sampleRate: 0`. The value is the fraction of sessions whose events are uploaded, from `0` to `1`, default `1`. Findings are uploaded for every session.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="401 unauthorized">
+
+The API key is missing, revoked, or not sent as `Authorization: Bearer <key>`. A key cannot be shown again after it is created, so create a new one in API keys.
+
+</Accordion>
+<Accordion title="403 origin_not_allowed">
+
+The browser `Origin` is not in the key's allowed origins. Origins must match exactly: `http://localhost:5173`, not `http://localhost:5173/`, and `127.0.0.1` and `localhost` are different origins. Create a key with the right list.
+
+</Accordion>
+<Accordion title="CORS errors">
+
+Ingest answers `OPTIONS` preflight on `/v1/*` for any origin and reflects the request `Origin`. A 403 after a successful preflight comes from the key's origin allowlist.
+
+</Accordion>
+<Accordion title="No events in the console">
+
+Set `debug: true` in `init`. The SDK then logs each raw call with `console.debug`. Check that ingest is up with `curl http://127.0.0.1:8090/healthz`, that `endpoint` has no trailing path, and that the project selector in the console shows the project the key belongs to. The SDK flushes every 10 seconds by default, so call `flush()` or wait before you look.
+
+</Accordion>
+<Accordion title="The wasm does not load">
+
+The bundler rewrote `new URL(..., import.meta.url)` or the dynamic `import()` of the packaged wasm. With Vite, add `@readmeter/firebase` to `optimizeDeps.exclude`.
+
+</Accordion>
+<Accordion title="Cloud Functions still run the old SDK">
+
+After repacking, remove `node_modules/@readmeter` and `package-lock.json` in `functions/` and run `npm install` again. See [Rebuild after an SDK change](#rebuild-after-an-sdk-change).
+
+</Accordion>
+<Accordion title="429 or 503 from ingest">
+
+429 means the key sent too many batches per minute. 503 means ingest has too many writes in flight. Both carry `Retry-After`, and the SDK keeps the batch and retries.
+
+</Accordion>
+</Accordions>

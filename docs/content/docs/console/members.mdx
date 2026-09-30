@@ -1,0 +1,93 @@
+---
+title: Members and roles
+description: The owner, admin and member roles, what each can do, and how invitations work with or without SMTP.
+---
+
+The Members page (`/w/<slug>/members`) lists the people in the workspace.
+Roles are per workspace: you can be an owner in one workspace and a member
+in another. The workspace switcher shows your role in the current one.
+
+## Roles
+
+There are three roles, ranked `member` \< `admin` \< `owner`. The console API
+checks the role on every request, and the UI hides or disables what your
+role cannot do.
+
+| Action | Member | Admin | Owner |
+| --- | :---: | :---: | :---: |
+| View overview, findings, events, costs | Yes | Yes | Yes |
+| View rules, projects, hash key, SDK snippets, API key list | Yes | Yes | Yes |
+| View members and workspace settings | Yes | Yes | Yes |
+| Change finding status, assignee and note (single or bulk) | Yes | Yes | Yes |
+| Create workspaces (becoming their owner) | Yes | Yes | Yes |
+| Create, edit and delete projects | No | Yes | Yes |
+| Create and revoke API keys | No | Yes | Yes |
+| Save and reset rule overrides | No | Yes | Yes |
+| View, connect, test, sync and disconnect Google Cloud | No | Yes | Yes |
+| Invite members, list and cancel invitations | No | Yes | Yes |
+| Change member roles, remove members | No | Yes | Yes |
+| Edit workspace name, slug and logo | No | Yes | Yes |
+| View the audit log | No | Yes | Yes |
+| Delete the workspace | No | No | Yes |
+
+Owners and admins can set any member's role, including `owner`.
+
+A workspace always keeps at least one owner. The API refuses to demote or
+remove the last owner (`409`), and the console disables those options for
+that row.
+
+## Members table
+
+Columns: Name, Email, Role, Joined. Owners and admins get a role selector in
+the Role column and a **Remove** button on each row. Filter by name or email.
+
+Role changes and removals are recorded in the
+[audit log](/docs/console/settings#audit-log) as `member.role` and
+`member.remove`.
+
+## Invitations
+
+Owners and admins click **Invite** (or use **Invite member** in the command
+palette). The dialog takes one or more email addresses, separated by commas
+or new lines, and a role for all of them. Each address gets its own
+invitation. Invitations expire after 7 days.
+
+The **Invitations** tab, visible to owners and admins, lists each invitation
+with its email, role and status, and a **Cancel** button.
+
+The invitation link has this form, where the console origin is the console
+API's `CONSOLE_ORIGIN` (default `http://localhost:5174`):
+
+```text
+<console origin>/accept-invitation/<invitation id>
+```
+
+The person opens it while signed in with the invited address and joins the
+workspace with the invited role. If they are not signed in, the page shows
+the error and a **Sign in** button that returns them to the invitation after
+sign-in. Someone without an account creates one first, then opens the link
+again.
+
+### Sending invitations with SMTP
+
+When the console API has both `SMTP_URL` and `MAIL_FROM` set, each
+invitation is emailed with the subject `Invitation to <workspace name>`, and
+the console shows the toast **Invitation sent**. See
+[Configuration](/docs/self-hosting/configuration).
+
+### Links without SMTP
+
+Without SMTP (or with `SMTP_URL` but no `MAIL_FROM`), nothing is emailed.
+Instead:
+
+- The console shows **Invitation ready** and lists the invitation links
+  below the members table. Copy each link and send it yourself.
+- The console API writes each link to its log as a JSON line with
+  `"msg":"invitation link"`, the email and the link.
+
+Without SMTP, password reset links are written to the log. The Reset
+password page shows the link only when `CONSOLE_DEV_RESET_LINKS=1` is set
+outside production, which `./scripts/dev-up.sh` does for local use.
+
+Invitations and cancellations are recorded in the audit log as
+`member.invite` and `invitation.cancel`.

@@ -1,0 +1,96 @@
+---
+title: Findings
+description: Triage issues, filter them, change their status in bulk, and read the evidence and fix for each one.
+---
+
+The Findings page (`/w/<slug>/findings`) lists what the rules detected in the
+selected project (or all projects) for the selected time range. A finding is
+counted in the range when it was last seen inside it.
+
+![Findings table](/images/console-findings.png)
+
+## Issues
+
+Each row is an issue: every finding with the same rule, template and callsite
+in one project, across sessions. Rules produce findings per session, so a
+query that misbehaves for every user shows up once here, with a session
+count, instead of once per user.
+
+An issue is open while any of its findings is open. A later session that
+triggers the same rule at the same place adds a new open finding, so an
+issue you resolved shows as open again.
+
+## Columns
+
+| Column | Meaning |
+| --- | --- |
+| Severity | Severity of the most recent finding in the issue. |
+| Rule | Rule title, with the rule id (for example `firebase.firestore/unbounded-list`) under it. |
+| Template | Redacted path the calls used. |
+| Service | Cloud Firestore, Realtime Database, Cloud Storage, Authentication or Cloud Functions. |
+| Sessions | Number of sessions with this issue. |
+| Occurrences | Total times the rule fired. |
+| Wasted | Priced waste, with the wasted units under it (such as reads) when the rule computes them. |
+| Status | Open, Resolved or Ignored. |
+| Last seen | Time of the most recent occurrence. |
+| Callsite | Hidden by default. Where in your code the call came from. |
+| Message | Hidden by default. The finding message. |
+
+Use **View** to show the hidden columns. Rule severities and what each rule
+detects are listed in the [rules reference](/docs/rules).
+
+## Filters and sorting
+
+**Filter** works on Severity, Rule, Template, Service and Status. Severity,
+Service and Status are multi-select (has any of, has none of); Rule and
+Template are text filters. Conditions combine with *and* or *or*.
+
+**Sort** works on any sortable column, including Sessions, Occurrences,
+Wasted and Last seen. Filters, sort and page are kept in the URL, so you can
+share a filtered view.
+
+## Statuses
+
+| Status | Use it for |
+| --- | --- |
+| Open | New, or not handled yet. This is the default. |
+| Resolved | You fixed the code. |
+| Ignored | You accept the pattern and do not want to track it. |
+
+Status, assignee and note apply to every finding in the issue. Any member of
+the workspace can change them, including the `member` role. Each change is
+written to the [audit log](/docs/console/settings#audit-log) as
+`finding.status`.
+
+## Bulk actions
+
+Tick the checkboxes on the left (or the header checkbox for the whole page).
+The selection bar at the bottom shows how many rows are selected and offers
+**Resolve**, **Ignore** and **Reopen**. A toast reports how many findings
+were updated. One request accepts up to 200 issues.
+
+## Detail sheet
+
+Click a row to open the detail sheet on the right. The URL changes to
+`/w/<slug>/findings/<id>`, so you can link to a single issue. The sheet
+shows:
+
+- Rule title, message, severity, status and wasted cost.
+- Sessions, occurrences, callsite and template.
+- An occurrences chart by day.
+- A sessions table with the count and last-seen time for each session.
+  Aggregate rules report across all sessions and show one row labelled
+  **All sessions**.
+- The rule summary, the fix, and links to the rule docs.
+- Code examples from the rule, as **Avoid** and **Prefer** pairs.
+- The evidence JSON of the finding. Evidence holds templates, counts,
+  sizes and keyed hashes only, never raw ids or values (see
+  [Privacy](/docs/sdk/privacy)).
+
+Below that you can set the **Status**, pick an **Assignee** from the
+workspace members (or Unassigned), write a **Note**, and **Save**. The
+sheet also has two links:
+
+- **View events** opens the Events page with the same project and range.
+- **Configure rule** opens the Rules page for the issue's project, where an
+  owner or admin can change the rule's severity, parameters or enablement.

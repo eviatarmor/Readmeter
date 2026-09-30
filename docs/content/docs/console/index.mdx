@@ -1,0 +1,170 @@
+---
+title: Console
+description: The web app where you read findings, events and costs, and manage projects, keys, rules and members.
+---
+
+The console is a React app (`apps/console-web`) backed by the console API
+(`apps/console-api`). It reads the events and findings that ingest stores in
+Postgres and lets you triage them. It also holds everything you configure:
+workspaces, projects, API keys, rule overrides, members and the Google Cloud
+connection.
+
+Locally the console runs on `http://localhost:5174` and the API on
+`http://127.0.0.1:8091`. `./scripts/dev-up.sh` starts both (see
+[Local setup](/docs/self-hosting/local)).
+
+![The console overview page](/images/console-overview.png)
+
+## Signing in
+
+The sign-in page takes an email and password. A **Continue with Google**
+button appears when the console API has `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` set (see [Configuration](/docs/self-hosting/configuration)).
+
+On a local setup the seed script creates `admin@readmeter.local` with the
+password `readmeter-dev`, as owner of the `local` workspace. It skips this
+when `NODE_ENV` is `production`.
+
+From the sign-in page you can also:
+
+- Create an account. Passwords need at least 10 characters. A new account
+  goes straight to onboarding.
+- Reset a password. When SMTP is not configured, the reset link is written
+  to the console API log. In local development (`./scripts/dev-up.sh` sets
+  `CONSOLE_DEV_RESET_LINKS=1`) the link is also shown on the page.
+
+If you open a console URL while signed out, you are sent to sign-in and
+returned to that URL afterwards.
+
+## Onboarding
+
+An account with no workspace lands on `/onboarding`, which has three steps:
+
+<Steps>
+<Step>
+Name the workspace. The slug is filled in from the name and must be
+lowercase letters, numbers and hyphens.
+</Step>
+<Step>
+Name the first project (default `Demo`). The console creates it with the
+`development` environment and issues an API key named `first`.
+</Step>
+<Step>
+Copy the key and the install snippet (Web or Cloud Functions tab; the key is
+already filled in). The page checks for the project's first event every 3
+seconds and shows **Event received.** when it arrives. **Open the console**
+takes you to the overview.
+</Step>
+</Steps>
+
+## Workspaces
+
+A workspace holds projects, members and the audit history. Every console
+URL for workspace data starts with `/w/<slug>/`, for example
+`/w/local/findings`. You can belong to several workspaces with a different
+role in each (see [Members and roles](/docs/console/members)).
+
+Anyone signed in can create a workspace from the workspace switcher
+(**Create workspace**) and becomes its owner.
+
+## Layout
+
+### Sidebar
+
+The sidebar has three groups:
+
+| Group | Pages |
+| --- | --- |
+| Monitor | [Overview](/docs/console/overview), [Findings](/docs/console/findings), [Events](/docs/console/events), [Costs](/docs/console/costs) |
+| Configure | [Rules](/docs/console/rules), [Projects](/docs/console/projects-and-keys), [API keys](/docs/console/projects-and-keys#api-keys), [Integrations](/docs/console/google-cloud) |
+| Workspace | [Members](/docs/console/members), [Settings](/docs/console/settings) |
+
+The Findings item carries a badge with the number of open critical and high
+issues for the current project selection (shown as `99+` above 99). A
+**Docs** link and the user menu sit at the bottom.
+
+The sidebar collapses to icons. Use the toggle at the left of the navbar, or
+press <kbd>Ctrl</kbd>+<kbd>B</kbd> (<kbd>Cmd</kbd>+<kbd>B</kbd> on macOS).
+In icon mode each item shows its name as a tooltip. The console remembers
+the state in a `sidebar_state` cookie.
+
+### Workspace switcher
+
+The top of the sidebar shows the current workspace and your role in it.
+Click it to list your workspaces and switch, or to create a new one.
+<kbd>Ctrl</kbd>+<kbd>1</kbd> through <kbd>Ctrl</kbd>+<kbd>9</kbd>
+(<kbd>Cmd</kbd> on macOS) switch to the first nine workspaces in the list.
+These shortcuts do nothing while focus is in a text field. Switching opens
+the new workspace's overview with a 7-day range.
+
+### User menu
+
+The user menu at the bottom of the sidebar has **Profile** (the
+[account page](/docs/console/settings#profile)), a **Theme** submenu (Light,
+Dark, System) and **Sign out**.
+
+### Navbar
+
+The navbar shows a breadcrumb (workspace, then page) and these controls:
+
+- **Project switcher.** Choose one project or **All projects**. Most pages
+  scope their data to this choice, and the Rules page needs a single
+  project. The choice is stored per workspace in the browser and restored
+  the next time you open that workspace.
+- **Time range.** Shown on Overview, Findings, Events and Costs. Findings
+  and Events offer `24h`, `7d`, `30d` and `90d`. Overview and Costs work in
+  whole days and offer `7d`, `30d` and `90d`; if `24h` is selected, they show
+  `7d`. The default is `7d`.
+- **Search** opens the command palette.
+- A help button that opens the docs.
+
+The project and range live in the URL (`?project=...&range=7d`), so a link
+you share opens the same view. Table filters, sorting and paging are in the
+URL too.
+
+### Command palette
+
+Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd>+<kbd>K</kbd> on macOS) or
+click **Search** in the navbar. Type to filter. The palette has three
+groups:
+
+- **Pages:** every sidebar page, plus Profile.
+- **Projects:** All projects and each project in the workspace. Picking one
+  switches the project and keeps you on the current page.
+- **Actions:** Search rules, Create API key and Invite member. Each opens
+  the page where you do that.
+
+### Tables
+
+Findings, Events, Rules, API keys, Members and the audit log share one table
+component:
+
+- **Filter** adds conditions on the filterable columns, joined with *and* or
+  *or*. Text columns support contains, is, is not and empty checks;
+  multi-select columns support has any of and has none of. Shortcut:
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>.
+- **Sort** orders the rows by a column, ascending or descending. Shortcut:
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.
+- **View** shows or hides columns.
+- Pagination at the bottom, with 10 to 50 rows per page (20 by default).
+
+With a filter or sort item focused, <kbd>Backspace</kbd> or
+<kbd>Delete</kbd> removes it.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> | Open or close the command palette |
+| <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>B</kbd> | Collapse or expand the sidebar |
+| <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>1</kbd> to <kbd>9</kbd> | Switch to workspace 1 to 9 |
+| <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | Open the table filter menu |
+| <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> | Open the table sort menu |
+| <kbd>Esc</kbd> | Close a dialog or side sheet |
+
+<Cards>
+  <Card title="Overview" href="/docs/console/overview">KPIs, cost and waste chart, top rules.</Card>
+  <Card title="Findings" href="/docs/console/findings">Triage issues and change their status.</Card>
+  <Card title="Projects and keys" href="/docs/console/projects-and-keys">Install snippets, hash key, API keys.</Card>
+  <Card title="Google Cloud" href="/docs/console/google-cloud">Import Monitoring usage and billed cost.</Card>
+</Cards>

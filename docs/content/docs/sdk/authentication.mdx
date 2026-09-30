@@ -1,0 +1,110 @@
+---
+title: Authentication
+description: What the Authentication drop-in and instrumentAuth() wrap, what each call records, and their limits.
+---
+
+## Import
+
+Change `firebase/auth` to `@readmeter/firebase/auth`. The module re-exports all of `firebase/auth`. On Cloud Functions, pass the Admin `Auth` instance to `instrumentAuth()` from `@readmeter/firebase/admin`.
+
+<Tabs items={["Web", "Cloud Functions"]}>
+<Tab value="Web">
+
+```ts
+import { init } from "@readmeter/firebase";
+import {
+  browserLocalPersistence,
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from "@readmeter/firebase/auth";
+
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090" });
+
+const auth = getAuth(app);
+await setPersistence(auth, browserLocalPersistence);
+
+onAuthStateChanged(auth, (user) => render(user));
+await signInWithPopup(auth, new GoogleAuthProvider());
+```
+
+</Tab>
+<Tab value="Cloud Functions">
+
+```ts
+import { init } from "@readmeter/firebase";
+import { instrumentAuth, withFlush } from "@readmeter/firebase/admin";
+import { getAuth } from "firebase-admin/auth";
+import { onRequest } from "firebase-functions/v2/https";
+
+init({ apiKey: "rm_...", endpoint: "https://ingest.example", platform: "server" });
+
+const auth = instrumentAuth(getAuth());
+
+export const me = onRequest(withFlush(async (req, res) => {
+  const token = req.headers.authorization?.replace("Bearer ", "") ?? "";
+  const decoded = await auth.verifyIdToken(token);
+  res.json({ uid: decoded.uid });
+}));
+```
+
+</Tab>
+</Tabs>
+
+## Wrapped functions (web)
+
+| Function | Recorded as | Method template |
+|---|---|---|
+| `signInWithEmailAndPassword` | `sign_in` | `signInWithPassword` |
+| `signInWithEmailLink`, `signInWithCredential`, `signInWithCustomToken`, `signInWithPopup`, `signInWithRedirect` | `sign_in` | The function name |
+| `createUserWithEmailAndPassword` | `sign_in` | `createUserWithEmailAndPassword` |
+| `signInAnonymously` | `sign_in_anonymous` | `signInAnonymously` |
+| `signOut` | `sign_out` | `signOut` |
+| `onAuthStateChanged`, `onIdTokenChanged` | `subscribe`, `unsubscribe` | The function name |
+| `getIdToken(user, true)`, `user.getIdToken(true)`, `getIdTokenResult(user, true)` | `token_refresh` | `getIdToken` |
+| `sendPasswordResetEmail` | `password_reset` | `sendPasswordResetEmail` |
+| `sendEmailVerification` | `email_verification` | `sendEmailVerification` |
+| `signInWithPhoneNumber` | `phone` | `signInWithPhoneNumber` |
+| `PhoneAuthProvider.prototype.verifyPhoneNumber` | `phone` | `verifyPhoneNumber` |
+| `ConfirmationResult.confirm` | `sign_in` | `confirm` |
+| `setPersistence`, `initializeAuth` | `init` | The function name |
+
+A sign-in whose credential has an anonymous user is recorded as `sign_in_anonymous`. A sign-in records the credential's provider id (for example `google.com`) when it matches `[a-z0-9._-]`, at most 32 characters. `setPersistence` and `initializeAuth` record the persistence you passed, which the core reduces to `memory`, `persistent` or `unknown`.
+
+## Wrapped methods (Cloud Functions)
+
+`instrumentAuth(auth)` patches `BaseAuth` methods on the instance's prototype (verified against firebase-admin 14.5.0). It is safe to call more than once and never throws.
+
+| Method | Recorded as |
+|---|---|
+| `verifyIdToken` | `verify_id_token` |
+| `getUser` | `get_user` |
+| `listUsers` | `list_users`, with the number of users returned and whether a page token was passed or returned |
+| `createCustomToken` | `custom_token` |
+| `setCustomUserClaims` | `set_claims` |
+
+`createUser` and the other lookup helpers are not patched. A `listUsers` call made inside a [`withFlush`](/docs/sdk/cloud-functions-server) handler carries that invocation's id, which the [listUsers inside a request](/docs/rules/authentication#server-list-users-in-request) rule uses.
+
+## What each call records
+
+Every record has the operation, a method template (`auth/<method>` in the envelope), a call id, a timestamp, the duration, the callsite, and on failure the error code with the `auth/` prefix removed (at most 64 characters). The method must be on a fixed allowlist in the core; anything else becomes `unknown`.
+
+Emails, phone numbers, passwords, uids, ID tokens, custom tokens, claims, verification codes and page-token strings are never copied onto the record. See [Privacy](/docs/sdk/privacy#authentication).
+
+## How token refreshes are counted
+
+`getIdToken` is patched on the `User` prototype the first time the SDK sees a user: after a sign-in, in an `onAuthStateChanged` / `onIdTokenChanged` callback, or when you call the drop-in `getIdToken`. From then on, a call with `forceRefresh: true` records one `token_refresh`. `getIdTokenResult(true)` is counted because it calls that method. A refresh without `forceRefresh` is not recorded.
+
+The patch was verified on `@firebase/auth` 1.13.6. On Node, when `@firebase/auth` is not 1.x, the SDK logs one `console.debug` line.
+
+## Known limits
+
+- SMS is counted when `signInWithPhoneNumber` or `verifyPhoneNumber` resolves. `confirm()` is a sign-in and does not count a second SMS. Node builds of `firebase/auth` stub `signInWithPhoneNumber`; the throw is recorded and rethrown.
+- `signInWithRedirect` navigates away. The record is written when the promise settles, which a full page unload can skip.
+- On the server, a patched method that is missing from the prototype logs one `console.debug` line and is not recorded.
+
+## Rules
+
+Authentication calls feed the [Authentication rules](/docs/rules/authentication): [anonymous user churn](/docs/rules/authentication#anonymous-user-churn), [ID token refresh storm](/docs/rules/authentication#id-token-refresh-storm), [phone auth retry](/docs/rules/authentication#phone-auth-retry), [memory persistence](/docs/rules/authentication#memory-persistence) and [listUsers inside a request](/docs/rules/authentication#server-list-users-in-request).

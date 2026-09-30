@@ -1,0 +1,104 @@
+---
+title: Cloud Storage
+description: What the Cloud Storage drop-in and instrumentStorage() wrap, what each call records, and their limits.
+---
+
+## Import
+
+Change `firebase/storage` to `@readmeter/firebase/storage`. The module re-exports all of `firebase/storage`. On Cloud Functions, pass a bucket (or a Storage client) to `instrumentStorage()` from `@readmeter/firebase/admin`.
+
+<Tabs items={["Web", "Cloud Functions"]}>
+<Tab value="Web">
+
+```ts
+import { init } from "@readmeter/firebase";
+import { getBlob, getStorage, list, ref, uploadBytesResumable } from "@readmeter/firebase/storage";
+
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090" });
+
+const storage = getStorage(app);
+
+const avatar = await getBlob(ref(storage, `avatars/${uid}.png`));
+const page = await list(ref(storage, "uploads"), { maxResults: 100 });
+
+uploadBytesResumable(ref(storage, `uploads/${id}.jpg`), file, {
+  contentType: "image/jpeg",
+  cacheControl: "public, max-age=86400",
+});
+```
+
+</Tab>
+<Tab value="Cloud Functions">
+
+```ts
+import { init } from "@readmeter/firebase";
+import { instrumentStorage, withFlush } from "@readmeter/firebase/admin";
+import { getStorage } from "firebase-admin/storage";
+import { onRequest } from "firebase-functions/v2/https";
+
+init({ apiKey: "rm_...", endpoint: "https://ingest.example", platform: "server" });
+
+const bucket = instrumentStorage(getStorage().bucket());
+
+export const listUploads = onRequest(withFlush(async (_req, res) => {
+  const [files] = await bucket.getFiles({ prefix: "uploads/", maxResults: 100, autoPaginate: false });
+  res.json({ n: files.length });
+}));
+```
+
+</Tab>
+</Tabs>
+
+## Wrapped functions (web)
+
+| Function | Recorded as | Records |
+|---|---|---|
+| `getBytes` | `download` | Bytes received. |
+| `getBlob` | `download` | Bytes and the content-type major (`image`, `video`, ...). |
+| `getStream` | `download` | Bytes counted as you read the stream. |
+| `getDownloadURL` | `download_url` | Nothing about the URL itself. |
+| `getMetadata` | `get_metadata` | Object size, content-type major, cache-control class. |
+| `updateMetadata` | `update_metadata` | Content-type major and cache-control class of the result. |
+| `uploadBytes`, `uploadString` | `upload` | Size, content-type major, cache-control class, `resumable: false`. |
+| `uploadBytesResumable` | `upload` | The same, with `resumable: true`. Recorded when the task settles. |
+| `deleteObject` | `delete` | |
+| `list` | `list` | Item and prefix counts, `maxResults`, whether a next page token came back. |
+| `listAll` | `list_all` | Item and prefix counts. |
+
+## Wrapped methods (Cloud Functions)
+
+`instrumentStorage(target)` accepts a `Bucket` or a `Storage` client and patches the `@google-cloud/storage` prototypes (verified against 8.2.0, as shipped with firebase-admin 14.5.0). Passing a client only builds a local bucket handle so the prototypes can be reached. It is safe to call more than once and never throws.
+
+| Method | Recorded as |
+|---|---|
+| `File.download` | `download` |
+| `File.save` | `upload` |
+| `File.createWriteStream` | `upload`, with the bytes written |
+| `File.delete` | `delete` |
+| `File.getSignedUrl` | `signed_url` |
+| `File.getMetadata` | `get_metadata` |
+| `Bucket.getFiles` | `list` when `autoPaginate: false`, otherwise `list_all`. The path is the `prefix`. |
+
+Uploads through `save` and `createWriteStream` are resumable unless you pass `resumable: false`.
+
+## What each call records
+
+Every record has the operation, the object path (`fullPath` on the web, the object name on the server), a call id, a timestamp, the duration, the callsite, and on failure an error code (the part after `storage/`, at most 64 characters).
+
+The cache-control class is the `max-age` in seconds (clamped to ten years) or `none` when the metadata has no `max-age`. It is recorded only when the call saw a metadata object.
+
+The core replaces id-like path segments with `{id}` and keeps one file extension, so `avatars/8f14e45fceea167a5a36dedd4bea2543.png` becomes `avatars/{id}.png`. See [Privacy](/docs/sdk/privacy#cloud-storage).
+
+Object bytes, download URLs, signed URLs, page token strings and bucket names are never put on the record.
+
+## Known limits
+
+- A `getStream` stream that is never read is not recorded. In the browser build of `firebase`, `getStream` throws; the throw is recorded and rethrown.
+- On the server, `File.download` to a file on disk reports only the first chunk's size. In-memory downloads report the full buffer. `File.createReadStream` is not patched.
+- `File.save` calls `createWriteStream` internally. That inner stream is not recorded again, and retries inside one `save` count as one upload. A direct `createWriteStream` on the same `File` while a `save` is running is not recorded.
+- `Bucket.getMetadata` is a bucket call and is not recorded.
+- If `StorageReference.fullPath` is missing, the SDK logs one `console.debug` line and records an empty path.
+
+## Rules
+
+Cloud Storage calls feed the [Cloud Storage rules](/docs/rules/storage): [list all on a large prefix](/docs/rules/storage#list-all-large-prefix), [redownload without cache control](/docs/rules/storage#redownload-without-cache-control), [download URL per render](/docs/rules/storage#download-url-per-render), [original-size images](/docs/rules/storage#original-size-images), [unbounded list page](/docs/rules/storage#unbounded-list-page) and [upload without resumable](/docs/rules/storage#upload-without-resumable).

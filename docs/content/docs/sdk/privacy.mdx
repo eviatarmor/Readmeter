@@ -1,0 +1,147 @@
+---
+title: Privacy
+description: Exactly what the SDK sends for each Firebase service, what is hashed, and what never leaves the app.
+---
+
+## Where redaction happens
+
+The SDK works in two steps, both inside your process:
+
+1. A wrapper builds a raw call from the Firebase call. Raw calls can hold concrete values: document paths with real ids, filter values, cursor values, the callsite.
+2. The Rust core (running as wasm in the same process) normalizes the raw call into an envelope. Ids become placeholders, values become keyed hashes, and anything not on the envelope's field list is dropped.
+
+Only envelopes and findings are buffered and uploaded. Raw calls never leave the process. Every field the envelope carries is a template (`users/{id}/orders`), a size, a count, a flag, a small allowlisted token, or a keyed hash.
+
+<Callout type="warn">
+`init({ debug: true })` logs every raw call to `console.debug`, concrete values included. That output stays in your console, but do not turn `debug` on where others can read the logs.
+</Callout>
+
+## Keyed hashes
+
+Each project has a 32-character hash key. The core uses it as the key of a SipHash-1-3 hasher for every hash it produces: the identity of a path, the values in a query, the callsite. The same input hashes the same way across sessions of one project, so the backend can group repeated reads of the same document. Without the key, hashes of low-entropy values such as emails or small integers cannot be reversed by brute force, and hashes from different projects cannot be compared.
+
+The hash key is never sent with events. It comes from `init({ hashKey })` or from one `GET /v1/config` at start, and it is used only inside the core. The hash key is not an API secret. The API key is.
+
+## Fields on every envelope
+
+| Field | Content |
+|---|---|
+| Provider, service, operation | `firebase`, `firestore`, `query`, ... |
+| Target template | The path with ids replaced by `{id}` (rules per service below) |
+| Target key | Keyed hash of the full concrete path (and the query, when there is one) |
+| Id shape | What the last id looked like: `auto_id`, `uuid`, `numeric`, `timestamp_like` or `other` |
+| Outcome | `ok`, or an error code such as `permission-denied` |
+| Timing | Timestamp in milliseconds and duration in microseconds |
+| Session | A random 64-bit id created at each `init` |
+| Call, listener and transaction ids | Counters that restart at each `init` |
+| Callsite | Keyed hash of `file:line:col` |
+| Platform, attempt, dev | `browser` / `server` / `mobile`, retry number, dev flag |
+| Units | Billing units computed by the core, for example document reads |
+
+Each batch also carries the SDK name and version.
+
+## Per service
+
+### Cloud Firestore
+
+| Sent | Not sent |
+|---|---|
+| Path template: every document id becomes `{id}`, collection names stay (`users/{id}/orders`). Collection group queries become `**/<collection>`. | Document ids |
+| Field names and operators of filters, `orderBy` fields and direction, `select` field names, aggregation names (`count`, `sum:<field>`, `avg:<field>`) | Filter values and cursor values (folded into keyed hashes) |
+| `limit`, `limitToLast`, `offset`, and whether start and end cursors are set | |
+| Result document count, estimated stored bytes, cache flag, count result | Document fields and values |
+| Read source (`server`, `cache`), result usage flags | |
+| Write sizes (largest field, total), field transform names, a salted payload hash | The payload |
+| Cache setup: `memory`, `persistent` or `unknown`, and whether tabs share it | The project id and database name (the init path is templated as `projects/{id}/databases/{id}`) |
+
+<Callout type="info">
+Field names are sent as written. If your schema puts personal data in field names, for example a map keyed by email address that you filter or order on, those field names reach the envelope.
+</Callout>
+
+### Realtime Database
+
+| Sent | Not sent |
+|---|---|
+| Path template: segments that look like ids become `{id}` | Id segments |
+| `orderByChild` field, or `$key` / `$value` / `$priority`; `limit` and direction; whether `start` / `end` bounds are set; `==` for `equalTo` | Bound and `equalTo` values (folded into keyed hashes) |
+| Child count and JSON size of the snapshot, capped at 10,000,000 | Snapshot values |
+| One connection per explicit `goOnline` | Write payloads |
+
+A segment is treated as an id when it is all digits, a UUID, a 20-character auto id or push id, starts with an ISO date (`YYYY-MM-DD`), or is a 16 to 128 character token of `[A-Za-z0-9_-]` with both letters and digits (Firebase uids match this). Other segments stay in the template as written.
+
+<Callout type="warn">
+A path segment that does not match those shapes is kept. An email address, a phone number or a username used as a key (`users/alice@example.com`) stays readable in the template. Key user data by uid or push id if you do not want it on the envelope.
+</Callout>
+
+### Cloud Storage
+
+| Sent | Not sent |
+|---|---|
+| Path template, with the same id rule as Realtime Database, keeping one lowercase extension of at most 8 characters (`avatars/{id}.png`) | Object names that look like ids, the bucket name |
+| Bytes downloaded or uploaded, object size from metadata | Object contents |
+| Content-type major (`image`, `video`, ...) when it is a short alphabetic token | The full content type and its parameters |
+| Cache-control class: `max-age` seconds (capped at ten years) or `none` | The rest of the `Cache-Control` header |
+| List item and prefix counts, `maxResults`, whether a page token came back | Page token strings |
+| Whether an upload was resumable | Download URLs, signed URLs, access tokens |
+| Error code, at most 64 characters | |
+
+The same warning applies: an object path segment that is not id-shaped, such as a readable file name, stays in the template.
+
+### Authentication
+
+| Sent | Not sent |
+|---|---|
+| Method template (`auth/signInWithPopup`), from a fixed allowlist; anything else is `auth/unknown` | Emails, phone numbers, passwords |
+| Operation (`sign_in`, `token_refresh`, `phone`, ...) | Uids |
+| Provider id when it matches `[a-z0-9._-]`, at most 32 characters (`google.com`) | ID tokens, refresh tokens, custom tokens |
+| Persistence kind: `memory`, `persistent` or `unknown` | Custom claims |
+| Force-refresh flag, anonymous flag | Verification codes |
+| `listUsers` result count and page-token presence, the `withFlush` invocation id | Page token strings, user records |
+
+### Cloud Functions
+
+| Sent | Not sent |
+|---|---|
+| Function-name template (`functions/echo`). The name must be a letter or `_` followed by letters, digits, `_` or `-`, at most 63 characters, and not a UUID; otherwise `functions/unknown`. | URLs, regions, project ids |
+| Operation: `callable` (client) or `invoke` (server) | Request and response payloads |
+| Request and response byte counts, duration | Auth headers and tokens |
+| An error code from the known Functions error codes; anything else is `unknown` | Error messages and details |
+| For `invoke`: cold flag, `FUNCTION_MEMORY_MB`, Firestore reads, Realtime Database download bytes and Storage call counts observed during the handler | |
+
+### Page visibility
+
+In the browser, the SDK records each `visibilitychange` with one flag: whether the page is visible. It has no URL, title or other page data.
+
+## Salted payload hashes
+
+Firestore writes (`setDoc`, `updateDoc`, `addDoc` and single Admin writes) send a hash of the payload so rules such as [no-op write](/docs/rules/firestore#no-op-write) can see the same data written twice.
+
+The SDK computes the digest over the canonical payload (keys sorted, values tagged by type) with a 64-bit salt that is random per session. The salt is created at each `init` and never leaves the process. The core then hashes that digest again with the project's hash key before it goes on the envelope. Because of the salt, equal payloads produce equal hashes only within one session; two sessions writing the same document with the same data produce unrelated hashes.
+
+No digest is sent when the payload contains a field transform (`increment`, `serverTimestamp`, ...) or has more than 10,000 elements.
+
+## Findings
+
+A finding carries the rule id, severity, template, session, callsite hash, a message, evidence values and the wasted billing units. The message is one human-readable sentence built from the template and counts, with no identifiers or data values.
+
+## Sampling
+
+`sampleRate` controls how many sessions upload their calls. The decision is made once per session from the session id:
+
+- A sampled-in session uploads every envelope.
+- A sampled-out session uploads no envelopes. Local rules still run on its calls and their findings are still uploaded.
+
+`init({ sampleRate: 0 })` keeps local findings and uploads no call batches. There is no per-call sampling.
+
+## What never leaves the app
+
+- Document data, snapshot values and write payloads.
+- Filter values, cursor values and `equalTo` values, except as keyed hashes.
+- Document ids and id-shaped path segments.
+- Object bytes, download URLs, signed URLs and page tokens.
+- Emails, phone numbers, uids, tokens, claims and verification codes.
+- Callable payloads, function URLs, project ids and auth headers.
+- The hash key and the payload salt.
+- Raw calls, including the plain callsite.
+
+The field-by-field wire format is in [Raw calls](/docs/reference/raw-calls) and the priced units in [Billing units](/docs/reference/billing-units).

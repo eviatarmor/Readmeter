@@ -1,0 +1,157 @@
+---
+title: Run locally
+description: Start Postgres, ingest, the console API, the GCP connector and the console on one machine.
+---
+
+The local setup runs every service from the repository with `tsx`, against a Postgres container from Docker Compose. It is the setup the [quickstart](/docs/getting-started/quickstart) and the end-to-end test use.
+
+## Prerequisites
+
+- Docker, for Postgres.
+- Node 22 or newer and pnpm 10 (the repository pins `pnpm@10.16.1`).
+- Rust with the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` at the version in `Cargo.lock`. Both are needed to build the Rust core that ingest and console-api load.
+- Java 21 or newer, only if you run the Firebase emulators.
+- Git Bash on Windows. The scripts in `scripts/` are bash.
+
+## One command
+
+```sh
+git clone https://github.com/eviatarmor/Readmeter.git && cd Readmeter
+./scripts/dev-up.sh
+```
+
+`dev-up.sh` is idempotent. It runs these steps in order:
+
+<Steps>
+<Step>
+`pnpm install`.
+</Step>
+<Step>
+Starts the `postgres` service with `docker compose up -d --wait`, unless something already listens on port 5442.
+</Step>
+<Step>
+`pnpm db:migrate` and `pnpm db:seed` (see [Seed data](#seed-data)).
+</Step>
+<Step>
+Builds the rule artifacts into `target/rules` with `readmeter-rulec`, the server core into `apps/ingest/wasm` with `./scripts/build-wasm-server.sh`, and the SDK with `pnpm sdk:build`.
+</Step>
+<Step>
+Creates the demo project `demo_local` and writes its API key, hash key and endpoint to `.readmeter/local.env`, then writes `examples/web/.env` and `examples/functions/.env` from it.
+</Step>
+<Step>
+Packs the SDK and builds the example Cloud Functions against the tarball.
+</Step>
+<Step>
+Starts ingest, console-api, connector-gcp and the console dev server in the background and waits for each to answer.
+</Step>
+</Steps>
+
+When it finishes, open `http://localhost:5174` and sign in as `admin@readmeter.local` with password `readmeter-dev`. Pick workspace `local` and project `demo_local`.
+
+Background processes write their logs and pid files to `target/dev/`:
+
+<Files>
+  <Folder name="target/dev" defaultOpen>
+    <File name="ingest.log" />
+    <File name="console-api.log" />
+    <File name="connector-gcp.log" />
+    <File name="console-web.log" />
+  </Folder>
+</Files>
+
+If a service does not come up, the script prints the last 80 lines of its log and exits.
+
+`dev-up.sh` sets a fixed development `READMETER_SECRET_KEY` for console-api when you have not set one, so you can store a Google Cloud service account locally. Do not reuse that value anywhere else.
+
+## Stop
+
+```sh
+./scripts/dev-down.sh                  # stop all services, then docker compose down
+./scripts/dev-down.sh --keep-postgres  # stop the services, leave Postgres running
+```
+
+`dev-down.sh` keeps the `pgdata` volume, so the next `dev-up.sh` starts with the same data. To start from an empty database, remove the volume with `docker compose down -v` and run `dev-up.sh` again.
+
+## Ports
+
+| Service | Port | Notes |
+|---|---|---|
+| Postgres | 5442 | Host port. The container listens on 5432. |
+| ingest | 8090 | `PORT` |
+| console-api | 8091 | `PORT` |
+| console-web (Vite) | 5174 | Proxies `/api` to 8091 |
+| Demo web app | 5173 | `pnpm --filter web dev` |
+| Firestore emulator | 8085 | |
+| Realtime Database emulator | 9000 | |
+| Storage emulator | 9199 | |
+| Auth emulator | 9099 | |
+| Functions emulator | 5001 | |
+
+The Compose file maps the host port from `READMETER_PG_PORT` (default `5442`). The dev scripts and every service default to `postgres://readmeter:readmeter@127.0.0.1:5442/readmeter`, so if you change the port, set `DATABASE_URL` to match. `dev-up.sh` itself still checks port 5442 before it starts the container.
+
+## Step by step
+
+To run the pieces yourself, for example to restart only one service:
+
+```sh
+pnpm install
+pnpm db:up                  # docker compose up -d postgres
+pnpm db:migrate             # apply packages/db/migrations
+pnpm db:seed                # demo org, project, key and dev user
+
+# Rule artifacts: target/rules/catalog.json, bundle.json, bundle.bin
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+
+# Server core for ingest and console-api, into apps/ingest/wasm
+./scripts/build-wasm-server.sh
+
+pnpm dev:ingest             # http://127.0.0.1:8090, restarts on change
+pnpm dev:console-api        # http://127.0.0.1:8091
+pnpm dev:connector-gcp      # background worker, no port
+pnpm --filter console-web dev   # http://localhost:5174
+```
+
+The `dev:*` scripts run `tsx watch`. Use `pnpm --filter <package> start` for a single run without the watcher, which is what `dev-up.sh` does.
+
+Rebuild the server core after you change anything under `crates/`, `rules/` or `pricing/`: rules and price tables are compiled into the wasm. Rebuild `target/rules` after you change `rules/`, because ingest reads `bundle.json` and `bundle.bin` from there at startup.
+
+## Seed data
+
+`pnpm db:seed` runs two scripts. Both do nothing when `NODE_ENV` is `production`.
+
+`packages/db/src/seed.ts` creates:
+
+- workspace `org_demo` with slug `demo`,
+- project `proj_demo` with the fixed hash key `000102030405060708090a0b0c0d0e0f`,
+- an API key for `proj_demo` from `READMETER_DEV_KEY` (default `rm_dev_key`), with no origin allowlist.
+
+`apps/console-api/src/seed-user.ts` creates the user `admin@readmeter.local` with password `readmeter-dev` through Better Auth and makes it an owner of `org_demo`.
+
+`dev-up.sh` then runs `packages/db/src/dev-project.ts`, which creates:
+
+- workspace `org_local` with slug `local`, and makes the dev user an owner of it,
+- project `demo_local` (environment `development`) with a random hash key,
+- an API key `rm_` plus 32 base62 characters, allowed only from `http://127.0.0.1:5173` and `http://localhost:5173`.
+
+It writes those values to `.readmeter/local.env`:
+
+```sh title=".readmeter/local.env"
+READMETER_PROJECT=demo_local
+READMETER_API_KEY=rm_...
+READMETER_HASH_KEY=...
+READMETER_ENDPOINT=http://127.0.0.1:8090
+READMETER_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+```
+
+On later runs it reuses the key in that file if the key is still active and its origins match. Otherwise it creates a new key.
+
+## Run the demo and the end-to-end test
+
+With the backend up, start the Firebase emulators and the demo app:
+
+```sh
+cd examples && npx -y firebase-tools@latest emulators:start --project demo-readmeter   # terminal 1
+pnpm --filter web dev                                                                  # terminal 2
+```
+
+`./scripts/e2e.sh` runs the whole loop as a test: it calls `dev-up.sh` with fake Google Cloud clients (`READMETER_GCP_FAKE=1`, `READMETER_GCP_POLL_MS=500`), starts the Firestore, Functions, Realtime Database, Storage and Auth emulators, runs the web scenarios and HTTP functions, checks findings in Postgres, and runs Playwright in Chromium against the demo app and the console.

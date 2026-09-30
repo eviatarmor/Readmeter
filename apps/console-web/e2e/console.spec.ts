@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
-const images = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/images");
+const images = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/public/images");
 
 async function signIn(page: Page) {
   await page.goto("/sign-in");

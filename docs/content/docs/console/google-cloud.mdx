@@ -1,0 +1,175 @@
+---
+title: Google Cloud connection
+description: Connect a read-only service account to import Cloud Monitoring usage and, optionally, billed cost from the Cloud Billing export.
+---
+
+The SDK only sees the calls your instrumented code makes. Connecting Google
+Cloud adds two sources that come from Google:
+
+- Usage counts from Cloud Monitoring, such as Firestore document reads. The
+  Costs page compares them with what the SDK reported (SDK coverage).
+- Billed cost per day, service and SKU from the Cloud Billing export in
+  BigQuery, if you set a billing export table. With it, Overview and Costs
+  show billed cost next to the estimate (see [Costs](/docs/console/costs)).
+
+The connection is per project. Open **Integrations** in the sidebar
+(`/w/<slug>/integrations`); each project has its own card. Only owners and
+admins can see connection details or change them; members see a note saying
+so.
+
+## Before you start
+
+- Set the project's **Firebase project id** in
+  [project settings](/docs/console/projects-and-keys#project-settings). The
+  wizard fills it into the commands, and the connection reads Monitoring
+  data from that project. If it is not set, the connection uses the
+  `project_id` from the service account key.
+- The console API needs `READMETER_SECRET_KEY`: 32 random bytes,
+  base64-encoded. The service account key is encrypted with it (AES-256-GCM)
+  before it is stored in Postgres. Without it, saving a connection fails with
+  an error that says so. The connector worker needs the same value to
+  decrypt the key. See [Configuration](/docs/self-hosting/configuration).
+- The connector worker (`apps/connector-gcp`) must be running; it does the
+  syncing. `./scripts/dev-up.sh` starts it locally, or run
+  `pnpm dev:connector-gcp`.
+- For billed cost, set up the
+  [standard usage cost export to BigQuery](https://cloud.google.com/billing/docs/how-to/export-data-bigquery)
+  in Google Cloud.
+
+## Roles
+
+The service account only needs read access:
+
+| Role | Granted on | Needed |
+| --- | --- | --- |
+| `roles/monitoring.viewer` | The Firebase project | Always |
+| `roles/bigquery.dataViewer` | The billing export dataset | Only with a billing table |
+| `roles/bigquery.jobUser` | The project that runs the query | Only with a billing table |
+
+## Connection wizard
+
+Click **Connect** on the project's card. The wizard has five steps and keeps
+the key in the dialog only; it is not saved in the browser.
+
+<Steps>
+<Step>
+### Create the service account
+
+The wizard shows these commands with your Firebase project id filled in
+(`FIREBASE_PROJECT_ID` below), each with a copy button:
+
+```sh
+gcloud iam service-accounts create readmeter-reader --project FIREBASE_PROJECT_ID --display-name "Readmeter reader"
+gcloud iam service-accounts keys create readmeter-key.json --iam-account readmeter-reader@FIREBASE_PROJECT_ID.iam.gserviceaccount.com --project FIREBASE_PROJECT_ID
+gcloud projects add-iam-policy-binding FIREBASE_PROJECT_ID --member serviceAccount:readmeter-reader@FIREBASE_PROJECT_ID.iam.gserviceaccount.com --role roles/monitoring.viewer
+```
+
+If you will set a billing export table, also run these two, replacing
+`DATASET_ID` with the export dataset and `BILLING_PROJECT_ID` with the project
+that holds it:
+
+```sh
+gcloud bigquery datasets add-iam-policy-binding DATASET_ID --project BILLING_PROJECT_ID --member serviceAccount:readmeter-reader@FIREBASE_PROJECT_ID.iam.gserviceaccount.com --role roles/bigquery.dataViewer
+gcloud projects add-iam-policy-binding BILLING_PROJECT_ID --member serviceAccount:readmeter-reader@FIREBASE_PROJECT_ID.iam.gserviceaccount.com --role roles/bigquery.jobUser
+```
+
+The second command writes the key to `readmeter-key.json`.
+</Step>
+<Step>
+### Paste the JSON key
+
+Paste the contents of `readmeter-key.json`. **Continue** stays disabled until
+the text is a service account key: `type` is `"service_account"` and
+`client_email`, `private_key` and `project_id` are present. The key can be
+at most 16 KiB.
+</Step>
+<Step>
+### Billing export table (optional)
+
+Enter the full table name as `project.dataset.table`, for example
+`project.dataset.gcp_billing_export_v1`. The project part must be a valid
+Google Cloud project id. Leave it empty to import Monitoring usage only.
+</Step>
+<Step>
+### Test
+
+**Run test** stores the connection and runs two checks:
+
+- `monitoring`: lists one Cloud Monitoring time series (Firestore document
+  reads) for the last hour.
+- `billing`, only with a table: a BigQuery dry run against the table's
+  last two days of partitions.
+
+Each check prints its result. If one fails, the connection is saved with
+status Error and the failure message; fix the roles or the table and run
+the test again.
+</Step>
+<Step>
+### Done
+
+The key is stored. Usage and cost import on the next sync, usually within a
+minute. The card polls until the first sync finishes.
+</Step>
+</Steps>
+
+## The connection card
+
+Once connected, the card shows a status badge (**Connected**, **Error** or
+**Pending**), the service account email, the Google Cloud project, the
+billing table (or **Not set**), the last sync time, and the last error if
+there is one. The buttons are:
+
+| Button | What it does |
+| --- | --- |
+| Replace key | Opens the wizard again to store a new key or change the billing table. |
+| Sync now | Queues a sync. The worker picks it up on its next poll. |
+| Test | Runs the two checks again with the stored key and updates the status. |
+| Disconnect | Deletes the stored key and all usage and cost rows imported for the project. |
+
+Connecting, testing, syncing and disconnecting are recorded in the
+[audit log](/docs/console/settings#audit-log) as `gcp.connect`, `gcp.test`,
+`gcp.sync` and `gcp.disconnect`.
+
+## Sync
+
+The connector worker checks for due connections every 60 seconds by default
+(`READMETER_GCP_POLL_MS`). A connection is due when it has never synced, when
+someone clicked **Sync now**, or when its last sync is more than 6 hours old.
+
+The first sync of a project imports the last 35 days. Later syncs import the
+last 3 days, which picks up late billing rows. Each run overwrites the stored
+totals for the days it imports. A run times out after 120 seconds by default
+(`READMETER_GCP_SYNC_TIMEOUT_MS`), and BigQuery jobs fail rather than scan
+more than 1 GiB (`READMETER_GCP_MAX_BYTES_BILLED`). If a metric or the
+billing query fails, the rest still imports and the error shows on the card.
+
+## What data is pulled
+
+Readmeter reads daily totals only. It does not read documents, files, logs
+or anything inside your databases.
+
+From Cloud Monitoring, in the connection's Google Cloud project:
+
+| Metric | Stored as |
+| --- | --- |
+| `firestore.googleapis.com/document/read_count` | Firestore `reads` |
+| `firestore.googleapis.com/document/write_count` | Firestore `writes` |
+| `firestore.googleapis.com/document/delete_count` | Firestore `deletes` |
+| `firebasedatabase.googleapis.com/network/sent_bytes_count` | Realtime Database `egress_bytes` |
+| `storage.googleapis.com/network/sent_bytes_count` | Cloud Storage `egress_bytes` |
+| `storage.googleapis.com/api/request_count` | Cloud Storage `operations` |
+| `cloudfunctions.googleapis.com/function/execution_count` | Cloud Functions `invocations` (1st gen) |
+| `run.googleapis.com/request_count`, filtered to services labelled `goog-managed-by=cloudfunctions` | Cloud Functions `invocations` (2nd gen) |
+
+1st and 2nd gen invocations are added together.
+
+From the billing export table, rows where `project.id` is the connection's
+Google Cloud project, grouped by usage day, service description and SKU
+description:
+
+- usage amount and unit
+- cost
+- credits (summed)
+- currency
+
+Billed cost shown in the console is cost plus credits.

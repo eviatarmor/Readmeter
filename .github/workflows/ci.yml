@@ -105,6 +105,19 @@ jobs:
       - run: pnpm --filter "./apps/*" --filter "./packages/*" test
       - run: pnpm --filter console-web build
 
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter docs...
+      # prebuild generates the rule reference from rules/**/*.toml.
+      - run: pnpm --filter docs build
+
   sdk-js:
     runs-on: ubuntu-latest
     steps:

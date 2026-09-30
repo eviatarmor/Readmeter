@@ -102,4 +102,4 @@ What leaves the process is a template (`users/{id}/orders`), a count, a size, or
 
 ## Try it on your app
 
-[Testing with your app](../../../docs/TESTING-WITH-YOUR-APP.md) is the local loop: `./scripts/dev-up.sh`, a web import change, Cloud Functions `instrument` / `withFlush`. Findings land in Postgres. Open the console at `http://localhost:5174` (seeded login `admin@readmeter.local` / `readmeter-dev`).
+[Use it with your app](../../../docs/content/docs/getting-started/your-app.mdx) is the local loop: `./scripts/dev-up.sh`, a web import change, Cloud Functions `instrument` / `withFlush`. Findings land in Postgres. Open the console at `http://localhost:5174` (seeded login `admin@readmeter.local` / `readmeter-dev`).

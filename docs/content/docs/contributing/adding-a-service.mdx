@@ -1,0 +1,299 @@
+---
+title: Adding a service
+description: How a Firebase service or a new provider is added, from the raw-call schema to the SDK drop-in and the console label.
+---
+
+Realtime Database, Cloud Storage, Authentication and Cloud Functions were each added to the Firebase provider after Firestore, and each landed as one change that touched the same set of places. This page lists those places in order. The Cloud Storage and Cloud Functions commits are good references: every file named below appears in them.
+
+## Where a service lives
+
+A service is a cargo feature and a module in the provider crate:
+
+<Files>
+  <Folder name="crates/providers/firebase/src" defaultOpen>
+    <File name="lib.rs" />
+    <Folder name="storage" defaultOpen>
+      <File name="mod.rs" />
+      <File name="raw.rs" />
+      <File name="normalize.rs" />
+      <File name="billing.rs" />
+      <Folder name="detectors">
+        <File name="mod.rs" />
+        <File name="list_all_large_prefix.rs" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+`mod.rs` declares the submodules, re-exports `normalize` and `RawCall`, and sets `SERVICE_ID`, the value of the `service` field on raw calls and envelopes:
+
+```rust title="crates/providers/firebase/src/storage/mod.rs"
+//! Cloud Storage for Firebase.
+
+pub mod billing;
+pub mod detectors;
+pub mod normalize;
+pub mod raw;
+
+pub use normalize::normalize;
+pub use raw::RawCall;
+
+pub const SERVICE_ID: &str = "storage";
+```
+
+## Steps for a Firebase service
+
+<Steps>
+<Step>
+
+### Define the raw-call schema in `raw.rs`
+
+`raw.rs` is the JSON an SDK shim sends to the core for one call. `RawCall::from_json(&JsonValue)` parses it with `readmeter_provider_api::json` (the SDK path has no `serde_json`) and returns `NormalizeError` for bad input. Unknown fields are ignored so newer shims keep working with an older core.
+
+The raw call may contain concrete paths, ids and values; the envelope may not. Keep only what normalization needs, and reduce free-form strings to allowlisted values while parsing. Cloud Functions, for example, keeps a function name only when it matches a safe charset and maps error codes onto a fixed list. Document the schema in [Raw calls](/docs/reference/raw-calls).
+
+</Step>
+<Step>
+
+### Normalize in `normalize.rs`
+
+`normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, NormalizeError>` builds the provider-agnostic `Envelope`:
+
+- `target.template` is the path with ids replaced, such as `users/{id}/orders` or `functions/<name>`.
+- `target.key` and callsites are keyed hashes from `cx.hasher`, so they are stable within a project and meaningless outside it.
+- Counts, byte sizes, query shapes and timings go in the envelope's typed fields. Service-specific attributes that must not change the target key can ride on `QueryShape` filters, as Cloud Storage does for extension, content type, cache control and the resumable flag.
+- Last, set `env.units = billing::units(&env)`.
+
+Every service's `normalize.rs` has a leak test. It feeds a raw call full of marker strings in ids, paths, callsites and values, formats the envelope with `{:?}`, and asserts that no marker survives:
+
+```rust title="crates/providers/firebase/src/storage/normalize.rs"
+#[test]
+fn no_raw_values_or_ids_leak() {
+    let env = norm(json!({
+        "op": "list",
+        "ts_ms": 1,
+        "path": "users/secretUserId99abcd/secretFileId99abcd.jpg",
+        "callsite": "src/secret/File.tsx:1",
+        "ext": "../../secret-ext",
+        "content_type": "<script>alert(1)</script>",
+        "cache_control": "max-age=secret",
+        "page_token": "secret-page-token-value",
+        "error": "storage/secret-prefix/object-not-found"
+    }));
+    let dump = format!("{env:?}");
+    assert!(!dump.contains("secret"), "{dump}");
+    assert!(!dump.contains("script"), "{dump}");
+    assert!(!dump.contains("token"), "{dump}");
+    assert_eq!(env.target.template, "users/{id}/{id}.jpg");
+    // ...
+}
+```
+
+Extend it whenever you add a field.
+
+</Step>
+<Step>
+
+### Compute billing units in `billing.rs`
+
+`billing.rs` exports the unit names as constants (`READS`, `INVOCATIONS`, `EGRESS_BYTES`, ...) and `units(&Envelope) -> Units`. Billing semantics belong to the provider, so this is where the service's billing rules live, such as whether errors are billed and how cached results count. Document the source and the date you checked it in the module comment, as `functions/billing.rs` does. Prices never go here.
+
+Pick units that do not round to zero for short or small calls. Cloud Functions stores `gb_seconds` and `cpu_seconds` in thousandths for this reason.
+
+</Step>
+<Step>
+
+### Add detectors
+
+Create `detectors/mod.rs` with an `all()` function returning `(ID, build)` pairs, and one file per rule. [Adding a rule](/docs/contributing/adding-a-rule) covers the detector, TOML and tests. Reuse generic rules where the envelopes already express the pattern: Cloud Functions callable retry storms are reported by `generic/retry-storm`.
+
+</Step>
+<Step>
+
+### Wire the service into the provider
+
+In `crates/providers/firebase/src/lib.rs`, add the feature-gated module and three match arms: the id in `services()`, the dispatch in `normalize_value()`, and the detectors in `detectors()`.
+
+```rust title="crates/providers/firebase/src/lib.rs"
+#[cfg(feature = "storage")]
+pub mod storage;
+
+// services()
+            #[cfg(feature = "storage")]
+            storage::SERVICE_ID,
+
+// normalize_value()
+            #[cfg(feature = "storage")]
+            storage::SERVICE_ID => storage::normalize(storage::RawCall::from_json(value)?, cx),
+
+// detectors()
+        #[cfg(feature = "storage")]
+        out.extend(storage::detectors::all());
+```
+
+</Step>
+<Step>
+
+### Add the cargo feature at every layer
+
+The service feature has to reach the provider from each build that should carry it:
+
+| File | Change |
+|---|---|
+| `crates/providers/firebase/Cargo.toml` | `storage = []` under `[features]`. |
+| `crates/runtime/Cargo.toml` | `storage = ["dep:readmeter-provider-firebase", "readmeter-provider-firebase/storage"]`. |
+| `crates/bindings/wasm/Cargo.toml` | `storage = ["readmeter-runtime/storage"]`. |
+| `crates/bindings/ffi/Cargo.toml` | `storage = ["readmeter-runtime/storage"]`. |
+| `crates/evaluator/Cargo.toml` | Add `"storage"` to the `features` list on `readmeter-provider-firebase`. |
+
+Then add the feature to every list of SDK features:
+
+- the `FEATURES` default in `scripts/build-wasm.sh`,
+- the `--features` list in `scripts/wasm-size-report.sh`,
+- both `FEATURES=` lines in `sdks/js/firebase/scripts/build.sh` (prod, and dev with `window`),
+- the production feature-set clippy step in `.github/workflows/ci.yml`.
+
+Run the size gate. If the service pushes the production wasm over `BUDGET_GZIP`, shrink the code first. If the bytes are needed, raise the budget to the measured size rounded up to the next 256 bytes and record why in the script comment, as the Cloud Functions change did.
+
+</Step>
+<Step>
+
+### Add a price table
+
+Create `pricing/firebase/<service>.toml`:
+
+```toml title="pricing/firebase/functions.toml"
+provider = "firebase"
+service = "functions"
+currency = "USD"
+source = "https://firebase.google.com/pricing"
+checked_on = "2026-09-30"
+default_region = "us-central1"
+
+[regions.us-central1]
+invocations = { price = 0.40, per = 1000000 }
+gb_seconds = { price = 0.0000025, per = 1000 }
+cpu_seconds = { price = 0.000024, per = 1000 }
+egress_bytes = { price = 0.12, per = 1000000000 }
+```
+
+Each unit's price is `price` per `per` units, and the unit names must match `billing.rs`. `free_per_day` (unit to amount) is optional. Put what the table does not encode (monthly free tiers, regions left out, unit scaling) in comments at the top of the file. Add the table to the `repository_tables_parse` test in `crates/cost/src/lib.rs` with a few spot checks of `estimate`. The server core embeds every file under `pricing/` at build time, so no other registration is needed.
+
+</Step>
+<Step>
+
+### Write rules and fixtures
+
+Add the rule TOML files under `rules/firebase/<service>/` and one conformance fixture per user-visible rule under `conformance/fixtures/firebase/<service>/`. The Rust conformance runner and the SDK conformance test pick them up automatically. See [Testing](/docs/contributing/testing#conformance-fixtures) for the fixture format.
+
+</Step>
+<Step>
+
+### Add the SDK drop-in
+
+In `sdks/js/firebase`:
+
+- `src/web/<service>.ts` is the web drop-in. It re-exports the real Firebase module (`export * from "firebase/storage"`), then replaces the functions it measures with wrappers that call the real function, build a raw call, and pass it to `recordRaw` from `src/core/client.ts`. The wrapper returns exactly what the real function returns and rethrows what it throws.
+- `src/admin/<service>.ts` instruments the Admin SDK for Cloud Functions and Node, exported from `src/admin/index.ts` (`instrumentStorage`, `instrumentDatabase`, `instrumentAuth`).
+- `package.json` gets a subpath export for the web entry:
+
+```json title="sdks/js/firebase/package.json"
+"./functions": {
+  "types": "./dist/web/functions.d.ts",
+  "import": "./dist/web/functions.js"
+}
+```
+
+Also update the peer dependencies if the service needs another package, and the `description`.
+
+- `test/bundle/entry.js` imports the new entry so the bundle test covers it.
+- Emulator tests go in `test/emulator/<service>-web.test.ts` and `<service>-admin.test.ts`, added to the command in `scripts/emulator-test.sh`. The emulator config is `test/firebase.json`.
+
+</Step>
+<Step>
+
+### Update the demo, end-to-end run and console
+
+- `examples/web/src/<service>.ts` and a button in `examples/web/src/main.ts` and `index.html` that runs a wasteful pattern.
+- `examples/firebase.json` if the service needs another emulator, plus its security rules file.
+- `examples/e2e/run.ts` for Node scenarios, and the rule ids to assert in `scripts/e2e-inside.sh`.
+- `scripts/e2e.sh` frees and starts each emulator port and passes the list to `--only`.
+- `apps/console-web/src/lib/services.tsx` maps the service id to a label and an icon:
+
+```tsx title="apps/console-web/src/lib/services.tsx"
+const SERVICES = [
+  { value: "firestore", label: "Cloud Firestore", icon: FlameIcon },
+  { value: "database", label: "Realtime Database", icon: DatabaseIcon },
+  { value: "storage", label: "Cloud Storage", icon: HardDriveIcon },
+  { value: "auth", label: "Authentication", icon: KeyRoundIcon },
+  { value: "functions", label: "Cloud Functions", icon: ZapIcon },
+] as const;
+```
+
+Update the privacy list in `README.md` and `docs/TESTING-WITH-YOUR-APP.md` with exactly what the new service sends, and add pages to this site under `/docs/sdk` and `/docs/reference`.
+
+</Step>
+</Steps>
+
+## Adding a provider
+
+A new provider, such as Supabase, follows the same shape one level up. Non-Firebase providers are out of scope for now, but the seams exist.
+
+<Steps>
+<Step>
+
+### Create the crate
+
+Create `crates/providers/<name>` and add it to the workspace `members` and `[workspace.dependencies]` in the root `Cargo.toml`. Implement `readmeter_provider_api::Provider`: a stable `id()` used in rule ids (`<id>.<service>/<rule>`), `services()`, `normalize_value()` dispatching on the raw call's `service`, and `detectors()`. Give it one cargo feature per service, a `window` feature that enables `readmeter-rules/window`, and `aggregate` if it has cross-session rules. Each service gets `raw.rs`, `normalize.rs`, `billing.rs` and `detectors/` as above.
+
+</Step>
+<Step>
+
+### Register it in the runtime, bindings and evaluator
+
+Add a `<name>` feature to `crates/runtime/Cargo.toml` and to both `crates/bindings/wasm` and `crates/bindings/ffi`, and a match arm in `provider_by_id`:
+
+```rust title="crates/runtime/src/lib.rs"
+pub fn provider_by_id(id: &str) -> Option<Box<dyn Provider>> {
+    match id {
+        #[cfg(feature = "firebase")]
+        readmeter_provider_firebase::PROVIDER_ID => {
+            Some(Box::new(readmeter_provider_firebase::FirebaseProvider))
+        }
+        _ => None,
+    }
+}
+```
+
+SDKs select the provider by the `provider` field of the client config. On the server, add the provider to `Evaluator::with_all_providers` in `crates/evaluator/src/lib.rs` and to the evaluator's dependencies with its services, `window` and `aggregate`.
+
+</Step>
+<Step>
+
+### Add pricing, rules and fixtures
+
+Add `pricing/<name>/<service>.toml`, rules under `rules/<name>/<service>/`, and fixtures under `conformance/fixtures/<name>/<service>/`. Reuse generic rules wherever the envelopes already express the pattern; they run for every provider without changes. The conformance runner currently builds its client with `"provider": "firebase"`, so it needs a way to pick the provider per fixture before other providers' fixtures can run.
+
+</Step>
+<Step>
+
+### Keep the core clean
+
+Nothing outside `crates/providers/<name>` should learn about the new provider except the feature wiring and `provider_by_id`. If a detector needs an envelope field that does not exist, add it to `core` in a provider-neutral form, bump `SCHEMA_VERSION`, and keep ingest able to decode the older version.
+
+</Step>
+</Steps>
+
+## Before you open the change
+
+```sh
+cargo test --workspace --all-features
+cargo clippy --workspace --all-features --all-targets -- -D warnings
+cargo fmt --all
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
+./scripts/build-wasm.sh
+./scripts/build-wasm-server.sh
+pnpm --filter @readmeter/firebase build && pnpm --filter @readmeter/firebase test
+pnpm --filter @readmeter/firebase test:emulator
+./scripts/e2e.sh
+```

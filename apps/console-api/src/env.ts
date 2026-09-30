@@ -14,6 +14,12 @@ export interface ConsoleEnv {
   mailFrom?: string;
   ingestPublicUrl: string;
   staticDir?: string;
+  /**
+   * Return password reset links in the API response when no SMTP is set.
+   * Anyone who knows an email could use such a link, so this is opt-in
+   * (`CONSOLE_DEV_RESET_LINKS=1`) and never on in production.
+   */
+  devResetLinks: boolean;
 }
 
 export function readEnv(source: NodeJS.ProcessEnv = process.env): ConsoleEnv {
@@ -45,5 +51,6 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): ConsoleEnv {
     ...(source.MAIL_FROM?.trim() ? { mailFrom: source.MAIL_FROM.trim() } : {}),
     ingestPublicUrl: source.INGEST_PUBLIC_URL?.trim() || "http://127.0.0.1:8090",
     ...(source.CONSOLE_STATIC_DIR?.trim() ? { staticDir: source.CONSOLE_STATIC_DIR.trim() } : {}),
+    devResetLinks: !production && source.CONSOLE_DEV_RESET_LINKS === "1",
   };
 }

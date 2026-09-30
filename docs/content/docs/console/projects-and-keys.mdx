@@ -1,0 +1,144 @@
+---
+title: Projects and API keys
+description: Create projects, copy the hash key and SDK snippets, and issue, restrict and revoke ingest API keys.
+---
+
+## Projects
+
+A project is one app (or one environment of an app) that reports to
+Readmeter. Events, findings, API keys, rule overrides and the Google Cloud
+connection all belong to a project. A workspace can have any number of
+projects.
+
+The Projects page (`/w/<slug>/projects`) shows a card per project with its
+environment, Firebase project id, events in the last 24 hours, open findings
+and creation time. When a project is selected in the navbar, only that card
+is shown.
+
+### Creating a project
+
+Owners and admins see **Create project**. The dialog asks for:
+
+| Field | Notes |
+| --- | --- |
+| Name | Required, up to 80 characters. |
+| Environment | `production` (default), `staging` or `development`. |
+| Firebase project id | Optional. The Google Cloud connection uses it as the project to read Monitoring data from. |
+
+The project gets an id of the form `proj_...` and a new random hash key.
+
+### Project settings
+
+Click a project name to open `/w/<slug>/projects/<projectId>`. It has three
+tabs.
+
+**General** edits the name, environment and Firebase project id. To delete
+the project, type its name in the confirmation field and click **Delete
+project**. This also deletes the project's events, findings, API keys, rule
+overrides and Google Cloud connection. Owners and admins can edit and delete;
+members see the fields read-only.
+
+**SDK** shows the hash key and two install snippets, each with a copy button.
+
+**Keys** links to the API keys page filtered to this project.
+
+### Hash key
+
+Each project has a hash key: 32 hex characters, generated when the project is
+created. The SDK uses it to compute keyed hashes, so values that rules need to
+compare leave the app as hashes instead of in the clear. See
+[Privacy](/docs/sdk/privacy).
+
+Ingest authenticates with the API key, not the hash key. Every member can see
+the hash key on the SDK tab.
+
+### SDK snippets
+
+The snippets come filled in with the project's hash key and the ingest
+endpoint the console API is configured with (`INGEST_PUBLIC_URL`, default
+`http://127.0.0.1:8090`). Replace `YOUR_API_KEY` with a key from the API keys
+page.
+
+<Tabs items={["Web", "Cloud Functions"]}>
+<Tab value="Web">
+```ts
+import { init } from "@readmeter/firebase";
+init({
+  apiKey: "YOUR_API_KEY",
+  hashKey: "<project hash key>",
+  endpoint: "http://127.0.0.1:8090",
+});
+```
+</Tab>
+<Tab value="Cloud Functions">
+```ts
+import { init } from "@readmeter/firebase";
+import { instrument, withFlush } from "@readmeter/firebase/admin";
+init({
+  apiKey: "YOUR_API_KEY",
+  hashKey: "<project hash key>",
+  endpoint: "http://127.0.0.1:8090",
+  platform: "server",
+});
+```
+</Tab>
+</Tabs>
+
+What to do after `init` is covered in [Install and init](/docs/sdk) and
+[Cloud Functions (server)](/docs/sdk/cloud-functions-server).
+
+## API keys
+
+The API keys page (`/w/<slug>/keys`) lists the ingest keys of the selected
+project, or of every project when **All projects** is selected. SDKs send the
+key as `Authorization: Bearer <key>` to ingest.
+
+| Column | Meaning |
+| --- | --- |
+| Name | The name you gave the key. |
+| Project | The project the key reports to. |
+| Prefix | The first 16 characters of the key, to tell keys apart. |
+| Origins | Allowed origins, or **Any**. |
+| Last used | Last time ingest accepted the key. |
+| Status | Active or Revoked. |
+| Created | When the key was created. |
+| Created by | The member who created it. |
+
+### Creating a key
+
+Owners and admins click **Create key** (the command palette's **Create API
+key** action opens this page). The key is created for the project selected
+in the navbar, or for the first project when **All projects** is selected.
+The dialog asks for:
+
+- **Name**: required, up to 80 characters.
+- **Allowed origins**: optional, comma-separated, such as
+  `https://app.example.com`. Up to 20 origins.
+
+Keys look like `rm_live_` followed by 32 letters and digits. The console API
+stores only a hash of the key. The full key is shown once, in the **Copy
+this key** dialog right after creation; copy it then, because you cannot see
+it again.
+
+### Allowed origins
+
+With an empty origin list the key works from any origin. With a list, ingest
+compares the request's `Origin` header against each entry exactly and rejects
+a mismatch with `403 origin_not_allowed`. Write origins as the browser sends
+them: scheme, host and port if not default, no path and no trailing slash.
+
+Requests without an `Origin` header (servers, Cloud Functions) are not
+checked. Use separate keys for browser and server code if you want to
+restrict the browser key.
+
+### Revoking a key
+
+Click **Revoke** on an active key and confirm. Ingest then rejects requests
+that use it with `401`. Ingest caches key lookups for up to 30 seconds, so a
+revocation can take that long to apply. Revoked keys stay in the list with
+status Revoked and cannot be reactivated; create a new key and update the
+app.
+
+Creating and revoking keys are recorded in the
+[audit log](/docs/console/settings#audit-log) as `key.create` and
+`key.revoke`, with the key prefix.

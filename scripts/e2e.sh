@@ -80,5 +80,5 @@ npx -y firebase-tools@latest emulators:exec \
   "bash scripts/e2e-inside.sh"
 
 step "console"
-mkdir -p "$root/docs/images"
+mkdir -p "$root/docs/public/images"
 pnpm --filter console-web exec playwright test --reporter=line

@@ -1,0 +1,260 @@
+---
+title: Console API
+description: Every route of console-api, grouped by area, with the role needed to call it, the request body and the response shape.
+---
+
+console-api ([`apps/console-api`](https://github.com/eviatarmor/Readmeter/blob/main/apps/console-api)) is the backend of the console. It listens on port 8091 by default. Response types are defined in [`src/contract.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/console-api/src/contract.ts), which the console imports; route handlers are in `src/routes/`.
+
+## Conventions
+
+### Base paths
+
+| Prefix | What |
+|---|---|
+| `/api/auth/*` | Better Auth (sign-in, sign-up, sessions, organizations, invitations) |
+| `/api/v1/*` | Readmeter routes on this page |
+| `/healthz` | Returns `200 ok` |
+| anything else | The built console, when `CONSOLE_STATIC_DIR` is set |
+
+### Authentication
+
+Every `/api/v1` route except `GET /api/v1/auth-config` needs a Better Auth session cookie. Without one the answer is `401 unauthorized`. Sign in through `/api/auth` first; see [Better Auth routes](#better-auth-routes).
+
+Routes under `/api/v1/workspaces/:slug` also need the caller to be a member of that workspace. A non-member gets `404 not_found`, the same as for an unknown slug. The role column in the tables below is the lowest role that may call the route: `member`, `admin` or `owner`. A lower role gets `403 forbidden`.
+
+### Writes
+
+`POST`, `PUT`, `PATCH` and `DELETE` requests under `/api/v1` must send `Content-Type: application/json`, including `DELETE` requests with no meaningful body (send `{}`). If the request has an `Origin` header, it must equal `CONSOLE_ORIGIN`. Either failure is `403` with code `csrf`.
+
+CORS allows only `CONSOLE_ORIGIN`, with credentials, for the methods `GET, POST, PUT, PATCH, DELETE, OPTIONS` and the headers `Content-Type, Authorization, Cookie`.
+
+### Errors
+
+Errors have one shape:
+
+```json
+{ "error": { "code": "not_found", "message": "project not found" } }
+```
+
+| Status | Codes |
+|---|---|
+| 400 | `bad_request` (invalid body, query parameter or cursor) |
+| 401 | `unauthorized` |
+| 403 | `forbidden` (role too low), `csrf` |
+| 404 | `not_found` |
+| 409 | `conflict` (slug taken, last owner) |
+| 500 | `internal` |
+
+### Pagination
+
+List routes take `limit` (integer from 1 to 200, default 50) and `cursor`, and return:
+
+```json
+{ "items": [], "nextCursor": "eyJpZCI6Ii4uLiJ9" }
+```
+
+Pass `nextCursor` back as `cursor` for the next page. It is `null` on the last page. Cursors are opaque base64url strings. Findings lists also return `total`, the number of matching rows or issues.
+
+Dates are ISO 8601 strings. Money is integer USD micros (1,000,000 micros = 1 USD).
+
+## Better Auth routes
+
+Better Auth handles every `GET` and `POST` under `/api/auth`. The console uses these endpoints:
+
+| Endpoint | Used for |
+|---|---|
+| `POST /api/auth/sign-up/email` | Create an account with name, email and password (at least 10 characters) |
+| `POST /api/auth/sign-in/email` | Sign in with email and password |
+| `POST /api/auth/sign-in/social` | Start Google sign-in, when configured |
+| `POST /api/auth/sign-out` | Sign out |
+| `GET /api/auth/get-session` | Current session |
+| `POST /api/auth/request-password-reset` | Send a reset link |
+| `POST /api/auth/reset-password` | Set a new password with the token from the link |
+| `POST /api/auth/update-user` | Change name or image |
+| `GET /api/auth/list-sessions`, `POST /api/auth/revoke-session` | List and end the user's sessions |
+| `POST /api/auth/organization/set-active` | Set the active workspace on the session |
+| `POST /api/auth/organization/accept-invitation` | Accept an invitation |
+
+Workspaces are Better Auth organizations, with the organization plugin's `owner`, `admin` and `member` roles. Invitations expire after 7 days. When SMTP is not configured and `CONSOLE_DEV_RESET_LINKS=1` is set outside production, console-api adds a `resetLink` field to the JSON response of `request-password-reset`; see [Security](/docs/self-hosting/security#console-sign-in-and-sessions). Better Auth's own documentation covers the request and response bodies of these endpoints.
+
+## Auth config and account
+
+| Method | Path | Role | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/auth-config` | none | `{ "google": boolean }`, true when Google sign-in is configured |
+| `GET` | `/api/v1/me` | signed in | `Me` |
+
+`Me` is `{ user, workspaces, activeWorkspace }`. `user` has `id`, `name`, `email` and `image`. `workspaces` lists every workspace the user belongs to as `{ id, name, slug, role }`. `activeWorkspace` is the slug of the session's active workspace, or `null`.
+
+## Workspaces
+
+| Method | Path | Role | Body | Response |
+|---|---|---|---|---|
+| `POST` | `/api/v1/workspaces` | signed in | `{ name, slug }` | `201 { id, name, slug }` |
+| `GET` | `/api/v1/workspaces/:slug` | member | | `WorkspaceDetail` |
+| `PATCH` | `/api/v1/workspaces/:slug` | admin | `{ name?, slug?, logo? }` | `{ id, name, slug, logo }` |
+| `DELETE` | `/api/v1/workspaces/:slug` | owner | `{ confirm }` | `{ "ok": true }` |
+
+- `name` is 1 to 80 characters. `slug` is 1 to 64 characters of lowercase letters, digits and single hyphens (`my-team`). `logo` is a string or `null`.
+- The creator of a workspace becomes its owner. A taken slug is `409 conflict` on create and on rename.
+- `PATCH` needs at least one field.
+- `DELETE` needs `confirm` equal to the current slug. It deletes every project, key, event, finding and connection in the workspace.
+- `WorkspaceDetail` is `{ id, name, slug, logo, createdAt, counts: { projects, members } }`.
+
+## Members and invitations
+
+| Method | Path | Role | Body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/members` | member | | `Page<Member>` |
+| `PATCH` | `/api/v1/workspaces/:slug/members/:id` | admin | `{ role }` | `{ id, role }` |
+| `DELETE` | `/api/v1/workspaces/:slug/members/:id` | admin | | `{ "ok": true }` |
+| `GET` | `/api/v1/workspaces/:slug/invitations` | admin | | `Page<Invitation>` |
+| `POST` | `/api/v1/workspaces/:slug/invitations` | admin | `{ email, role }` | `201 Invitation` |
+| `DELETE` | `/api/v1/workspaces/:slug/invitations/:id` | admin | | `{ "ok": true }` |
+
+- `role` is `owner`, `admin` or `member`.
+- `:id` on member routes is the membership id, not the user id.
+- Removing or demoting the last owner is `409 conflict`.
+- `Member` is `{ id, role, joined, lastActive, user }`. `lastActive` is the latest session update of that user, or `null`.
+- `Invitation` is `{ id, email, role, status, expiresAt, createdAt }`. When SMTP is not configured, the `POST` response also has `link`, the invitation URL (`<CONSOLE_ORIGIN>/accept-invitation/<id>`).
+
+## Projects
+
+| Method | Path | Role | Body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/projects` | member | | `Page<Project>` |
+| `POST` | `/api/v1/workspaces/:slug/projects` | admin | `{ name, environment?, firebaseProjectId? }` | `201 CreatedProject` |
+| `GET` | `/api/v1/workspaces/:slug/projects/:projectId` | member | | `ProjectDetail` |
+| `PATCH` | `/api/v1/workspaces/:slug/projects/:projectId` | admin | `{ name?, environment?, firebaseProjectId? }` | project |
+| `DELETE` | `/api/v1/workspaces/:slug/projects/:projectId` | admin | | `{ "ok": true }` |
+
+- `name` is 1 to 80 characters. `environment` is `production` (the default), `staging` or `development`. `firebaseProjectId` is 1 to 120 characters or `null`.
+- A new project gets the id `proj_` plus a random suffix and a new random hash key.
+- `Project` in the list is `{ id, name, environment, firebaseProjectId, createdAt, events24h, openFindings }`: events in the last 24 hours and findings without a resolved or ignored state.
+- `CreatedProject` is `{ id, orgId, name, hashKey, environment, firebaseProjectId, createdAt }`.
+- `ProjectDetail` is `{ id, name, environment, firebaseProjectId, createdAt, hashKey, snippets: { web, functions } }`. The snippets are `init` code with the hash key and `INGEST_PUBLIC_URL` filled in and `YOUR_API_KEY` as a placeholder.
+- `PATCH` needs at least one field and returns `{ id, name, environment, firebaseProjectId, createdAt }`.
+- `DELETE` removes the project with its keys, events, findings, overrides and Google Cloud connection.
+
+## API keys
+
+| Method | Path | Role | Body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/projects/:projectId/keys` | member | | `Page<ApiKey>` |
+| `POST` | `/api/v1/workspaces/:slug/projects/:projectId/keys` | admin | `{ name?, allowedOrigins? }` | `201 CreatedApiKey` |
+| `DELETE` | `/api/v1/workspaces/:slug/projects/:projectId/keys/:keyId` | admin | | `{ "ok": true }` |
+
+- `name` is 1 to 80 characters, default `default`. `allowedOrigins` is up to 20 strings of up to 200 characters, default `[]` (any origin).
+- `CreatedApiKey` is `{ id, key, prefix, name, allowedOrigins, createdAt }`. `key` is the full `rm_live_...` key and is returned only here.
+- `ApiKey` in the list is `{ id, name, prefix, allowedOrigins, createdAt, lastUsedAt, revokedAt, createdBy, creator }`. Revoked keys stay in the list with `revokedAt` set.
+- `DELETE` revokes the key. Revoking a key that is already revoked is `404`.
+
+## Findings
+
+| Method | Path | Role | Body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/findings` | member | | `Page<Finding>` with `total` |
+| `GET` | `/api/v1/workspaces/:slug/findings/:id` | member | | `FindingDetail` |
+| `PATCH` | `/api/v1/workspaces/:slug/findings/:id` | member | `{ status?, assignee?, note? }` | `Finding` |
+| `POST` | `/api/v1/workspaces/:slug/findings/bulk` | member | `{ ids, status }` | `{ updated }` |
+
+### Issues and rows
+
+By default findings are grouped into issues: all findings of one project with the same rule, template and callsite, across sessions. An issue id is `<projectId>:<hash>`, where `hash` is the first 16 hex characters of the MD5 of `rule + "\n" + template + "\n" + callsite`. With `group=none` the list returns one row per stored finding instead, with a numeric id.
+
+`GET`, `PATCH` and `bulk` accept either kind of id. A numeric id addresses the whole issue it belongs to, so a status change always applies to every finding in the issue. URL-encode the `:` of an issue id in the path.
+
+### List parameters
+
+| Parameter | Values |
+|---|---|
+| `project` | Project id. Default: every project in the workspace. Unknown project is `404` |
+| `group` | `issue` (default) or `none` |
+| `sort` | `last_seen` (default), `occurrences`, `wasted_micros`; `sessions` too when grouped |
+| `severity` | `critical`, `high`, `medium`, `low`, `info`. Repeat the parameter or separate with commas |
+| `status` | `open`, `resolved`, `ignored`. A finding with no stored state is `open` |
+| `rule` | Exact rule id |
+| `service` | Exact service, such as `firestore` |
+| `template` | Template prefix |
+| `q` | Case-insensitive text in the message, rule id or template |
+| `from`, `to` | Timestamps, compared with `last_seen` |
+| `limit`, `cursor` | See [Pagination](#pagination) |
+
+### Shapes
+
+`Finding` has `id`, `projectId`, `rule`, `severity`, `provider`, `service`, `template`, `session`, `callsite`, `message`, `occurrences`, `sessions`, `firstSeen`, `lastSeen`, `wasted` (unit name to amount), `status`, `assignee`, `note` and `wastedMicros` (the price of `wasted`). For an issue, `occurrences` and `wasted` are sums over its findings, `sessions` counts distinct sessions, and `message`, `severity` and `session` come from the finding seen last. `session` is `"*"` for findings from aggregate rules, which cover all sessions.
+
+`FindingDetail` adds `evidence` (from the latest finding), `rule` (the full catalog entry, or `null`), `members` (the latest 20 findings in the issue as `{ id, session, occurrences, lastSeen, evidence }`) and `occurrencesByDay` (`{ day, occurrences }` per UTC day, gaps of up to 90 days filled with 0).
+
+### Updates
+
+- `status` is `open`, `resolved` or `ignored`. `assignee` is a user id of a workspace member, or `null`. `note` is a string or `null`. `PATCH` needs at least one field. An assignee who is not a member is `400`.
+- `bulk` takes 1 to 200 `ids` (numbers or issue id strings) and one `status`. Ids that do not resolve are skipped. `updated` is the number of stored findings whose state was written.
+
+## Events
+
+| Method | Path | Role | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/events` | member | `Page<TelemetryEvent>` |
+
+Parameters: `project`, `op`, `service`, `template` (exact), `session`, `from` and `to` (timestamps on the event time), `limit`, `cursor`. Events are newest first.
+
+`TelemetryEvent` has `id`, `projectId`, `ts`, `session`, `provider`, `service`, `op`, `opDetail`, `template`, `callsite`, `units`, `items`, `bytes`, `fromCache`, `errorCode`, `platform`, `signals`, `targetKey`, `idShape`, `collectionGroup`, `query`, `durationUs`, `listener`, `mount`, `dev` and `attempt`. Hashes such as `targetKey` and `callsite` are 16-character hex strings.
+
+## Rules and overrides
+
+| Method | Path | Role | Body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/rules` | member | | `{ rules }` |
+| `PUT` | `/api/v1/workspaces/:slug/projects/:projectId/rules/:ruleId` | admin | `{ enabled?, severity?, params? }` | override row |
+| `DELETE` | `/api/v1/workspaces/:slug/projects/:projectId/rules/:ruleId` | admin | | `{ "ok": true }` |
+
+- `GET` returns the whole rule catalog compiled into the server core: `id`, `title`, `provider`, `service`, `severity`, `category`, `evaluation`, `status`, `default_enabled`, `summary`, `description`, `fix`, `docs`, `params` and `examples`. With `?project=<id>`, each rule also has `effective: { enabled, severity, params, overridden }` for that project.
+- Rule ids contain a `/`. URL-encode it in `:ruleId` (`firebase.firestore%2Foffset-pagination`).
+- `PUT` needs at least one field and replaces the whole override: a field you leave out is stored as `null`, which means the catalog default. `severity` is one of the five severities or `null`. `params` may only name params the rule defines, with the same type as the default (boolean, integer, number or string). Unknown rule is `404`.
+- The response is the stored row: `{ id, projectId, rule, enabled, severity, params, updatedBy, updatedAt }`.
+- `DELETE` removes the override. `404` if there is none.
+- ingest merges overrides into the bundle it serves at `GET /v1/bundle`; see the [ingest API](/docs/reference/ingest-api#get-v1bundle).
+
+## Overview and costs
+
+| Method | Path | Role | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/overview` | member | `Overview` |
+| `GET` | `/api/v1/workspaces/:slug/costs` | member | `Costs` |
+
+Both take `range` (`7d` default, `30d` or `90d`, counted in UTC days ending today) and `project`. `costs` also takes `groupBy`: `service` (default), `rule`, `template` or `day`.
+
+`Overview` has `rangeDays`, `from`, `kpis` (events, billed units, estimated cost, the cost shown with its label `Billed` or `Estimated`, billed net cost or `null`, wasted cost, open findings and open issues), a daily `series`, `sdkCoverage`, `topRules`, `topTemplates`, `topCallsites` and `openFindingsBySeverity`.
+
+`Costs` has `source` (`billed` when the billing export has rows in the range, otherwise `estimate`), `currency`, `groupBy`, `range`, `items` (`{ key, micros, units }`), `estimatedMicros`, `billedMicros` (net of credits, or `null`), `billedBySku`, a daily `comparison` of estimated and billed micros, and `sdkCoverage`.
+
+`sdkCoverage` is `{ estimatedReads, billedReads, ratio }`: Firestore reads counted by the SDK divided by the reads Cloud Monitoring reported, or `null` when either count is zero in the range. Estimates are priced by the server core from [billing units](/docs/reference/billing-units).
+
+## Audit log
+
+| Method | Path | Role | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/audit` | admin | `Page<AuditEntry>` |
+
+`AuditEntry` is `{ id, orgId, actor, action, target, metadata, at }`, newest first. The actions are listed on [Security](/docs/self-hosting/security#audit-log).
+
+## Google Cloud
+
+All routes need `admin`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/workspaces/:slug/projects/:projectId/gcp` | | `{ connection, roles }` |
+| `PUT` | `/api/v1/workspaces/:slug/projects/:projectId/gcp` | `{ serviceAccountJson, gcpProjectId?, billingTable? }` | `{ connection, checks }` |
+| `POST` | `/api/v1/workspaces/:slug/projects/:projectId/gcp/test` | `{}` | `{ connection, checks }` |
+| `POST` | `/api/v1/workspaces/:slug/projects/:projectId/gcp/sync` | `{}` | `{ "queued": true }` |
+| `DELETE` | `/api/v1/workspaces/:slug/projects/:projectId/gcp` | | `{ "ok": true }` |
+
+- `connection` is `null` when the project is not connected, or `{ id, projectId, gcpProjectId, clientEmail, billingTable, status, lastSyncAt, lastError, createdAt, updatedAt }`. `status` is `pending`, `ok` or `error`. The key itself is never returned.
+- `roles` lists the IAM roles the service account needs, as `{ role, scope, when }` with `when` either `always` or `billing`.
+- `PUT` creates or replaces the connection. `serviceAccountJson` is the key file as a string or as an object (at most 16 KiB). `gcpProjectId` defaults to the key's `project_id`. `billingTable` is `project.dataset.table` or `null`. The route stores the encrypted key, then runs the checks and sets `status`. It needs `READMETER_SECRET_KEY`; without it the answer is `400` with the reason.
+- `checks` is a list of `{ name, ok, message }`: `monitoring` always, and `billing` (a BigQuery dry run) when a billing table is set.
+- `test` decrypts the stored key and runs the checks again.
+- `sync` flags the connection so connector-gcp syncs it on its next pass.
+- `DELETE` removes the connection and the project's imported usage and cost rows. Not connected is `404`.

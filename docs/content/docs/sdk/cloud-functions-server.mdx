@@ -1,0 +1,159 @@
+---
+title: Cloud Functions (server)
+description: Instrument firebase-admin in Cloud Functions and Node with instrument(), withFlush() and the per-service helpers.
+---
+
+On the server there are no drop-in imports. You keep importing from `firebase-admin` and pass the instances to helpers from `@readmeter/firebase/admin`, which patch them in place and return the same object. Wrap each handler in `withFlush()` so the batch is sent before the invocation ends.
+
+`@readmeter/firebase/admin` needs Node 22 or later. It imports `node:async_hooks`, `node:module` and `node:stream`, so it cannot be bundled for the browser.
+
+## Setup
+
+<Steps>
+<Step>
+
+### Install
+
+Install the SDK tarball in your `functions/` directory next to `firebase-admin` and `firebase-functions`:
+
+```sh
+cd functions
+npm install /path/to/Readmeter/sdks/js/firebase/readmeter-firebase-0.1.0.tgz
+```
+
+</Step>
+<Step>
+
+### Initialize and instrument
+
+Call `init` once at module load, with `platform: "server"`. Then instrument each Admin service you use:
+
+```ts title="functions/src/index.ts"
+import { init } from "@readmeter/firebase";
+import {
+  instrument,
+  instrumentAuth,
+  instrumentDatabase,
+  instrumentStorage,
+  withFlush,
+} from "@readmeter/firebase/admin";
+import { getAuth } from "firebase-admin/auth";
+import { getDatabase } from "firebase-admin/database";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import { initializeApp } from "firebase-admin/app";
+import { onCall, onRequest } from "firebase-functions/v2/https";
+
+initializeApp();
+
+init({
+  apiKey: process.env.READMETER_API_KEY ?? "",
+  hashKey: process.env.READMETER_HASH_KEY,
+  endpoint: process.env.READMETER_ENDPOINT ?? "http://127.0.0.1:8090",
+  platform: "server",
+});
+
+const db = instrument(getFirestore());
+const rtdb = instrumentDatabase(getDatabase());
+const bucket = instrumentStorage(getStorage().bucket());
+const auth = instrumentAuth(getAuth());
+```
+
+`READMETER_API_KEY`, `READMETER_HASH_KEY` and `READMETER_ENDPOINT` are names your code reads; the SDK itself only sees what you pass to `init`.
+
+</Step>
+<Step>
+
+### Wrap every handler
+
+```ts title="functions/src/index.ts"
+export const report = onRequest(withFlush(async (_req, res) => {
+  const snap = await db.collection("orders").where("status", "==", "open").get();
+  res.json({ n: snap.size });
+}));
+
+export const echo = onCall(withFlush(async (request) => {
+  return { n: request.data.n };
+}));
+```
+
+</Step>
+</Steps>
+
+The Functions emulator can reach ingest on `http://127.0.0.1:8090`. A deployed function cannot reach your laptop; see [Try it on your app](/docs/getting-started/your-app) for exposing ingest with a tunnel.
+
+## withFlush
+
+`withFlush(handler)` returns an async function with the same arguments. When the handler settles, on success or error, it records one `invoke` for the call and then awaits `flush()`. A handler error is rethrown unchanged, after the flush.
+
+A handler without `withFlush` produces no `invoke` record, and its calls go out only on the flush timer, after `maxBatchEvents` calls, or on Node's `beforeExit` and `SIGTERM`.
+
+### What each invocation records
+
+| Field | Source |
+|---|---|
+| Name | `FUNCTION_TARGET`, else `K_SERVICE`, when it is a safe function name. Otherwise `unknown`. |
+| Duration | From the call to `withFlush`'s wrapper until the handler settles. |
+| Request bytes | For `onCall`, the JSON length of `request.data`. For `onRequest`, the length of `req.rawBody`. |
+| Response bytes | Bytes passed to `res.end` (Express `res.json` ends there). Otherwise the JSON length of the handler's return value. Not set when the handler throws. |
+| Error | The thrown error's code (gRPC numeric codes are mapped to names such as `unavailable`). |
+| Cold | Set on the first `withFlush` call in the process. |
+| Memory | `FUNCTION_MEMORY_MB`, when that variable is set to a positive integer. |
+| Reads | Billed Firestore reads observed while the handler ran. |
+| RTDB download bytes | Realtime Database bytes downloaded while the handler ran. |
+| Storage calls | Successful Cloud Storage calls made while the handler ran. |
+
+Byte counts are capped at 10,000,000.
+
+The three tallies come from the records the instrumented services already produce, scoped to the invocation with `AsyncLocalStorage`, so only work done inside the handler's async context counts. Firestore reads follow the billing rules the core uses: a document get is 1, a query is its document count (at least 1) plus any `offset`, an aggregation is one read per 1,000 index entries (at least 1), and a listener snapshot counts its documents. Failed calls and cache hits count 0.
+
+### Cold starts
+
+The first `withFlush` call in a Node process is marked cold. Every later call in the same process is not. Code that runs at module load (for example `init` and `instrument`) happens before the first invocation and is not part of its duration. The [cold start is slow](/docs/rules/functions#cold-start-heavy) rule looks at those cold invocations.
+
+## instrument (Firestore)
+
+`instrument(firestore)` patches the Firestore instance's internal RPC methods (`request` and `requestStream`), so every public API that ends in an RPC is recorded. It also patches the public methods on `CollectionReference`, `Query`, `DocumentReference`, `WriteBatch`, `AggregateQuery` and `Firestore` (`getAll`, `runTransaction`) only to capture the callsite; those patches record nothing themselves. It is safe to call more than once and never throws.
+
+| RPC | Recorded as |
+|---|---|
+| `runQuery` | `query`, with the query shape, document count and estimated bytes |
+| `runAggregationQuery` | `aggregate`, with the aggregations and the count |
+| `batchGetDocuments` | One `get` per requested document, found or missing |
+| `listen` | `subscribe`, `snapshot` and `unsubscribe` per listen target |
+| `commit`, `batchWrite` | `set`, `update`, `create` or `delete` for a single non-transactional write, else `commit` with write and delete counts |
+
+Single writes carry a write signal (largest field, total size, transforms and a salted payload hash), the same as the [web drop-in](/docs/sdk/firestore#writes).
+
+Inside `db.runTransaction`, records are held until the transaction's commit and then released together, tagged with a transaction id and the attempt number.
+
+The query reader was verified against the `@google-cloud/firestore` shipped with firebase-admin. When it cannot read a query, it logs one `console.debug` line naming the installed version and records the call with its path only.
+
+## instrumentDatabase (Realtime Database)
+
+`instrumentDatabase(db)` patches the compat `Reference` prototype from `firebase-admin/database` (verified against firebase-admin 14.5.0 and `@firebase/database` 1.1.5):
+
+| Method | Recorded as |
+|---|---|
+| `on`, `off` | `subscribe`, per-event records, `unsubscribe` |
+| `once`, `get` | A read (`get`, `query` or a child event), with child count and size |
+| `set`, `update`, `remove` | `set`, `update`, `delete` |
+| `push` | `create` |
+| `transaction` | `update`, with the committed snapshot's size |
+
+`off(event, callback)` still finds the listener you registered; the SDK maps your callback to its wrapper. The fields match the [web drop-in](/docs/sdk/realtime-database).
+
+## instrumentStorage and instrumentAuth
+
+`instrumentStorage(bucket)` patches `File` and `Bucket` methods from `@google-cloud/storage`. `instrumentAuth(auth)` patches `verifyIdToken`, `getUser`, `listUsers`, `createCustomToken` and `setCustomUserClaims`. See [Cloud Storage](/docs/sdk/storage#wrapped-methods-cloud-functions) and [Authentication](/docs/sdk/authentication#wrapped-methods-cloud-functions) for the method tables.
+
+## Known limits
+
+- `instrumentDatabase`, `instrumentStorage` and `instrumentAuth` patch prototypes shared by every instance of those classes in the process, so instrumenting one instance records calls on the others too. `instrument` records RPCs only on the Firestore instance you pass.
+- `instrumentStorage` given a `Storage` client creates a local bucket handle only to reach the prototypes. It makes no request.
+- `withFlush` measures response bytes through `res.end`. A response written in pieces with `res.write` is not counted.
+- The invocation name comes only from `FUNCTION_TARGET` or `K_SERVICE`. When neither is set to a safe name, it is `unknown`.
+
+## Rules
+
+Invocation records feed the [Cloud Functions rules](/docs/rules/functions), in particular [reads per invocation](/docs/rules/functions#reads-per-invocation) and [cold start is slow](/docs/rules/functions#cold-start-heavy). [Trigger cascade](/docs/rules/functions#trigger-cascade) is planned: the handler `withFlush` wraps does not see the trigger path without the concrete document id. Firestore, Realtime Database, Storage and Authentication calls made on the server feed the rules for those services, including [listUsers inside a request](/docs/rules/authentication#server-list-users-in-request).

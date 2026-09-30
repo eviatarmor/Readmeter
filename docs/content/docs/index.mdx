@@ -1,0 +1,64 @@
+---
+title: Introduction
+description: Readmeter finds what makes a Firebase bill grow and points to the line of code that causes it.
+---
+
+Readmeter watches how your app calls Firebase and flags the patterns that waste money: a query with no `limit()`, `offset()` pagination, a "load more" button that re-reads every earlier page, listeners that are never closed, a React effect that fetches twice, a write on every keystroke. Each finding names the rule, the path template (`users/{id}/orders`), the callsite, and, where it can be computed, how many reads, writes or bytes were wasted.
+
+You run it yourself. A small SDK goes into your web app and your Cloud Functions, and a backend (ingest, a console API, a web console and Postgres) runs on your own machines.
+
+![The console overview page](/images/console-overview.png)
+
+## What it covers
+
+The `@readmeter/firebase` SDK records calls to these Firebase services, on the web modular SDK and on the Admin SDK used by Cloud Functions:
+
+- Cloud Firestore
+- Realtime Database
+- Cloud Storage
+- Authentication
+- Cloud Functions (web callables, and invocations of your own functions wrapped with `withFlush`)
+
+On top of those calls Readmeter runs a catalog of rules. Most are specific to one service (`firebase.firestore/offset-pagination`, `firebase.storage/list-all-large-prefix`), and some are generic and apply to any service (`generic/n-plus-one`, `generic/listener-leak`). Every rule has a severity ranked by cost impact, a description and a fix. The [rule reference](/docs/rules) lists all of them.
+
+The console shows findings, the calls that were ingested, and estimated cost in USD computed from the price tables in the repository. If you connect a read-only Google Cloud service account, the console also imports Cloud Monitoring usage and, optionally, your billing export, so you can compare the estimate with what Google Cloud actually billed. See [Google Cloud](/docs/console/google-cloud).
+
+## How the parts fit
+
+1. The SDK wraps the Firebase functions your app already calls. After each call returns, it hands a description of the call to the Rust core, compiled to WebAssembly.
+2. The core replaces ids with templates, hashes values with a per-project key, computes billing units, runs `local` rules on that one call, and buffers the result.
+3. The SDK sends the buffer to the ingest service as a batch.
+4. Ingest checks the API key, runs the same Rust core in its server build to apply `window` rules (one session's recent calls) and `aggregate` rules (all sessions of a project), and writes events and findings to Postgres.
+5. The console reads Postgres through the console API.
+
+[How it works](/docs/getting-started/how-it-works) covers each step in more detail.
+
+## What is sent
+
+Anything that leaves your app is a path template, a count, a size, or a keyed hash. Document fields, snapshot values, filter values and raw ids stay in the process. Firestore queries are sent as a shape: field names and operators, limits, whether a cursor or offset is used. Writes add payload sizes, the names of field transforms such as `increment`, and a payload hash salted per session so equal payloads cannot be matched across sessions. Cloud Storage never sends object bytes, URLs or tokens. Authentication never sends emails, phone numbers, uids, tokens, claims or verification codes. Cloud Functions never sends payloads, URLs, project ids, tokens or auth headers.
+
+The full list per service is on [Privacy](/docs/sdk/privacy).
+
+## License
+
+Readmeter is released under the [Readmeter Sustainable Use License](https://github.com/eviatarmor/Readmeter/blob/main/LICENSE.md), modeled on n8n's Sustainable Use License. You may self-host it and use it for your own internal business, or for personal and non-commercial purposes, and share it free of charge for non-commercial use. You may not sell it, offer it to others as a hosted or managed service, or include it in a paid product without a commercial license. It is a source-available license, not an OSI open source license.
+
+## Next steps
+
+<Cards>
+  <Card title="Quickstart" href="/docs/getting-started/quickstart">
+    Run the backend, the Firebase emulators and the demo app on your machine.
+  </Card>
+  <Card title="SDK" href="/docs/sdk">
+    Install `@readmeter/firebase` and call `init`.
+  </Card>
+  <Card title="Console" href="/docs/console">
+    Read findings, events and costs, and manage projects and keys.
+  </Card>
+  <Card title="Rules" href="/docs/rules">
+    Every rule, its severity, what it detects and how to fix it.
+  </Card>
+  <Card title="Self-hosting" href="/docs/self-hosting">
+    Run ingest, the console and Postgres for your team.
+  </Card>
+</Cards>

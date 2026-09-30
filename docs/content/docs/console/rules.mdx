@@ -1,0 +1,60 @@
+---
+title: Rules
+description: See the rule catalog and override enablement, severity and parameters for one project.
+---
+
+The Rules page (`/w/<slug>/rules`) lists every rule in the catalog with the
+values that apply to the selected project. Overrides are stored per project,
+so pick a project in the navbar first. With **All projects** selected, the
+page asks you to choose one.
+
+The catalog comes from `rules/**/*.toml`, built into the Rust core. The
+[rules reference](/docs/rules) documents each rule, its default severity and
+its parameters.
+
+## The rules table
+
+| Column | Meaning |
+| --- | --- |
+| Rule | Title, with the rule id under it. |
+| Severity | Effective severity for this project: the override if there is one, else the catalog default. |
+| Service | The service the rule applies to. |
+| Catalog | Catalog status of the rule. Rules with status `planned` have no detector yet. |
+| Enabled | Whether the rule runs for this project. |
+
+Filter by Rule (text), Severity or Service. The command palette's **Search
+rules** action opens this page.
+
+## Overriding a rule
+
+Click a row to open the rule sheet. It shows the rule description and fix,
+then the controls:
+
+- **Enabled**: turn the rule on or off for this project. Planned rules
+  cannot be enabled.
+- **Severity override**: one of critical, high, medium, low or info.
+- One field per parameter, prefilled with the effective value. Booleans are
+  switches, numbers and strings are inputs.
+
+**Save override** stores all three for the project. **Reset** deletes the
+override, so the rule goes back to the catalog defaults.
+
+The API rejects a parameter the rule does not define, or a value of the wrong
+type (a whole number is accepted where the rule expects a decimal). Thresholds
+and other parameters are described per rule in the [rules reference](/docs/rules).
+
+Each save and reset is written to the [audit log](/docs/console/settings#audit-log)
+as `rule.override`, with the project and rule id as the target.
+
+## Where overrides apply
+
+Ingest applies the project's overrides to the rule bundle it serves to SDKs
+at `GET /v1/bundle`, so SDKs that use a key for that project run the rules
+with your severity, parameters and enablement. See the
+[ingest API](/docs/reference/ingest-api).
+
+## Who can change rules
+
+Every member can read the rules page. Only owners and admins can save or
+reset overrides; for the `member` role the controls are read-only and the
+sheet says so. See [Members and roles](/docs/console/members).

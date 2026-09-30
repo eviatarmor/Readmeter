@@ -1,0 +1,111 @@
+---
+title: Realtime Database
+description: What the Realtime Database drop-in wraps, what each call records, and its limits.
+---
+
+## Import
+
+Change `firebase/database` to `@readmeter/firebase/database`. The module re-exports all of `firebase/database`. Query builders (`ref`, `query`, `orderByChild`, `limitToFirst`, `equalTo`, ...) are pure and pass through unchanged; the SDK reads their constraints when a read or listener runs.
+
+<Tabs items={["Web", "Cloud Functions"]}>
+<Tab value="Web">
+
+```ts
+import { init } from "@readmeter/firebase";
+import {
+  equalTo,
+  get,
+  getDatabase,
+  limitToFirst,
+  onValue,
+  orderByChild,
+  query,
+  ref,
+  update,
+} from "@readmeter/firebase/database";
+
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090" });
+
+const db = getDatabase(app);
+const open = query(ref(db, "orders"), orderByChild("status"), equalTo("open"), limitToFirst(20));
+
+const snap = await get(open);
+await update(ref(db, `orders/${id}`), { status: "shipped" });
+
+const unsub = onValue(open, (next) => render(next.val()));
+```
+
+</Tab>
+<Tab value="Cloud Functions">
+
+```ts
+import { init } from "@readmeter/firebase";
+import { instrumentDatabase, withFlush } from "@readmeter/firebase/admin";
+import { getDatabase } from "firebase-admin/database";
+import { onRequest } from "firebase-functions/v2/https";
+
+init({ apiKey: "rm_...", endpoint: "https://ingest.example", platform: "server" });
+
+const rtdb = instrumentDatabase(getDatabase());
+
+export const openOrders = onRequest(withFlush(async (_req, res) => {
+  const snap = await rtdb.ref("orders").orderByChild("status").equalTo("open").limitToFirst(20).get();
+  res.json({ n: snap.numChildren() });
+}));
+```
+
+See [Cloud Functions (server)](/docs/sdk/cloud-functions-server) for the rest of the Admin setup.
+
+</Tab>
+</Tabs>
+
+## Wrapped functions
+
+| Function | Recorded as | Notes |
+|---|---|---|
+| `get` | `get`, or `query` when the target has constraints | Records child count and size. |
+| `set` | `set` | |
+| `update` | `update` | |
+| `remove` | `delete` | |
+| `push` | `create` | Recorded when the write settles. `push()` with no value is recorded at once. |
+| `runTransaction` | `update` | Records the committed snapshot's size. |
+| `onValue` | `subscribe`, `snapshot`, `unsubscribe` | First snapshot is marked `initial`. |
+| `onChildAdded`, `onChildChanged`, `onChildRemoved`, `onChildMoved` | `subscribe`, `child_added` / `child_changed` / `child_removed` / `child_moved`, `unsubscribe` | One record per event. |
+| `goOnline`, `goOffline` | `go_online`, `go_offline` | `go_online` counts one connection. |
+
+Everything else, including `onDisconnect` and the constraint builders, is re-exported unchanged. `keepSynced` does not exist in the web SDK and is not wrapped.
+
+## What each call records
+
+Every record has the operation, the concrete path (`""` is the database root), a call id, a timestamp, the duration, the callsite, and on failure the error code with its prefix removed.
+
+When the target is a query, the SDK records its shape:
+
+| Field | Source |
+|---|---|
+| `order_by` | `orderByChild` field, or `$key`, `$value`, `$priority` |
+| `limit`, `limit_to_last` | `limitToFirst` / `limitToLast` |
+| `start`, `end` | `startAt`, `startAfter`, `endAt`, `endBefore` values |
+| `filters` | `equalTo`, recorded as `order_by == value` |
+
+A default query (no ordering other than priority, no bounds, no limit) is recorded with no query shape.
+
+Reads and listener events record a result: the number of children in the snapshot and its size, measured as the length of `JSON.stringify(snapshot.val())` and capped at 10,000,000. The core uses that size as download bytes.
+
+The core then replaces path segments that look like ids (numbers, UUIDs, push ids, 20-character auto ids, ISO dates, long tokens such as uids) with `{id}`, and folds query values into keyed hashes. See [Privacy](/docs/sdk/privacy#realtime-database).
+
+### Listeners
+
+Each `onValue` and `onChild*` call gets a listener id. `subscribe` is recorded before the Firebase call, because `onValue` can deliver its first snapshot synchronously. `unsubscribe` is recorded when you call the returned function, when a listener registered with `{ onlyOnce: true }` fires, and when the cancel callback reports an error (the error is recorded on the event record first). If the Firebase call throws, an `unsubscribe` is recorded for the same listener and the error is rethrown.
+
+## Known limits
+
+- Query constraints and the path are read from `@firebase/database` internals (verified against 1.1.5). If that shape changes, the SDK logs one `console.debug` line and records the call with its path only.
+- Size is the JSON text length of the value, so billed download bytes are a lower bound. The real bill also includes protocol and encryption overhead the SDK never sees.
+- The SDK cannot tell a local echo of your own write from a server download, so those snapshots count as downloads.
+- Write payload sizes are not recorded for Realtime Database.
+- The SDK's automatic connection is not visible. Only explicit `goOnline` calls count a connection.
+
+## Rules
+
+Realtime Database calls feed the [Realtime Database rules](/docs/rules/realtime-database), for example [download whole list](/docs/rules/realtime-database#download-whole-list), [listen on root](/docs/rules/realtime-database#listen-on-root), [value listener on a list](/docs/rules/realtime-database#value-listener-on-list) and [write hotspot](/docs/rules/realtime-database#rtdb-write-hotspot), plus the [generic rules](/docs/rules/generic).

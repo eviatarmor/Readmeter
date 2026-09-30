@@ -1,0 +1,102 @@
+---
+title: How it works
+description: The path from a Firebase call in your app to a finding in the console, and the terms used along the way.
+---
+
+## The pipeline
+
+```
+your app
+  @readmeter/firebase (TypeScript)     wraps Firebase calls, records a raw call after each one returns
+  Rust core (wasm)                     normalize, redact, billing units, local rules, buffer
+    POST /v1/batches
+apps/ingest (TypeScript, Hono)         API key, origin allowlist, rate limit
+  Rust core (server build)             decode, limits, window and aggregate rules
+  Postgres (Drizzle)                   events, findings
+apps/console-api  ->  apps/console-web
+apps/connector-gcp                     Cloud Monitoring usage and billing export into Postgres
+```
+
+Detection logic exists once, in Rust. The SDK and the backend run the same crates: the SDK ships a small WebAssembly build, and ingest and the console API load a server build of it (`crates/bindings/wasm-server`). TypeScript code on both sides moves bytes and strings and does not decide what counts as a finding.
+
+### 1. Capture in the SDK
+
+`@readmeter/firebase` has one module per Firebase web service (`@readmeter/firebase/firestore`, `/database`, `/storage`, `/auth`, `/functions`). Each re-exports the real Firebase module and replaces the functions that bill: reads, writes, listeners, list and download calls, sign-in and token calls, callables. A wrapper calls the real Firebase function, returns its result unchanged, and then records what happened. On the server, `instrument`, `instrumentDatabase`, `instrumentStorage` and `instrumentAuth` from `@readmeter/firebase/admin` patch Admin SDK instances in place, and `withFlush` wraps a function handler: it records the invocation and awaits `flush()` after the handler finishes, on success or error.
+
+A recorded call starts as a raw call: JSON that can still hold concrete ids, filter values and cursors. It never leaves the process in that form. The SDK passes it straight to the core.
+
+The SDK never throws into your code. A bad config or a wasm load failure logs once and turns recording off.
+
+### 2. Normalize and redact in the core
+
+The Firebase provider (`crates/providers/firebase`) turns the raw call into an envelope:
+
+- Ids in the path become placeholders, so `users/8f3k/orders` becomes `users/{id}/orders`.
+- A Firestore query becomes a shape: filter fields and operators, ordering, limit, offset, cursor flags, projection, aggregations. Filter values are dropped.
+- The result becomes counts and sizes: items returned, bytes, whether it came from the local cache.
+- Concrete values that rules need to compare (the exact target, a callsite) become keyed hashes.
+- The provider computes billing units for the call, such as `reads`, `writes` or `egress_bytes`.
+
+The core then runs the `local` rules on that one envelope and buffers the envelope and any findings. The buffer is bounded. When it is full, the oldest data is dropped. Nothing blocks your app.
+
+### 3. Send batches
+
+The SDK sends the buffer to `POST /v1/batches` with the API key as `Authorization: Bearer`. It flushes on a timer (every 10 seconds by default), early after 200 recorded calls, when you call `flush()`, on the browser `pagehide` event, and after each `withFlush` handler. On Node it also flushes on `beforeExit` and `SIGTERM`. See [Configuration](/docs/sdk/configuration) for the options.
+
+The batch uses a versioned binary wire format defined in `crates/core`. The decoder rejects a batch with an unknown schema version.
+
+### 4. Ingest and evaluate
+
+Ingest looks up the key, checks the browser `Origin` against the key's allowed origins, applies a per-key rate limit, and hands the body to the evaluator (`crates/evaluator`). The evaluator decodes the batch, enforces size limits, and runs the `window` and `aggregate` rules. Ingest writes events and findings to Postgres and answers 202 only after the write, so an accepted batch is a stored batch. When too many writes are in flight it answers 503 with `Retry-After`, and the SDK keeps the batch and retries.
+
+The evaluator keeps its rule state in memory, per project. A restart starts every window from empty, and a pattern that appears again is detected again. All batches of one project must reach the same ingest process, or patterns split across processes are missed.
+
+### 5. Store and show
+
+Findings are deduplicated on project, rule, session, callsite and template, so a pattern that repeats updates one row instead of adding many. The console API reads Postgres and prices the stored billing units with the same Rust core and the price tables in `pricing/firebase/*.toml`. Money is integer USD micros until the console formats it.
+
+### 6. Billed data from Google Cloud
+
+The SDK only sees calls made by code that runs it. The Google Cloud connector (`apps/connector-gcp`) fills in the rest. When you connect a read-only service account in the console, the connector imports daily Cloud Monitoring usage (Firestore reads, writes and deletes, Realtime Database and Cloud Storage egress, Cloud Storage operations, function invocations) and, if you name a table, rows from your BigQuery billing export. It syncs each connection when it is added, when you ask for a sync, and every six hours after that. See [Google Cloud](/docs/console/google-cloud).
+
+## Rule tiers
+
+Every rule declares one `evaluation` tier, which decides where it runs and what it can see.
+
+| Tier | Sees | Runs in |
+|---|---|---|
+| `local` | One envelope | The SDK, on every call |
+| `window` | One session's recent envelopes | Ingest; also in the SDK when `init` has `dev: true` |
+| `aggregate` | All sessions of one project | Ingest only |
+
+`firebase.firestore/unbounded-list` is `local`: one query with no `limit()` is enough. `firebase.firestore/missing-cursor` is `window`: it needs to see the same query come back with a growing limit. `generic/hot-callsite` is `aggregate`: it looks for one callsite that bills heavily across many sessions. Aggregate findings are stored with session `*`, so each one collapses to a single row per project.
+
+Production SDK builds leave window detectors out to keep the wasm small. `dev: true` loads a separate dev build that includes them and logs each finding in the console, which is how the demo app shows findings on the page.
+
+A rule is a TOML file under `rules/` (id, severity, description, fix, thresholds) plus a Rust detector registered under the same id. Thresholds are parameters in the TOML, and you can override them per project in the console. Browser SDKs pick up those overrides from `GET /v1/bundle`. See [Rules](/docs/console/rules) and the [rule reference](/docs/rules).
+
+## Terms
+
+### Envelope
+
+The redacted, normalized record of one call. It holds the provider and service, the operation (`get`, `query`, `aggregate`, `set`, `update`, `commit`, `subscribe`, `snapshot` and others), the target template and its keyed hash, the query shape, result counts and sizes, the outcome, the duration, the call context, and the billing units. Rules only ever see envelopes. [Raw calls](/docs/reference/raw-calls) and [billing units](/docs/reference/billing-units) are documented in the reference.
+
+### Keyed hash
+
+A SipHash-1-3 hash keyed with the project's hash key, a 32-character hex value shown on the project's SDK tab. The SDK uses it to hash anything a rule has to compare for equality: the exact request including filter values and paging, the callsite, a listener. Two equal hashes mean the same request. Without the key, hashes of low-entropy values such as small numbers or emails cannot be reversed by trying every value, and the key is not sent with events. If you leave `hashKey` out of `init`, the SDK fetches it once from `GET /v1/config`. The hash key is not a secret in the way the API key is.
+
+Write payload hashes also mix in a random salt created per session that never leaves the process, so the same payload cannot be matched across sessions.
+
+### Session
+
+A random 64-bit id chosen when the SDK starts: one per browser tab, or one per Node process. Every envelope carries it, and `window` rules keep their state per session. The Events page in the console can filter by session.
+
+### Callsite
+
+The SDK takes the first stack frame outside its own code and `node_modules` as `file:line:col`, and the core replaces it with a keyed hash before the call leaves the process. Every finding from one line of code carries the same callsite hash, and the console groups findings by it.
+
+## Next steps
+
+- [Quickstart](/docs/getting-started/quickstart) runs the whole pipeline locally.
+- [Privacy](/docs/sdk/privacy) lists every field that leaves the process, per service.
+- [Rust core](/docs/contributing/rust-core) is the contributor view of the crates.

@@ -48,6 +48,8 @@ apps/
   connector-gcp/           Cloud Monitoring and billing-export sync
 packages/
   db/                      Drizzle schema, migrations, seed (shared by all TS services)
+docs/                      Fumadocs site (Next.js): pnpm --filter docs dev (port 3100);
+                           rule pages are generated from rules/ by docs/scripts/gen-rules.mjs
 docker-compose.yml         Local Postgres on host port 5442
 rules/<scope>/*.toml       Rule definitions (data). Scope: generic/, firebase/firestore/, ...
 pricing/<provider>/*.toml  Price tables (data)
@@ -58,10 +60,8 @@ scripts/                   build-wasm.sh (size gate), build-wasm-server.sh, smok
 .plans/                    Architecture and implementation plans
 ```
 
-Planned (see `.plans/0001-architecture.md` and `.plans/0007-console.md`):
-more Firebase services (Realtime Database, Storage, Auth, Functions), `proto/`
-(if a non-Rust consumer of the wire format appears), `sdks/<lang>/<provider>/`,
-`infra/`.
+Planned: `proto/` (if a non-Rust consumer of the wire format appears),
+SDKs for other languages (`sdks/<lang>/<provider>/`), `infra/`.
 
 ## Rules you must not break
 
@@ -189,10 +189,11 @@ pnpm dev:connector-gcp                           # Monitoring and billing sync l
                                                  # seeded login admin@readmeter.local / readmeter-dev
 READMETER_INGEST_URL=http://127.0.0.1:8090 READMETER_API_KEY=rm_dev_key node scripts/smoke-wasm.mjs
 
-# Local demo loop. See docs/TESTING-WITH-YOUR-APP.md (Git Bash on Windows).
+# Local demo loop. See docs/content/docs/getting-started/your-app.mdx (Git Bash on Windows).
 ./scripts/dev-up.sh
 ./scripts/dev-down.sh                            # stop ingest, console-api, connector-gcp, console-web, and docker compose down (volume kept)
 ./scripts/e2e.sh                                 # emulators, Postgres findings, Playwright
+pnpm --filter docs dev                           # docs site on http://localhost:3100 (build: pnpm --filter docs build)
 ```
 
 All three of test, clippy and fmt must pass before you consider work done.

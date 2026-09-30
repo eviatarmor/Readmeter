@@ -1,0 +1,65 @@
+---
+title: Overview
+description: KPIs, the daily cost and waste chart, top rules, open findings by severity, and the busiest templates and callsites.
+---
+
+The overview is the first page you see in a workspace
+(`/w/<slug>/overview`). It covers the project picked in the navbar, or all
+projects in the workspace, over `7d`, `30d` or `90d`. Days are UTC calendar
+days, and the range includes today.
+
+![Overview page](/images/console-overview.png)
+
+## KPI cards
+
+| Card | What it shows |
+| --- | --- |
+| Events | Number of events ingested in the range. |
+| Estimated or Billed | Cost for the range. It reads **Estimated** when the cost is priced from event billing units, and **Billed** when a [Google Cloud connection](/docs/console/google-cloud) has imported billing export rows for the range. Billed cost is net of credits. |
+| Wasted | Priced cost of the `wasted` units on findings last seen in the range. |
+| Open issues | Number of open issues, with the number of open findings under it. |
+
+The first three cards also show a change figure: the later half of the
+range compared with the earlier half (for example, `+12% vs earlier half`).
+When the earlier half is zero and the later half is not, the card says **No
+earlier half to compare**.
+
+An issue groups findings with the same rule, template and callsite across
+sessions (see [Findings](/docs/console/findings)), so there are usually fewer
+open issues than open findings.
+
+## Cost and waste chart
+
+One point per day with two areas: cost (estimated or billed, matching the
+KPI card) and wasted. Hover a day for the dollar amounts. Waste is counted
+on the day a finding was last seen. The chart is replaced by **No cost in
+this range** until the project reports provider calls.
+
+Estimated cost comes from the billing units each event carries, priced with
+the tables in `pricing/` by the Rust core. See
+[Billing units](/docs/reference/billing-units) and
+[Costs](/docs/console/costs#estimated-and-billed).
+
+## Top rules
+
+Up to eight rules ranked by wasted cost in the range, each with a bar
+relative to the top rule. Rules with no computable waste are left out; if
+none have any, the card says **Nothing wasted**.
+
+## Open findings by severity
+
+A stacked bar of open findings split by severity (critical, high, medium,
+low, info), with the count for each. This counts all open findings in the
+selected projects, regardless of the time range.
+
+## Top templates and top callsites
+
+Two tables with the ten templates and the ten callsites that produced the
+most events in the range. Templates are the redacted paths the SDK reports,
+such as `users/{id}/orders`. Events without a callsite are not counted in the
+callsite table.
+
+## Recent findings
+
+The last card links to the findings table (**View all**) with the same
+project and range.

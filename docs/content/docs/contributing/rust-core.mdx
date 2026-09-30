@@ -1,0 +1,190 @@
+---
+title: Rust core
+description: The crates in the Rust workspace, what each one owns, and the rules the core follows.
+---
+
+The Rust core is a library, never a service. It has no network, threads, storage or clock of its own. SDKs pass raw calls in and get encoded bytes out; the backend passes those bytes in and gets rows out. Every detection rule lives here once and runs in the browser, in Node, natively through a C ABI, and on the backend.
+
+## Crates
+
+The workspace is defined in the root [`Cargo.toml`](https://github.com/eviatarmor/Readmeter/blob/main/Cargo.toml). Bindings wrap `runtime` or `evaluator`, both of those load providers, and everything builds on `core`.
+
+| Crate | Package | Owns |
+|---|---|---|
+| `crates/core` | `readmeter-core` | `Envelope`, `Finding`, `Units`, keyed hashing, `VecMap`, the upload `Buffer`, and the wire format. |
+| `crates/rules` | `readmeter-rules` | Rule model (`RuleDef`, `RuleSpec`, `Catalog`, `Bundle`), overrides, the `Engine`, window helpers, generic detectors, and the `readmeter-rulec` compiler. |
+| `crates/cost` | `readmeter-cost` | Price tables from `pricing/**/*.toml` turned into money. Backend and tooling only. |
+| `crates/provider-api` | `readmeter-provider-api` | The `Provider` trait, a small JSON parser for the SDK path, and canonical JSON hashing. |
+| `crates/providers/firebase` | `readmeter-provider-firebase` | Firebase raw-call schemas, normalization, billing units and provider detectors. |
+| `crates/runtime` | `readmeter-runtime` | `Client`, the in-process type every SDK binding wraps. |
+| `crates/evaluator` | `readmeter-evaluator` | Server-side batch processing: decode, limits, window and aggregate rules per project, JSON-safe rows. |
+| `crates/bindings/ffi` | `readmeter-ffi` | C ABI over `runtime` for C++, Swift, Kotlin/JNI, Dart, .NET and Python. |
+| `crates/bindings/wasm` | `readmeter-wasm` | wasm-bindgen wrapper over `runtime` for browser, Node, Deno and Go (wazero). Size gated. |
+| `crates/bindings/wasm-server` | `readmeter-wasm-server` | wasm-bindgen wrapper over `evaluator` for the TypeScript backend. Not size gated. |
+
+### core
+
+[`crates/core`](https://github.com/eviatarmor/Readmeter/tree/main/crates/core) is the provider-agnostic data model. Nothing in it knows about Firebase or any other provider. Providers turn raw calls into an `Envelope`; rules read envelopes and produce `Finding`s; the `Buffer` batches both for upload.
+
+- `envelope.rs` defines `Envelope` and its parts (`Target`, `QueryShape`, `ResultStats`, `WriteStats`, `CallContext`, `Op`, `Outcome`, and others) and `SCHEMA_VERSION`, currently `2`.
+- `wire.rs` is the upload format: `RM` magic, a little-endian `u16` schema version, then a postcard-encoded `Batch`. Only Rust encodes and decodes it, so SDK shims never touch it.
+- `hash.rs` has `KeyedHasher`, a SipHash-1-3 keyed per project. The key is never sent with events, so hashes of low-entropy values such as emails or small integers cannot be brute forced without it.
+- `buffer.rs` is a bounded queue of events and findings (defaults: 2,000 events, 200 findings). When full it drops the oldest entries and counts them, so memory stays bounded if the host never flushes. It never blocks.
+- `map.rs` has `VecMap`, used instead of `BTreeMap` on the SDK path.
+
+Changing any serialized type in `core` means bumping `SCHEMA_VERSION` and keeping ingest able to decode the older versions.
+
+### rules
+
+[`crates/rules`](https://github.com/eviatarmor/Readmeter/tree/main/crates/rules) holds the rule model and the engine. A rule has two halves: a definition in `rules/**/*.toml` (data that can change without an SDK release) and a detector, Rust code registered under the same id.
+
+- `def.rs`: `RuleDef` as written in TOML, `Severity`, `Category`, `Evaluation` (`local`, `window`, `aggregate`) and `Status` (`stable`, `beta`, `planned`).
+- `catalog.rs`: `Catalog` (full definitions) and `Bundle` (engine specs and default config). `Bundle::encode` writes `bundle.bin`, the binary form SDKs load.
+- `config.rs`: `Params`, `RuleConfig`, and per-project overrides.
+- `detector.rs`: the `Detector` trait, `DetectorFactory`, the `Registry`, and the `Emitter` detectors use to report findings.
+- `engine.rs`: `Engine`, which routes each envelope to the detectors whose rule scope matches.
+- `window.rs`: `KeyedWindow` and `BoundedMap`, the bounded state helpers every stateful detector uses.
+- `detectors/`: generic detectors, one file per rule under `rules/generic/`.
+- `testing.rs` (feature `testing`): `EnvBuilder`, `single_rule_engine`, `run` and param helpers for detector tests in any crate.
+- `bin/readmeter-rulec.rs`: the rule compiler (feature `catalog-toml`).
+
+`readmeter-rulec` has two commands:
+
+```sh
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- check rules
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules [--revision <rev>]
+```
+
+`check` loads and validates every TOML file. `build` writes `catalog.json` (full definitions for the console, docs and backend), `bundle.json` (engine specs and default config) and `bundle.bin` (the same revision in the binary format SDKs load). The revision defaults to a content hash of the catalog, so the same input always produces the same artifacts.
+
+### cost
+
+[`crates/cost`](https://github.com/eviatarmor/Readmeter/tree/main/crates/cost) parses `pricing/<provider>/<service>.toml` into a `PriceTable` and prices a set of `Units` with `estimate`, falling back to the table's default region. Units with no price are listed separately, so callers can tell "free" from "unknown". The free tier is not applied: an estimate is the marginal cost. SDKs never price anything.
+
+### provider-api
+
+[`crates/provider-api`](https://github.com/eviatarmor/Readmeter/tree/main/crates/provider-api) is the contract every provider implements:
+
+```rust title="crates/provider-api/src/lib.rs"
+pub trait Provider: Send + Sync {
+    /// Stable provider id, used in rule ids (`<id>.<service>/<rule>`).
+    fn id(&self) -> &'static str;
+
+    fn services(&self) -> &'static [&'static str];
+
+    /// Normalizes one already-parsed raw call. The raw call may carry filter
+    /// values and concrete ids; the returned envelope must not.
+    fn normalize_value(
+        &self,
+        raw: &JsonValue,
+        cx: &NormalizeContext,
+    ) -> Result<Envelope, NormalizeError>;
+
+    /// Detectors for this provider's rules.
+    fn detectors(&self) -> Vec<(&'static str, DetectorFactory)>;
+}
+```
+
+`NormalizeContext` carries the project-keyed hasher, the session, the platform and the dev flag. The crate also has `json`, a hand-written JSON parser used on the SDK path instead of `serde_json`, and `hash_json`, which hashes a JSON value canonically (sorted keys, type-tagged nodes). Its `serde` feature is for tests and the backend; SDK builds leave it off.
+
+### providers/firebase
+
+[`crates/providers/firebase`](https://github.com/eviatarmor/Readmeter/tree/main/crates/providers/firebase) implements `Provider` as `FirebaseProvider` with provider id `firebase`. Each service is a cargo feature and a module with the same layout:
+
+| Service | Feature and `SERVICE_ID` | Module |
+|---|---|---|
+| Cloud Firestore | `firestore` | `src/firestore/` |
+| Realtime Database | `database` | `src/database/` |
+| Cloud Storage | `storage` | `src/storage/` |
+| Authentication | `auth` | `src/auth/` |
+| Cloud Functions | `functions` | `src/functions/` |
+
+Every service module has `raw.rs` (the raw-call schema the shims send, parsed from JSON), `normalize.rs` (raw call to redacted `Envelope`), `billing.rs` (billable `Units` for an envelope, with the unit names as constants) and `detectors/` (one file per rule under `rules/firebase/<service>/`, collected by `detectors::all()`). `lib.rs` dispatches each raw call on its `service` field and gathers every enabled service's detectors. Authentication also has `error_codes.rs`.
+
+The crate's default features are `firestore` and `window`. The `aggregate` feature adds cross-session Firestore detectors for the backend evaluator.
+
+### runtime
+
+[`crates/runtime`](https://github.com/eviatarmor/Readmeter/tree/main/crates/runtime) is `Client`, the one type every SDK binding wraps, so all languages share one implementation of redaction, rules and batching. The host only intercepts calls, builds raw-call JSON, and POSTs the bytes that `flush` returns.
+
+- `Client::from_bytes(config_json, bundle)` picks the provider by `config.provider` through `provider_by_id` and builds the engine from `bundle.bin`.
+- `record(raw_json)` normalizes one call, runs the local rules (and window rules if the build and config include them), buffers the envelope if the session is sampled in, and returns findings. Findings are always buffered.
+- `record_json` returns the same findings as a JSON array with `rule`, `severity`, `template`, `message` and `wasted`.
+- `flush(now_ms)` drains the buffer into an encoded batch.
+- `unavailable_rules()` lists enabled rules this build has no detector for.
+
+Page-visibility events are host state, so the runtime recognizes them itself and providers stay free of them.
+
+### evaluator
+
+[`crates/evaluator`](https://github.com/eviatarmor/Readmeter/tree/main/crates/evaluator) runs on the server. Ingest keeps one `Evaluator` per process and passes it each authenticated request body. `ingest` decodes the batch, checks `Limits` (defaults: 10,000 events and 1,000 findings per batch, 1,024 projects in memory), runs `window` and `aggregate` rules, and returns JSON-safe rows.
+
+Each project has two engines: `window`, with detector state keyed by session, and `aggregate`, with state shared across that project's sessions. Past `max_projects` the least recently active project is evicted with its engines. A restart drops all state, and the next batches start from empty windows. One project's batches must reach the same instance, or window and aggregate rules miss patterns split across processes.
+
+`rows.rs` converts envelopes and findings to rows. JavaScript loses precision above 2^53, so every 64-bit hash (session, keys, fingerprints, callsites, listener and call ids) becomes a 16-character lowercase hex string. Aggregate findings use session `"*"`.
+
+### bindings
+
+The bindings expose strings and bytes only.
+
+`bindings/ffi` is the C ABI. Every function returns an `RmStatus` (`0` is success), inputs are UTF-8 JSON as pointer and length, outputs are `RmBuf`s released with `rm_buf_free`, and `rm_last_error` returns the calling thread's last error message. Calls that return a status run inside `catch_unwind` and report a caught panic as status `3`, so no panic crosses the boundary. A client is not thread safe; hosts serialize access. The header `include/readmeter.h` is generated with cbindgen and checked in, and CI fails if it drifts.
+
+`bindings/wasm` exposes a `Readmeter` class with `record`, `flush` and `activeRules`. It is the artifact `@readmeter/firebase` ships, and it is size gated.
+
+`bindings/wasm-server` wraps the evaluator for `apps/ingest`. It exports `Evaluator` (`ingest`, `projects`), `catalog_json`, `price_json` (prices a units map as integer USD micros, so no price constants live in TypeScript) and `bundle_with_overrides` (merges project overrides into a `bundle.bin`). Its build script embeds `rules/**/*.toml` and `pricing/**/*.toml`, so the server core needs no filesystem. It never ships to customers and has no size budget.
+
+## Rules the core follows
+
+### Library, never a service
+
+No crate on the SDK path starts threads, opens sockets, stores data or reads the clock. Timestamps come in on raw calls and as `now_ms` on `flush`. Backend services are TypeScript and call into the core.
+
+### No panics
+
+The workspace denies `unwrap_used`, `expect_used` and `panic` in clippy, and `unsafe_code` everywhere except `bindings/ffi`. Bad input returns an error through `thiserror` types. Tests opt out with `#![allow(clippy::unwrap_used, clippy::expect_used)]`. The SDK artifacts are built with `panic = "abort"` in the `release-small` profile, and the FFI layer catches unwinds in normal builds.
+
+### Bounded memory
+
+Detectors run inside customer processes, so every map has a hard cap. `KeyedWindow` keeps a per-key sliding window of timestamped samples and `BoundedMap` keeps values with a TTL; both default to 4,096 keys, and `KeyedWindow` to 256 samples per key. When a cap is hit, stale entries go first; if that is not enough, the map is reset. Losing state only means a missed finding. Do not add an uncapped `HashMap` to a detector. Detectors report their entry count through `Detector::tracked`, which cap tests assert on. That method exists only in test builds (`test` or the `testing` feature) because a vtable slot on every local rule costs wasm size.
+
+### Provider agnostic
+
+`core`, `rules`, `runtime`, `cost` and the bindings contain no provider logic. Provider code lives in `crates/providers/<name>` and is selected by cargo features. Never hard-code Firebase assumptions outside `crates/providers/firebase`.
+
+### Small SDKs and the size gate
+
+Do not add heavy dependencies to `core`, `rules`, `provider-api`, providers or `runtime` without measuring. On the SDK path:
+
+- there is no `serde_json`; parse JSON with `readmeter_provider_api::json` and write it by hand,
+- use `readmeter_core::VecMap` instead of `BTreeMap`,
+- avoid `#[serde(untagged)]` and formatting floats.
+
+[`scripts/build-wasm.sh`](https://github.com/eviatarmor/Readmeter/blob/main/scripts/build-wasm.sh) enforces this. It fails if `serde_json` appears in the `readmeter-wasm` dependency tree, builds with the `release-small` profile (`opt-level = "z"`, LTO, one codegen unit, `panic = "abort"`, stripped), runs `wasm-bindgen` and `wasm-opt -Oz`, then compares the gzip size to the budget.
+
+```sh
+./scripts/build-wasm.sh
+# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 93696 B)
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BUDGET_GZIP` | `93696` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
+| `FEATURES` | `firebase,database,storage,auth,functions` | Features passed to `readmeter-wasm`. |
+| `OUT` | `target/wasm-pkg` | Output directory. |
+
+The budget is a ratchet: lower it whenever the build shrinks. The last raise was for Cloud Functions, to the measured gzip size (93,498 B) rounded up to the next 256 bytes, with the reason in the script comment. `./scripts/wasm-size-report.sh` breaks the production wasm down by crate before `wasm-opt` (needs `twiggy` and Python).
+
+### Features: window and aggregate
+
+The `evaluation` tier of a rule decides which builds carry its detector:
+
+| Feature | Crates | Enables | Enabled in |
+|---|---|---|---|
+| `window` | `rules`, `providers/firebase`, `runtime`, `ffi`, `wasm` | Detectors for `evaluation = "window"` rules. | Default in each crate, dev SDK builds, and the evaluator. Production SDK builds leave it off. |
+| `aggregate` | `rules`, `providers/firebase` | Detectors for `evaluation = "aggregate"` rules. | The evaluator only. SDKs never enable it, including dev builds. |
+| `catalog-toml` | `rules` | Loading `rules/**/*.toml` and `readmeter-rulec`. | Tooling and the server. SDKs load `bundle.bin`. |
+| `testing` | `rules` | `readmeter_rules::testing`. | Dev dependencies of detector tests. |
+
+Gate a window detector module and its registration with `#[cfg(feature = "window")]`, and an aggregate one with `#[cfg(feature = "aggregate")]`. CI builds `readmeter-wasm` and `readmeter-ffi` with `--no-default-features --features firebase,database,storage,auth,functions` and runs clippy on it, so production code must compile cleanly without `window`.
+
+The service features chain through every layer. `runtime`, `ffi` and `wasm` each have `firebase` (Firestore), `database`, `storage`, `auth` and `functions` features, and the evaluator depends on the Firebase provider with every service plus `window` and `aggregate`.

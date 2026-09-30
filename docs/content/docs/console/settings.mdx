@@ -1,0 +1,62 @@
+---
+title: Settings and profile
+description: Workspace name, slug, logo and deletion, the audit log, and your own profile, password, theme and sessions.
+---
+
+## Workspace settings
+
+The Settings page (`/w/<slug>/settings`) has up to three tabs, depending on
+your role.
+
+### General
+
+Edit the workspace **Name** (up to 80 characters), **Slug** and **Logo URL**,
+then **Save**. The slug must be lowercase letters, numbers and hyphens, up
+to 64 characters, and not used by another workspace. Changing it changes
+every console URL for the workspace (`/w/<new-slug>/...`); the console takes
+you to the new address after saving.
+
+Owners and admins can edit. Members see the values read-only.
+
+### Audit log
+
+Owners and admins see an **Audit** tab. It lists changes made in the
+workspace, newest first, with the columns When, Action, Actor (the user id
+that made the change) and Target. Filter by action.
+
+Actions recorded:
+
+| Action | Recorded when |
+| --- | --- |
+| `workspace.create` | The workspace was created. |
+| `workspace.update` | Name, slug or logo changed. |
+| `project.create`, `project.update`, `project.delete` | A project was created, edited or deleted. |
+| `key.create`, `key.revoke` | An API key was created or revoked. |
+| `member.invite`, `invitation.cancel` | An invitation was sent or cancelled. |
+| `member.role`, `member.remove` | A member's role changed or a member was removed. |
+| `finding.status` | An issue's status, assignee or note changed, one entry per issue. |
+| `rule.override` | A rule override was saved or reset. |
+| `gcp.connect`, `gcp.test`, `gcp.sync`, `gcp.disconnect` | The Google Cloud connection was changed, tested, synced on request or removed. |
+
+### Danger zone
+
+Only owners see this tab. Type the workspace slug to enable **Delete
+workspace**. Deleting removes the workspace along with its projects and the
+data that belongs to them, including the audit log. You are then sent to
+another workspace, or to onboarding if you have none left.
+
+## Profile
+
+Open **Profile** from the user menu at the bottom of the sidebar, or from the
+command palette. The page is at `/account`.
+
+- **Name**: edit and **Save profile**. Your email is shown but cannot be
+  changed here.
+- **Change password**: enter the current and the new password (at least 10
+  characters). Your other sessions stay signed in.
+- **Theme**: light, dark or system. The same choice is in the user menu's
+  **Theme** submenu. The console stores it in the browser.
+- **Sessions**: every session signed in to your account, with the browser
+  user agent and when it started. **Revoke** signs that session out.
+
+To sign out of the current session, use **Sign out** in the user menu.

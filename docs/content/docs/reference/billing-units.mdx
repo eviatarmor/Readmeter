@@ -1,0 +1,169 @@
+---
+title: Billing units
+description: The billing units each Firebase service records per call, how each operation is counted, and the price tables that turn units into money.
+---
+
+Every envelope carries `units`: a map from unit name to an integer amount, such as `{ "reads": 20, "egress_bytes": 4000 }`. The provider computes units when it normalizes a raw call, in the SDK, so the backend never needs to know how a service bills. Findings use the same unit names in `wasted`.
+
+Money is computed later, on the backend only. The server core prices units with the tables in [`pricing/firebase/`](https://github.com/eviatarmor/Readmeter/tree/main/pricing/firebase), which are compiled into it at build time. SDKs never price anything.
+
+## How units become money
+
+- Each table has a `default_region`. The console prices every unit at the default region's rate; it does not know a project's region.
+- The price of a unit is `price * amount / per`, converted to integer USD micros.
+- The estimate is the marginal cost. `free_per_day` is recorded in the tables but not subtracted.
+- A unit with no price in the table counts as 0 micros and is marked `unknown: true` in the price result, so a missing price is not mistaken for a free unit.
+- A failed call bills nothing, except a Cloud Functions invocation. A result marked `from_cache` bills nothing.
+
+Changing a price means editing the TOML file, rebuilding the server core with `./scripts/build-wasm-server.sh`, and restarting console-api. Each table records its `source` and the date it was last checked (`checked_on`).
+
+## Summary
+
+| Service | Units | Priced | `checked_on` |
+|---|---|---|---|
+| Firestore | `reads`, `writes`, `deletes`, `egress_bytes` | `reads`, `writes`, `deletes` | `unverified` |
+| Realtime Database | `download_bytes`, `connections` | `download_bytes` | 2026-09-30 |
+| Cloud Storage | `class_a`, `class_b`, `egress_bytes`, `stored_bytes` | `class_a`, `class_b`, `egress_bytes` | 2026-09-30 |
+| Authentication | `sms`, `sign_ins`, `anonymous_sign_ins` | `sms` | 2026-09-30 |
+| Cloud Functions | `invocations`, `gb_seconds`, `cpu_seconds`, `egress_bytes` | all four | 2026-09-30 |
+
+## Firestore
+
+Rules in [`firestore/billing.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/firestore/billing.rs), following Firestore Standard edition billing:
+
+| Operation | Units |
+|---|---|
+| `get` | 1 `reads` |
+| `query` | `reads` = documents returned, at least 1, plus the `offset` (skipped documents are billed) |
+| `aggregate` | `reads` = index entries scanned divided by 1,000, rounded up, at least 1 |
+| `snapshot`, first | `reads` = documents in the snapshot, at least 1 |
+| `snapshot`, later | `reads` = documents added or changed (can be 0) |
+| `create`, `set`, `update` | 1 `writes` |
+| `delete` | 1 `deletes` |
+| `commit` | `writes` and `deletes` from the commit's counts |
+| `subscribe`, `unsubscribe`, `usage`, `init` | none |
+
+A `get`, `query`, `aggregate` or `snapshot` that was not served from the cache also adds `egress_bytes` equal to the bytes observed. One served from the cache adds nothing.
+
+[`pricing/firebase/firestore.toml`](https://github.com/eviatarmor/Readmeter/blob/main/pricing/firebase/firestore.toml), USD, default region `nam5`:
+
+| Region | `reads` | `writes` | `deletes` |
+|---|---|---|---|
+| `nam5` (default) | $0.06 per 100,000 | $0.18 per 100,000 | $0.02 per 100,000 |
+| `eur3` | $0.06 per 100,000 | $0.18 per 100,000 | $0.02 per 100,000 |
+| `us-central1` | $0.03 per 100,000 | $0.09 per 100,000 | $0.01 per 100,000 |
+
+`free_per_day`: 50,000 reads, 20,000 writes, 20,000 deletes. `egress_bytes` has no price.
+
+<Callout type="warn">
+The Firestore table has `checked_on = "unverified"`. Its comment says the numbers were written from memory of the public pricing page (`https://cloud.google.com/firestore/pricing`) and must be checked before a customer-facing estimate relies on them.
+</Callout>
+
+## Realtime Database
+
+Rules in [`database/billing.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/database/billing.rs). Downloaded bytes are the priced unit.
+
+| Operation | Units |
+|---|---|
+| `get`, `query`, `snapshot` | `download_bytes` = JSON bytes observed |
+| `child_added`, `child_changed`, `child_removed`, `child_moved` | `download_bytes` = JSON bytes observed |
+| `update` with result bytes (`runTransaction`) | `download_bytes` for the current value it downloaded |
+| `create`, `set`, `delete`, `update` without result bytes | none |
+| `go_online` | 1 `connections` |
+| `subscribe`, `unsubscribe`, `go_offline` | none |
+
+The byte count is the JSON size the SDK sees, a lower bound: the real bill includes protocol and encryption overhead. The SDK cannot tell a local echo from a server download, so echoes are counted unless the SDK sets `from_cache`. `connections` only counts explicit `goOnline` calls, not the SDK's automatic connect.
+
+[`pricing/firebase/database.toml`](https://github.com/eviatarmor/Readmeter/blob/main/pricing/firebase/database.toml), source `https://firebase.google.com/pricing`, default region `global`:
+
+| Unit | Price | `free_per_day` |
+|---|---|---|
+| `download_bytes` | $1.00 per 1,000,000,000 bytes | 360,000,000 |
+
+`connections` has no price: simultaneous connections are a quota, not a charge. Stored data ($5/GB after 1 GB, per the table's comment) is not a per-call unit and is not in the table.
+
+## Cloud Storage
+
+Rules in [`storage/billing.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/storage/billing.rs).
+
+| Operation | Units |
+|---|---|
+| `upload` | 1 `class_a`, plus `stored_bytes` = object size when known. A resumable upload of one object is still one operation |
+| `update_metadata` | 1 `class_a` |
+| `list` | 1 `class_a` |
+| `list_all` | 1 `class_a` per page (see below) |
+| `download` | 1 `class_b`, plus `egress_bytes` = bytes downloaded |
+| `download_url` | 1 `class_b` (a metadata read; no object transfer) |
+| `get_metadata` | 1 `class_b`, plus `stored_bytes` = object size when known |
+| `delete` | none (`objects.delete` is free) |
+| `signed_url` | none (local signing or an IAM `signBlob` call) |
+
+`list_all` pages: the page count the SDK reported in `pages`, at least 1. Without it, the listed items plus prefixes divided by the page size (the caller's `maxResults`, or 1,000), rounded up. Zero entries is one page.
+
+`stored_bytes` is an object size seen on metadata or an upload, not the bucket total, so summing it would overcount. It has no price.
+
+[`pricing/firebase/storage.toml`](https://github.com/eviatarmor/Readmeter/blob/main/pricing/firebase/storage.toml), source `https://firebase.google.com/pricing`, default region `global`:
+
+| Unit | Price | `free_per_day` |
+|---|---|---|
+| `class_a` | $0.05 per 10,000 | 20,000 |
+| `class_b` | $0.004 per 10,000 | 50,000 |
+| `egress_bytes` | $0.12 per 1,000,000,000 bytes | 1,000,000,000 |
+
+These are the rates for legacy `*.appspot.com` buckets, billed as regional Standard storage. The table comment notes what is not encoded: dual-region and multi-region class A at $0.01 per 1,000, and the monthly no-cost quotas of `*.firebasestorage.app` buckets, which use Cloud Storage prices directly.
+
+## Authentication
+
+Rules in [`auth/billing.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/auth/billing.rs).
+
+| Operation | Units |
+|---|---|
+| `phone` (`signInWithPhoneNumber`, `verifyPhoneNumber`) | 1 `sms` per successful send |
+| `sign_in_anonymous` | 1 `anonymous_sign_ins` |
+| `sign_in` (every other successful sign-in, including `createUserWithEmailAndPassword`) | 1 `sign_ins` |
+| everything else | none |
+
+`ConfirmationResult.confirm` is a sign-in and does not send a second SMS. Token refresh, sign-out, listeners, password reset, email verification and the Admin SDK calls (`verifyIdToken`, `getUser`, `listUsers`, `createCustomToken`, `setCustomUserClaims`) have no priced unit.
+
+`sign_ins` and `anonymous_sign_ins` are observations. Monthly active users are billed per month, not per call, so these units have no price; the table's comment lists the Identity Platform MAU tiers for a separate estimate.
+
+[`pricing/firebase/auth.toml`](https://github.com/eviatarmor/Readmeter/blob/main/pricing/firebase/auth.toml), source `https://cloud.google.com/identity-platform/pricing`, default region `us`:
+
+| Unit | Price | `free_per_day` |
+|---|---|---|
+| `sms` | per country, $0.01 per SMS in `us` | 10 |
+
+The table has 249 country regions, for example `gb` at $0.04 and `in` at $0.07 per SMS. The envelope never records a phone number, so the country is unknown and the console prices every SMS at the `us` rate.
+
+## Cloud Functions
+
+Rules in [`functions/billing.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/functions/billing.rs), following Cloud Run request-based pricing for 2nd gen functions in `us-central1`.
+
+| Operation | Units |
+|---|---|
+| `callable` (client) | 1 `invocations`; `egress_bytes` = response bytes on success. No compute: the client's duration includes the network |
+| `invoke` (server, `withFlush`) | 1 `invocations`; `egress_bytes` = response bytes on success; `gb_seconds` and `cpu_seconds` as below |
+
+Invocations are counted on errors too, because a function that returned an error still reached the container. A client timeout that never reached the function looks the same and can overcount.
+
+For `invoke`, the duration is rounded up to the next 100 ms, as Cloud Run does, and then:
+
+- `gb_seconds` = rounded ms × `memory_mb` / 1024, when the memory is known. The unit is milli-GiB-seconds: 1,000 units are one GiB-second, so a short call is not rounded to 0.
+- `cpu_seconds` = `cpu_milli` × rounded ms / 1000, only when the raw call carries `cpu_milli`. The unit is milli-vCPU-seconds.
+
+Firestore reads, Realtime Database bytes and Storage operations made during an invocation are recorded by those services' own events, not as function units.
+
+[`pricing/firebase/functions.toml`](https://github.com/eviatarmor/Readmeter/blob/main/pricing/firebase/functions.toml), source `https://firebase.google.com/pricing`, default region `us-central1`:
+
+| Unit | Price |
+|---|---|
+| `invocations` | $0.40 per 1,000,000 |
+| `gb_seconds` | $0.0000025 per 1,000 units (one GiB-second) |
+| `cpu_seconds` | $0.000024 per 1,000 units (one vCPU-second) |
+| `egress_bytes` | $0.12 per 1,000,000,000 bytes |
+
+There is no `free_per_day`: the Firebase no-cost tier (2,000,000 invocations, 400,000 GB-seconds, 200,000 CPU-seconds and 5 GB of egress per month) is monthly. Idle min-instance time has a different rate and is not encoded.
+
+## Comparing with the real bill
+
+Estimates come from what the SDK saw. To compare them with Google Cloud's numbers, connect a service account on the console's [Google Cloud](/docs/console/google-cloud) page: connector-gcp imports daily Firestore, Realtime Database, Storage and Functions usage from Cloud Monitoring, and daily cost per SKU from the billing export when you name its table. The Costs page then shows both.

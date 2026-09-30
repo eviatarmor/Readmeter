@@ -50,7 +50,9 @@ export function createApp({ db, auth, core, env, mailer, gcp }: Deps) {
 
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     const path = new URL(c.req.url).pathname;
-    const reset = c.req.method === "POST" && path.endsWith("/request-password-reset") && !mailer.smtp;
+    // Without SMTP the link is only logged, unless dev reset links are on.
+    const reset =
+      env.devResetLinks && c.req.method === "POST" && path.endsWith("/request-password-reset") && !mailer.smtp;
     let email = "";
     const request = c.req.raw;
     if (reset) {

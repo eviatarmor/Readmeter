@@ -1,0 +1,153 @@
+---
+title: Quickstart
+description: Run Readmeter, the Firebase emulators and the demo app on your machine, then read the findings in the console.
+---
+
+This guide starts the whole stack locally: Postgres, ingest, the console API, the console, the Google Cloud connector, the Firebase emulators and a demo web app whose buttons each trigger one wasteful pattern. Nothing talks to a real Firebase project.
+
+The scripts are bash. On Windows, run them from Git Bash.
+
+## Prerequisites
+
+- Docker, for Postgres
+- Node.js 22 and pnpm 10
+- Rust with the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` at the version pinned in `Cargo.lock` (0.2.129 today)
+- Java 21 or newer, for the Firebase emulators
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install --locked wasm-bindgen-cli --version 0.2.129
+```
+
+## Start the backend
+
+<Steps>
+<Step>
+
+### Clone and install
+
+```sh
+git clone https://github.com/eviatarmor/Readmeter.git
+cd Readmeter
+pnpm install
+```
+
+</Step>
+<Step>
+
+### Run dev-up
+
+```sh
+./scripts/dev-up.sh
+```
+
+The script is safe to run again. In order, it:
+
+1. Runs `pnpm install`.
+2. Starts Postgres with Docker Compose on port 5442, unless something already listens there.
+3. Migrates and seeds the database.
+4. Builds the rule catalog into `target/rules`, the server build of the Rust core, and the SDK.
+5. Creates the demo project `demo_local` in workspace `local`, with an API key that allows the origins `http://127.0.0.1:5173` and `http://localhost:5173`. The key, the hash key and the ingest URL go to `.readmeter/local.env` (git-ignored).
+6. Writes `examples/web/.env` and `examples/functions/.env` from those values.
+7. Packs the SDK into `sdks/js/firebase/readmeter-firebase-0.1.0.tgz`, installs it in `examples/functions` and builds the functions.
+8. Starts ingest on `http://127.0.0.1:8090`, the console API on `http://127.0.0.1:8091`, the Google Cloud connector, and the console on `http://localhost:5174`, each in the background.
+
+Logs and pid files are in `target/dev/` (`ingest.log`, `console-api.log`, `connector-gcp.log`, `console-web.log`). If a service does not come up, the script prints the end of its log and exits.
+
+</Step>
+<Step>
+
+### Start the Firebase emulators
+
+In a second terminal:
+
+```sh
+cd examples
+npx -y firebase-tools@latest emulators:start --project demo-readmeter
+```
+
+The emulator config is `examples/firebase.json`:
+
+| Emulator | Port |
+|---|---|
+| Firestore | 8085 |
+| Realtime Database | 9000 |
+| Cloud Storage | 9199 |
+| Authentication | 9099 |
+| Functions | 5001 |
+
+Firestore uses 8085 because 8080 is often taken.
+
+</Step>
+<Step>
+
+### Run the demo web app
+
+In a third terminal, from the repository root:
+
+```sh
+pnpm --filter web dev
+```
+
+Open `http://localhost:5173`. The page has one section per service (Cloud Firestore, Realtime Database, Cloud Storage, Authentication, Cloud Functions). Each button runs one wasteful pattern against the emulators and is labeled with the rule it should trigger. Click "seed data" first: several Firestore scenarios read the documents it writes.
+
+The demo calls `init` with `dev: true`, so window rules also run in the page. Each finding is printed in the log on the page as it happens.
+
+</Step>
+<Step>
+
+### Call the HTTP functions
+
+Some patterns live in Cloud Functions, not behind a button: `unboundedReport`, `nPlusOne`, `offsetPage`, `fanout`, `listUsersRequest`, `coldStart`, `readStorm` and `counterTx`. The emulator serves them at `http://127.0.0.1:5001/demo-readmeter/us-central1/<name>`:
+
+```sh
+curl http://127.0.0.1:5001/demo-readmeter/us-central1/unboundedReport
+curl http://127.0.0.1:5001/demo-readmeter/us-central1/listUsersRequest
+```
+
+`readStorm` and `counterTx` read documents that "seed data" creates, so seed first. The source is `examples/functions/src/index.ts`.
+
+</Step>
+<Step>
+
+### Read the findings in the console
+
+Open `http://localhost:5174` and sign in with the seeded login:
+
+- Email: `admin@readmeter.local`
+- Password: `readmeter-dev`
+
+Open workspace `local` and choose project `demo_local` in the project selector at the top. Findings lists what the demo triggered. Events lists the calls that were ingested. Overview and Costs show estimated cost.
+
+![Findings in the console](/images/console-findings.png)
+
+</Step>
+</Steps>
+
+## Stop everything
+
+```sh
+./scripts/dev-down.sh
+```
+
+This stops ingest, the console API, the connector and the console, then runs `docker compose down`. The Postgres volume is kept, so findings survive a restart. To stop the services and leave Postgres running:
+
+```sh
+./scripts/dev-down.sh --keep-postgres
+```
+
+Stop the emulators and the demo app with Ctrl+C in their terminals.
+
+## Run the loop as a test
+
+`./scripts/e2e.sh` does all of the above without a person clicking. It runs `dev-up.sh`, starts the emulators with `emulators:exec`, runs the web and Node scenarios and the HTTP functions, checks the findings in Postgres, and drives the demo page and the console in Chromium with Playwright.
+
+```sh
+./scripts/e2e.sh
+```
+
+## Next steps
+
+- [Plug in your own app](/docs/getting-started/your-app) to see findings for your real code.
+- [How it works](/docs/getting-started/how-it-works) explains what happens between a Firebase call and a finding.
+- [Local setup](/docs/self-hosting/local) covers the local stack in more depth.

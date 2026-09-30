@@ -1,0 +1,215 @@
+---
+title: Configuration
+description: Every environment variable read by ingest, console-api, connector-gcp, the database package and the scripts.
+---
+
+All services are configured with environment variables. None of them reads a config file. Defaults match the local setup from [Run locally](/docs/self-hosting/local).
+
+## Shared
+
+`DATABASE_URL` is read by every service and by the migration and seed scripts, through `connect()` in [`packages/db/src/index.ts`](https://github.com/eviatarmor/Readmeter/blob/main/packages/db/src/index.ts). The default is the Compose database:
+
+```sh
+DATABASE_URL=postgres://readmeter:readmeter@127.0.0.1:5442/readmeter
+```
+
+Each process opens a postgres.js pool of at most 10 connections. connector-gcp opens a second pool of at most 4 connections for its advisory locks.
+
+## ingest
+
+Read in [`apps/ingest/src/server.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/ingest/src/server.ts).
+
+<TypeTable
+  type={{
+    DATABASE_URL: {
+      type: "string",
+      description: "Postgres connection URL.",
+      default: "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter",
+    },
+    PORT: {
+      type: "number",
+      description: "HTTP port.",
+      default: "8090",
+    },
+    READMETER_BUNDLE: {
+      type: "path",
+      description: "bundle.json from readmeter-rulec build. The server evaluator is built from it at startup. Startup fails if the file cannot be read.",
+      default: "target/rules/bundle.json (relative to the repository root)",
+    },
+    READMETER_SDK_BUNDLE: {
+      type: "path",
+      description: "bundle.bin served at GET /v1/bundle. Startup fails if the file is missing.",
+      default: "target/rules/bundle.bin (relative to the repository root)",
+    },
+    READMETER_RATE_PER_MIN: {
+      type: "number",
+      description: "Accepted batches per minute per API key. Must be a positive number or startup fails. The burst size is fixed at 100.",
+      default: "600",
+    },
+  }}
+/>
+
+These limits are set in code and have no variable:
+
+| Limit | Value | When exceeded |
+|---|---|---|
+| Request body | 1 MiB | `413 batch_too_large` |
+| Events per batch | 10,000 | `413 batch_too_large` |
+| Findings per batch | 1,000 | `413 batch_too_large` |
+| Store writes in flight | 64 | `503 busy` with `Retry-After: 5` |
+| Rate limit bucket size per key | 100 batches | `429 rate_limited` once the bucket is empty |
+| API key cache | 30 seconds | Revocations and origin edits take effect within this time |
+| Projects with rule state in memory | 1,024 | The least recently active project's window state is dropped |
+
+## console-api
+
+Read in [`apps/console-api/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/console-api/src/env.ts) and, for the Google Cloud variables, in `gcpDepsFromEnv` in [`apps/connector-gcp/src/index.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/index.ts).
+
+<TypeTable
+  type={{
+    DATABASE_URL: {
+      type: "string",
+      description: "Postgres connection URL.",
+      default: "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter",
+    },
+    PORT: {
+      type: "number",
+      description: "HTTP port. Must be a positive integer.",
+      default: "8091",
+    },
+    NODE_ENV: {
+      type: "string",
+      description: "When set to production, BETTER_AUTH_SECRET is required and startup fails without it. The seed scripts also do nothing in production.",
+    },
+    BETTER_AUTH_SECRET: {
+      type: "string",
+      description: "Secret Better Auth uses to sign sessions. When unset, a fixed development secret is used and a warning is logged.",
+      default: "fixed dev secret (not for production)",
+    },
+    BETTER_AUTH_URL: {
+      type: "URL",
+      description: "Public base URL of console-api, passed to Better Auth as baseURL. When it starts with https:, session cookies are marked Secure.",
+      default: "http://127.0.0.1:8091",
+    },
+    CONSOLE_ORIGIN: {
+      type: "URL",
+      description: "Origin the console is served from. It is the only CORS origin for /api, the only Origin accepted on /api/v1 writes, Better Auth's trusted origin, and the base of invitation links.",
+      default: "http://localhost:5174",
+    },
+    CONSOLE_STATIC_DIR: {
+      type: "path",
+      description: "Directory with the built console-web files. When set, console-api serves them and falls back to index.html for other GET paths. A relative path resolves from the process working directory.",
+    },
+    CONSOLE_DEV_RESET_LINKS: {
+      type: '"1"',
+      description: "Local development only. When set to 1 and SMTP is not configured, the password reset link is returned to the browser as well as logged. Ignored when NODE_ENV is production. ./scripts/dev-up.sh sets it.",
+    },
+    INGEST_PUBLIC_URL: {
+      type: "URL",
+      description: "Ingest URL written into the SDK snippets on the project page (endpoint in init).",
+      default: "http://127.0.0.1:8090",
+    },
+    GOOGLE_CLIENT_ID: {
+      type: "string",
+      description: "Google OAuth client id. Google sign-in is enabled only when both this and GOOGLE_CLIENT_SECRET are set.",
+    },
+    GOOGLE_CLIENT_SECRET: {
+      type: "string",
+      description: "Google OAuth client secret.",
+    },
+    SMTP_URL: {
+      type: "URL",
+      description: "Nodemailer SMTP connection URL for invitation and password reset mail. Mail is sent only when both SMTP_URL and MAIL_FROM are set; otherwise messages are logged to stdout.",
+    },
+    MAIL_FROM: {
+      type: "string",
+      description: "From address for outgoing mail.",
+    },
+    READMETER_SECRET_KEY: {
+      type: "base64",
+      description: "32 bytes, base64. Encrypts Google Cloud service account keys. When unset or invalid, console-api still starts, but connecting or testing Google Cloud returns 400 with the reason.",
+    },
+    READMETER_GCP_MAX_BYTES_BILLED: {
+      type: "number",
+      description: "maximumBytesBilled for the BigQuery dry run in connection tests. An invalid value falls back to the default.",
+      default: "1073741824 (1 GiB)",
+    },
+    READMETER_GCP_FAKE: {
+      type: "\"1\"",
+      description: "Use fake Google Cloud clients. For tests only.",
+    },
+  }}
+/>
+
+## connector-gcp
+
+Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/env.ts). The worker has no HTTP port.
+
+<TypeTable
+  type={{
+    DATABASE_URL: {
+      type: "string",
+      description: "Postgres connection URL.",
+      default: "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter",
+    },
+    READMETER_SECRET_KEY: {
+      type: "base64",
+      description: "Same 32-byte key console-api used to encrypt service account keys. Without a valid key the worker logs an error at startup and marks each due connection as failed.",
+    },
+    READMETER_GCP_POLL_MS: {
+      type: "number",
+      description: "Milliseconds between sync passes. At least 100, or startup fails.",
+      default: "60000",
+    },
+    READMETER_GCP_SYNC_TIMEOUT_MS: {
+      type: "number",
+      description: "Time limit for collecting one connection's usage and cost. Must be positive.",
+      default: "120000",
+    },
+    READMETER_GCP_MAX_BYTES_BILLED: {
+      type: "number",
+      description: "maximumBytesBilled for each BigQuery billing query. The job fails instead of scanning more. Must be positive.",
+      default: "1073741824 (1 GiB)",
+    },
+    READMETER_GCP_FAKE: {
+      type: "\"1\"",
+      description: "Use fake Google Cloud clients. For tests only.",
+    },
+  }}
+/>
+
+A connection is synced when it has never synced, when its last sync is more than six hours old, or when a sync was requested from the console. These intervals are not configurable.
+
+## Database package and scripts
+
+| Variable | Read by | Effect |
+|---|---|---|
+| `DATABASE_URL` | `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:generate` (drizzle-kit), `scripts/dev-common.sh`, `scripts/read-hash-key.mjs` | Database to use. `dev-common.sh` exports the local default when unset. |
+| `READMETER_PG_PORT` | `docker-compose.yml` | Host port for the Postgres container. Default `5442`. |
+| `READMETER_DEV_KEY` | `packages/db/src/seed.ts` | API key seeded for `proj_demo`. Default `rm_dev_key`. |
+| `NODE_ENV` | `seed.ts`, `seed-user.ts` | `production` skips both seeds. |
+| `OUT` | `scripts/build-wasm-server.sh` | Output directory for the server core. Default `apps/ingest/wasm`. ingest and console-api load the core from that directory, so leave it unset unless you copy the files there yourself. |
+| `READMETER_SECRET_KEY` | `scripts/dev-up.sh`, `scripts/e2e.sh` | Set to a fixed development key when unset, for the local console-api and connector. |
+| `READMETER_GCP_FAKE`, `READMETER_GCP_POLL_MS` | `scripts/e2e.sh` | Set to `1` and `500` so the end-to-end test syncs fake Google Cloud data quickly. |
+
+The Compose database uses user `readmeter`, password `readmeter` and database `readmeter`. These are fixed in `docker-compose.yml` and are meant for local use only.
+
+## Example
+
+A console-api for a console served at `https://readmeter.example.com`, with ingest at `https://ingest.example.com`:
+
+```sh
+NODE_ENV=production
+DATABASE_URL=postgres://readmeter:...@db.internal:5432/readmeter
+PORT=8091
+BETTER_AUTH_SECRET=...
+BETTER_AUTH_URL=https://readmeter.example.com
+CONSOLE_ORIGIN=https://readmeter.example.com
+CONSOLE_STATIC_DIR=/srv/readmeter/apps/console-web/dist
+INGEST_PUBLIC_URL=https://ingest.example.com
+READMETER_SECRET_KEY=...
+SMTP_URL=smtps://user:pass@smtp.example.com
+MAIL_FROM=readmeter@example.com
+```
+
+[Production](/docs/self-hosting/production) explains each of these choices.

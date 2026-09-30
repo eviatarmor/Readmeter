@@ -1,0 +1,68 @@
+---
+title: Self-hosting
+description: The services that make up a Readmeter deployment and what each one does.
+---
+
+A Readmeter deployment is three Node.js services (ingest, console-api and connector-gcp), the console as static files, and one Postgres database. Every service reads and writes the same database through the shared Drizzle schema in [`packages/db`](https://github.com/eviatarmor/Readmeter/blob/main/packages/db). There is no queue, cache or second store.
+
+```
+your app ── @readmeter/firebase ──► ingest (:8090) ──────────────┐
+                                     Rust core, server build      │
+                                                                  ▼
+browser ── console-web ──► console-api (:8091) ◄──────────────► Postgres (:5442 locally)
+                            Better Auth, /api/v1                  ▲
+                            Rust core: catalog, prices            │
+                                                                  │
+Google Cloud ── Monitoring, BigQuery ──► connector-gcp (worker) ──┘
+```
+
+## Services
+
+### Postgres
+
+Postgres 17 holds everything: users, sessions, workspaces, projects, API keys, ingested batches, events, findings, finding states, rule overrides, the audit log, Google Cloud connections, and the daily usage and cost rows imported from Google Cloud. Locally it runs from [`docker-compose.yml`](https://github.com/eviatarmor/Readmeter/blob/main/docker-compose.yml). Migrations live in `packages/db/migrations` and are applied with `pnpm db:migrate`.
+
+### ingest
+
+[`apps/ingest`](https://github.com/eviatarmor/Readmeter/blob/main/apps/ingest) is the HTTP endpoint the SDKs talk to (Hono on Node, port 8090 by default). It:
+
+- authenticates each request with a project API key and checks the key's origin allowlist,
+- applies a per-key rate limit and a cap on writes in flight,
+- hands the batch bytes to the Rust core (server build, `apps/ingest/wasm`), which decodes them and runs `window` and `aggregate` rules,
+- writes the batch, its events and its findings to Postgres in one transaction before it answers `202`,
+- serves the SDK rule bundle (`GET /v1/bundle`) with the project's rule overrides applied, and the project's hash key (`GET /v1/config`).
+
+Window and aggregate state is held in the ingest process and is lost on restart. Routes are listed in the [ingest API reference](/docs/reference/ingest-api).
+
+### console-api
+
+[`apps/console-api`](https://github.com/eviatarmor/Readmeter/blob/main/apps/console-api) is the backend for the console (Hono on Node, port 8091 by default). It mounts Better Auth at `/api/auth` for email and password sign-in, optional Google sign-in, workspaces (Better Auth organizations), members and invitations. Everything else is under `/api/v1`: projects, API keys, findings, events, rules and overrides, overview, costs, the audit log and the Google Cloud connection. It loads the same server wasm as ingest to read the rule catalog and to price billing units.
+
+When `CONSOLE_STATIC_DIR` is set, console-api also serves the built console-web files, so the console and its API share one origin. Routes are listed in the [console API reference](/docs/reference/console-api).
+
+### console-web
+
+[`apps/console-web`](https://github.com/eviatarmor/Readmeter/blob/main/apps/console-web) is the console itself, a Vite and React single-page app. It calls `/api/auth` and `/api/v1` on its own origin. In development Vite serves it on port 5174 and proxies `/api` to console-api on 8091. For a deployment you build it to static files and let console-api serve them; see [Production](/docs/self-hosting/production).
+
+### connector-gcp
+
+[`apps/connector-gcp`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp) is a background worker with no HTTP port. It is only needed if you connect Google Cloud in the console. On each poll it looks for connections that have never synced, that were synced more than six hours ago, or that have a sync requested from the console. For each one it decrypts the stored service account key, reads daily usage from Cloud Monitoring and, when a billing export table is set, daily cost per SKU from BigQuery, and upserts the rows into `usage_daily` and `cost_daily`. The first sync of a project reads 35 days; later syncs read the last 3 days. A Postgres advisory lock per connection keeps two workers from syncing the same connection at once.
+
+See [Google Cloud](/docs/console/google-cloud) for what the console shows from this data.
+
+## Next steps
+
+<Cards>
+  <Card title="Run it locally" href="/docs/self-hosting/local">
+    Docker Compose, migrations, seed data and the dev scripts.
+  </Card>
+  <Card title="Configuration" href="/docs/self-hosting/configuration">
+    Every environment variable of every service.
+  </Card>
+  <Card title="Production" href="/docs/self-hosting/production">
+    Build the server core and the console, run migrations, set secrets.
+  </Card>
+  <Card title="Security" href="/docs/self-hosting/security">
+    API keys, origins, rate limits, encryption, roles and what is stored.
+  </Card>
+</Cards>

@@ -1,0 +1,61 @@
+---
+title: Callable functions
+description: What the Cloud Functions drop-in records for httpsCallable and httpsCallableFromURL on the client.
+---
+
+This page covers calls from the client to callable functions. For code running inside Cloud Functions, see [Cloud Functions (server)](/docs/sdk/cloud-functions-server).
+
+## Import
+
+Change `firebase/functions` to `@readmeter/firebase/functions`. The module re-exports all of `firebase/functions`; `getFunctions` and `connectFunctionsEmulator` are unchanged.
+
+```ts
+import { init } from "@readmeter/firebase";
+import { getFunctions, httpsCallable, httpsCallableFromURL } from "@readmeter/firebase/functions";
+
+init({ apiKey: "rm_...", endpoint: "http://127.0.0.1:8090" });
+
+const functions = getFunctions(app, "us-central1");
+
+const echo = httpsCallable(functions, "echo");
+const result = await echo({ n: 1 });
+
+const report = httpsCallableFromURL(functions, "https://us-central1-my-app.cloudfunctions.net/report");
+await report({ month: "2026-09" });
+```
+
+## Wrapped functions
+
+| Function | Records |
+|---|---|
+| `httpsCallable(functions, name)` | One `callable` record per call of the returned function. |
+| `httpsCallableFromURL(functions, url)` | The same. The name is taken from the URL. |
+
+Both return the same `HttpsCallable` type as Firebase, including `.stream()`. A call through `.stream()` is recorded when the stream call resolves, with the request size only.
+
+## What each call records
+
+| Field | Value |
+|---|---|
+| Name | The function name, as `functions/<name>` in the envelope |
+| Request bytes | Length of `JSON.stringify` of the data you pass |
+| Response bytes | Length of `JSON.stringify` of `result.data` |
+| Duration | Time until the callable promise settles |
+| Error | The error code with the `functions/` prefix removed, for example `unavailable` |
+| Callsite | The first stack frame outside the package and `node_modules` |
+
+Both byte counts are capped at 10,000,000.
+
+The name must look like a function name: a letter or `_` first, then letters, digits, `_` or `-`, at most 63 characters, and not a UUID. For `httpsCallableFromURL` the SDK uses the last path segment of the URL. Anything else, including a host with no path, is recorded as `unknown`. The core applies the same check, and keeps an error code only when it is a known Functions error code; any other code becomes `unknown`.
+
+Payloads, URLs, project ids, regions, tokens and auth headers are not recorded. See [Privacy](/docs/sdk/privacy#cloud-functions).
+
+## Known limits
+
+- The Firebase SDK does not retry a callable, so every record has `attempt` 1.
+- Response bytes are not recorded for `.stream()` calls.
+- The wrapper was verified against `@firebase/functions` 0.x. On Node, when the installed major is different, the SDK logs one `console.debug` line.
+
+## Rules
+
+Callable calls feed the [Cloud Functions rules](/docs/rules/functions), in particular [callable in a loop](/docs/rules/functions#callable-in-loop) and [large callable payload](/docs/rules/functions#large-callable-payload).

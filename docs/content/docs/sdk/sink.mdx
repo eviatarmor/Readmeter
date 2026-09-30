@@ -1,0 +1,79 @@
+---
+title: Manual sink API
+description: Record Firestore calls by hand with sink, sinkWrite and sinkListener when you cannot change an import.
+---
+
+The drop-in modules only see calls that go through them. When a Firestore call happens somewhere you cannot change the import (a shared library, a wrapper you do not own, code that must keep importing `firebase/firestore`), record it yourself with the three functions from the root module.
+
+```ts
+import { sink, sinkListener, sinkWrite } from "@readmeter/firebase";
+```
+
+Each function returns the value you pass in, so you can wrap an expression in place. None of them throws: a target the SDK does not recognize, or a plain object that is not a Firestore value, is ignored and returned unchanged. `init` must have been called for anything to be recorded, but calls made before the wasm core loads are queued like any other.
+
+The manual API covers Cloud Firestore only.
+
+## sink
+
+```ts
+function sink<T>(target: unknown, result: T): T;
+```
+
+Records a read. `target` is what you read (a `Query`, `CollectionReference`, `DocumentReference` or `AggregateQuery`) and `result` is the snapshot Firestore returned.
+
+```ts
+import { collection, getDocs, getCountFromServer, doc, getDoc, query, where } from "firebase/firestore";
+
+const q = query(collection(db, "orders"), where("status", "==", "open"));
+const snap = sink(q, await getDocs(q));
+
+const one = sink(doc(db, "orders", id), await getDoc(doc(db, "orders", id)));
+
+const total = sink(q, await getCountFromServer(q));
+```
+
+The operation follows the target and result: a document target records a `get`, a query records a `query`, and an aggregate snapshot records an `aggregate` (with `count` when the snapshot has a numeric `count`). The record has the same query shape, document count, estimated bytes and cache flag as the [drop-in](/docs/sdk/firestore#what-each-call-records).
+
+## sinkWrite
+
+```ts
+type WriteOp = "set" | "update" | "create" | "delete";
+function sinkWrite<T>(ref: T, op: WriteOp): T;
+```
+
+Records a write to `ref`. Any other `op` value is ignored.
+
+```ts
+import { doc, updateDoc } from "firebase/firestore";
+
+const ref = doc(db, "orders", id);
+await updateDoc(sinkWrite(ref, "update"), { status: "shipped" });
+```
+
+## sinkListener
+
+```ts
+function sinkListener<T>(target: unknown, listener: T): T;
+```
+
+Wraps a listener. It records a `subscribe` when you call it and a `snapshot` each time the listener fires. `listener` can be a function or an observer object with `next`, `error` and `complete`; an `error` call is recorded as a failed snapshot.
+
+```ts
+import { onSnapshot } from "firebase/firestore";
+
+const unsub = onSnapshot(q, sinkListener(q, (next) => render(next.docs)));
+```
+
+## What the manual API does not record
+
+Compared with the drop-in module, a manual record has less information:
+
+- No duration. The SDK does not see when the call started.
+- No result usage. `sink` does not patch the snapshot, so rules that depend on what you did with the result, such as [unused result](/docs/rules/generic#unused-result) and [overfetch](/docs/rules/firestore#overfetch), have nothing to work with.
+- No write signal. `sinkWrite` does not see the payload, so there are no sizes, transforms or payload hash, and rules such as [no-op write](/docs/rules/firestore#no-op-write) and [large field in a document](/docs/rules/firestore#blob-in-document) do not apply.
+- No unsubscribe. The function `onSnapshot` returns belongs to Firebase, so `sinkListener` cannot see it being called. [Subscriptions never closed](/docs/rules/generic#listener-leak) counts open subscriptions per callsite, so manual listeners always look open to it.
+- No transaction or batch grouping.
+
+The callsite is still recorded: it is the place where you call `sink`, `sinkWrite` or `sinkListener`.
+
+Prefer the [drop-in import](/docs/sdk/firestore) wherever you can change it.

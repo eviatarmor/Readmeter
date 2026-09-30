@@ -1,0 +1,212 @@
+---
+title: Raw calls
+description: The JSON object an SDK passes to the Rust core for each recorded call, field by field for every Firebase service.
+---
+
+A raw call is the JSON object an SDK hands to the Rust core (`Client::record` in [`crates/runtime`](https://github.com/eviatarmor/Readmeter/blob/main/crates/runtime/src/lib.rs)) after a Firebase call returns. In `@readmeter/firebase`, the drop-in wrappers and [`sink`](/docs/sdk/sink) build these objects for you. This page is for writing or debugging an SDK.
+
+Raw calls stay inside the process. They may carry concrete paths, filter values, cursors and page tokens, because the core needs them to build templates and hashes. None of that leaves the process: normalization turns each raw call into an envelope that holds only templates, counts, sizes and keyed hashes. See [Privacy](/docs/sdk/privacy) for what the envelope keeps.
+
+## Parsing rules
+
+These apply to every service:
+
+- The value must be a JSON object. `service` picks the parser: `firestore`, `database`, `storage`, `auth` or `functions`. A missing `service` or an unknown one is an error. The one exception is the page event below, which has no `service`.
+- Unknown fields are ignored, so a newer SDK works with an older core.
+- A field with the wrong JSON type is an error, and the call is rejected. `null` counts as absent for optional fields.
+- Integers are unsigned. A negative number or a number in a string is an error.
+- Enum strings (`op`, `direction`, `source`, `cache`) must be one of the listed values.
+
+The session, platform, `dev` flag and hash key are not part of a raw call. They come from the client configuration the SDK passes when it creates the core.
+
+## Fields common to every service
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `service` | string | yes | Service id |
+| `op` | string | yes | Operation, per service below |
+| `ts_ms` | integer | yes | Unix time in milliseconds |
+| `call_id` | integer | no, default `0` | Per-session call id. Later records (`snapshot`, `usage`) refer back to it |
+| `callsite` | string | no | Source location such as `src/Feed.tsx:42:7`. Only its keyed hash leaves the process |
+| `duration_us` | integer | no | Call duration in microseconds |
+| `error` | string | no | Error code of a failed call. Failed calls bill nothing, except Cloud Functions invocations |
+| `attempt` | integer | no, default `1` | `1` for the first try, higher for retries |
+
+## Firestore
+
+`service: "firestore"`. Parser: [`firestore/raw.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/firestore/raw.rs).
+
+`op` is one of `get`, `query`, `aggregate`, `create`, `set`, `update`, `delete`, `commit`, `subscribe`, `snapshot`, `unsubscribe`, `usage` or `init`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `path` | string, required | Concrete path: `users/abc/orders` for a collection, `users/abc` for a document. For a collection group query, the collection id |
+| `collection_group` | boolean | Default `false` |
+| `query` | object | See below |
+| `result` | object | `docs`, `bytes`, `from_cache`, `index_entries` |
+| `usage` | object | For `usage`: how the result of `call_id` was consumed |
+| `source` | string | Forced read route: `default`, `server` or `cache` |
+| `transaction` | integer | Per-session transaction counter. Equal values are the same transaction |
+| `write` | object | Sizes for `create`, `set` and `update` |
+| `commit` | object | For `commit` |
+| `setup` | object | Required for `init` |
+| `initial` | boolean | For `snapshot`: `true` on the listener's first snapshot. Default `false` |
+| `listener` | integer | Listener id for `subscribe`, `snapshot` and `unsubscribe` |
+| `mount` | integer | UI component mount id |
+
+`query`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `filters` | array | Each `{ field, op, value }`. `op` is `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not-in`, `array-contains` or `array-contains-any`. `value` is any JSON |
+| `order_by` | array | Each `{ field, direction }`, `direction` is `asc` (default) or `desc` |
+| `limit` | integer | |
+| `limit_to_last` | boolean | Default `false` |
+| `offset` | integer | Skipped documents are billed as reads |
+| `start`, `end` | any JSON | Cursor values or a document id |
+| `select` | array of strings | Fields from `select()`, server SDKs only |
+| `aggregations` | array of strings | `count`, `sum:<field>`, `avg:<field>` |
+
+`result`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `docs` | integer | Documents returned. For a snapshot that is not the first, documents added or changed. Default `0` |
+| `bytes` | integer | Default `0` |
+| `from_cache` | boolean | Served from the local cache. Default `false` |
+| `index_entries` | integer | Index entries an aggregation scanned. For `count`, the count |
+
+`usage` has the booleans `read_items`, `read_size` and `read_empty` (default `false`) and the integer `items_used`.
+
+`write` has `max_field_bytes` and `payload_bytes` (both required integers), `transforms`, an array of transform names, and `digest`, exactly 16 lowercase hex characters. Transform names other than `array_remove`, `array_union`, `delete_field`, `increment`, `maximum`, `minimum` and `server_timestamp` are dropped.
+
+`commit` has `writes` and `deletes` (integers, default `0`) and `transactional` (boolean, default `false`).
+
+`setup` has `cache`, one of `unknown`, `memory` or `persistent` (required), and `shared_tabs` (boolean, default `false`).
+
+```json title="Firestore query"
+{
+  "service": "firestore",
+  "op": "query",
+  "ts_ms": 1000,
+  "call_id": 1,
+  "path": "feed",
+  "query": { "order_by": [{ "field": "ts", "direction": "desc" }], "limit": 20 },
+  "result": { "docs": 20, "bytes": 4000 },
+  "callsite": "src/Feed.tsx:30:5"
+}
+```
+
+## Realtime Database
+
+`service: "database"`. Parser: [`database/raw.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/database/raw.rs).
+
+`op` is one of `get`, `query`, `create`, `set`, `update`, `delete`, `subscribe`, `snapshot`, `unsubscribe`, `child_added`, `child_changed`, `child_removed`, `child_moved`, `go_online` or `go_offline`. A `get` that carries a `query` is recorded as a query.
+
+| Field | Type | Notes |
+|---|---|---|
+| `path` | string, required | Concrete path. Empty, or only slashes, is the database root |
+| `query` | object | See below |
+| `result` | object | `children`, `bytes`, `from_cache` |
+| `initial` | boolean | For `snapshot`: first snapshot of the listener. Default `false` |
+| `listener` | integer | Listener id |
+
+`query` has `filters` (array of `{ field, op, value }`), `order_by` (the `orderByChild` path, or `$key`, `$value` or `$priority`), `limit`, `limit_to_last` (default `false`), and `start` and `end` (any JSON).
+
+`result` has `children` (immediate children, `DataSnapshot.size`, not bytes), `bytes` (JSON size of the snapshot) and `from_cache`, all defaulting to `0` or `false`.
+
+```json title="Realtime Database get"
+{ "service": "database", "op": "get", "ts_ms": 1000, "call_id": 1, "path": "posts/1", "result": { "children": 0, "bytes": 32 } }
+```
+
+## Cloud Storage
+
+`service: "storage"`. Parser: [`storage/raw.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/storage/raw.rs).
+
+`op` is one of `download`, `download_url`, `signed_url`, `get_metadata`, `update_metadata`, `upload`, `delete`, `list` or `list_all`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `path` | string, required | Concrete object path. Empty, or only slashes, is the bucket root |
+| `ext` | string | File extension the SDK split off, lowercase. The path's own extension wins. Values that are not 1 to 8 characters of `a-z0-9` are dropped |
+| `bytes` | integer | Byte count, when not given on `result` |
+| `content_type` | string | Content type major (`image`, `video`, ...) |
+| `cache_control` | string or integer | `max-age` in seconds, or `"none"` when metadata was seen and had no `max-age`. Absent means metadata was not observed. Values above 315,360,000 (ten years) are clamped; other strings are dropped |
+| `resumable` | boolean | Default `false` |
+| `max_results` | integer | Only when the caller passed `maxResults` |
+| `page_token` | boolean, string or integer | Only presence is kept. A string token is reduced to `true` or `false` |
+| `result` | object | `items`, `prefixes`, `bytes`, `from_cache` |
+| `pages` | integer | Pages the SDK actually fetched for `list_all`. Billing prefers it over an estimate |
+
+`result` has `items` and `prefixes` (listed objects and prefixes, default `0`, added together), `bytes` (preferred over the top-level `bytes`) and `from_cache` (default `false`).
+
+```json title="Cloud Storage getDownloadURL"
+{ "service": "storage", "op": "download_url", "ts_ms": 1000, "call_id": 1, "path": "photos/hero.png" }
+```
+
+## Authentication
+
+`service: "auth"`. Parser: [`auth/raw.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/auth/raw.rs). Authentication has no `path`.
+
+`op` is one of `sign_in`, `sign_in_anonymous`, `sign_out`, `subscribe`, `unsubscribe`, `token_refresh`, `password_reset`, `email_verification`, `phone`, `init`, `verify_id_token`, `get_user`, `list_users`, `custom_token` or `set_claims`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `method` | string | SDK method name. Kept only if it is on the allowlist below, otherwise `unknown` |
+| `force` | boolean | `getIdToken(true)`. Default `false` |
+| `persistence` | string or array of strings | `NONE` or `memory` is memory; `LOCAL`, `SESSION`, `COOKIE` or `persistent` is persistent (case-insensitive). An array is memory only when every entry is memory, persistent when any entry is persistent |
+| `provider` | string | Provider id such as `google.com` or `password`. Kept only if it is 1 to 32 characters of lowercase letters, digits, `.`, `_` and `-`, with no `@` |
+| `page_token` | boolean, string or integer | Only presence is kept |
+| `result` | object | `items` (default `0`) and `from_cache` (default `false`) |
+| `items` | integer | Used when there is no `result` |
+| `error` | string | Last `/` segment, kept only if it is a known Firebase Auth error code, otherwise `unknown` |
+| `listener` | integer | For `subscribe` and `unsubscribe` |
+| `invocation` | integer | `withFlush` invocation id, used for `list_users` |
+
+Allowed `method` values: `confirm`, `createCustomToken`, `createUserWithEmailAndPassword`, `getIdToken`, `getUser`, `initializeAuth`, `listUsers`, `onAuthStateChanged`, `onIdTokenChanged`, `sendEmailVerification`, `sendPasswordResetEmail`, `setCustomUserClaims`, `setPersistence`, `signInAnonymously`, `signInWithCredential`, `signInWithCustomToken`, `signInWithEmailLink`, `signInWithPassword`, `signInWithPhoneNumber`, `signInWithPopup`, `signInWithRedirect`, `signOut`, `verifyIdToken`, `verifyPhoneNumber`.
+
+Emails, phone numbers, uids, tokens and page token strings may be present in a raw call; the parser discards them.
+
+```json title="Authentication anonymous sign-in"
+{ "service": "auth", "op": "sign_in_anonymous", "method": "signInAnonymously", "ts_ms": 1000, "call_id": 1 }
+```
+
+## Cloud Functions
+
+`service: "functions"`. Parser: [`functions/raw.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/providers/firebase/src/functions/raw.rs). Cloud Functions has no `path`.
+
+`op` is `callable` (a client call through `httpsCallable`) or `invoke` (a server invocation wrapped with `withFlush`).
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Function name. Kept only if it is 1 to 63 letters, digits, `_` and `-`, starts with a letter or `_`, and is not a UUID; otherwise `unknown` |
+| `request_bytes` | integer | Default `0` |
+| `response_bytes` | integer | Default `0` |
+| `reads` | integer | Firestore reads counted during this invocation. Default `0` |
+| `cold` | boolean | The invocation was a cold start. Default `false` |
+| `memory_mb` | integer | Memory of the function, when the SDK could read it |
+| `cpu_milli` | integer | vCPU in thousandths, when known |
+| `rtdb_download_bytes` | integer | Realtime Database bytes downloaded during the invocation. Default `0` |
+| `storage_ops` | integer | Cloud Storage operations during the invocation. Default `0` |
+| `error` | string | Last `/` segment, kept only if it is one of the 17 gRPC status codes used by `@firebase/functions` (`aborted`, `already-exists`, `cancelled`, `data-loss`, `deadline-exceeded`, `failed-precondition`, `internal`, `invalid-argument`, `not-found`, `ok`, `out-of-range`, `permission-denied`, `resource-exhausted`, `unauthenticated`, `unavailable`, `unimplemented`, `unknown`) |
+
+Request and response bodies, URLs and project ids are not read.
+
+## Page visibility
+
+The browser SDK also reports page visibility changes. These are not provider calls: the runtime recognizes them by `op` and builds the envelope itself ([`crates/runtime/src/page.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/runtime/src/page.rs)). The envelope has provider `sdk` and service `page`.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `op` | `"page"` | yes | |
+| `visible` | boolean | yes | Page is visible after the change |
+| `ts_ms` | integer | yes | |
+| `call_id` | integer | no, default `0` | |
+
+```json
+{ "op": "page", "visible": false, "ts_ms": 61000, "call_id": 12 }
+```
+
+## Checking an SDK
+
+The shared fixtures in [`conformance/fixtures/firebase`](https://github.com/eviatarmor/Readmeter/tree/main/conformance/fixtures/firebase) list raw calls with the envelopes and findings they must produce. Every SDK is expected to reproduce them. The billing units in each expected envelope are explained in [Billing units](/docs/reference/billing-units).

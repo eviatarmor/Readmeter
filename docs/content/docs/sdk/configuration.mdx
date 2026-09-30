@@ -1,0 +1,190 @@
+---
+title: Configuration
+description: Every init() option, its type and default, plus the environment variables and network behavior of the SDK.
+---
+
+## init options
+
+`init(options: InitOptions)` takes one object. `apiKey` and `endpoint` are required; everything else is optional.
+
+<TypeTable
+  type={{
+    apiKey: {
+      type: "string",
+      description: "Ingest API key for the project. Sent as `Authorization: Bearer <apiKey>` on every request. Required.",
+    },
+    endpoint: {
+      type: "string",
+      description: "Ingest origin, for example `http://127.0.0.1:8090`. No trailing path. Trailing slashes are removed. Required.",
+    },
+    hashKey: {
+      type: "string",
+      description: "The project's hash key, 32 hex characters. When omitted, the SDK fetches it once from `GET {endpoint}/v1/config`. It stays in the process; the core uses it only to hash ids.",
+    },
+    dev: {
+      type: "boolean",
+      description: "Load the dev wasm build, run `window` rules in the process, and `console.warn` each finding.",
+      default: "false",
+    },
+    sampleRate: {
+      type: "number",
+      description: "Fraction of sessions whose calls are uploaded, from 0 to 1. Findings are uploaded for every session.",
+      default: "1",
+    },
+    flushIntervalMs: {
+      type: "number",
+      description: "Milliseconds between timer flushes. Must be greater than 0.",
+      default: "10000",
+    },
+    maxBatchEvents: {
+      type: "number",
+      description: "Flush early after this many recorded calls. Must be a positive integer.",
+      default: "200",
+    },
+    bundle: {
+      type: "Uint8Array",
+      description: "Rule bundle (`bundle.bin`) to use for this start, instead of the cached or packaged one.",
+    },
+    platform: {
+      type: '"browser" | "server" | "mobile"',
+      description: "Where the SDK runs. When omitted: `browser` if both `window` and `document` exist, otherwise `server`.",
+    },
+    onFinding: {
+      type: "(finding: Finding) => void",
+      description: "Called for every local finding, with or without `dev`. Errors thrown by the callback are swallowed.",
+    },
+    debug: {
+      type: "boolean",
+      description: "Log every raw call with `console.debug`, and log SDK errors (at most one line per second).",
+      default: "false",
+    },
+  }}
+/>
+
+### Validation
+
+`init` checks every option. An invalid one disables the SDK for this start and logs one line such as:
+
+```text
+[readmeter] hashKey must be 32 hex characters. The SDK is disabled.
+```
+
+| Option | Rejected when |
+|---|---|
+| `apiKey` | Missing or empty |
+| `endpoint` | Missing or blank |
+| `hashKey` | Not exactly 32 hex characters |
+| `sampleRate` | Not a number in `0..=1` |
+| `flushIntervalMs` | Not a finite number greater than 0 |
+| `maxBatchEvents` | Not a positive integer |
+| `platform` | Not `browser`, `server` or `mobile` |
+| `bundle` | Not a `Uint8Array` |
+| `dev`, `debug` | Not a boolean |
+| `onFinding` | Not a function |
+
+The same happens, after `init` returns, when the hash-key fetch fails, when no rule bundle can be found, or when the wasm module does not load. Your Firebase calls are not affected.
+
+### The Finding type
+
+`onFinding` receives:
+
+```ts
+interface Finding {
+  rule: string;                  // "firebase.firestore/unbounded-list"
+  severity: string;              // "critical" | "high" | "medium" | "low" | "info"
+  template: string;              // "orders"
+  message: string;
+  wasted: Record<string, number>; // billing unit -> amount, when computable
+}
+```
+
+These are the findings from rules that run in the SDK: `local` rules, plus `window` rules when `dev` is on. Findings from the backend are in the [console](/docs/console/findings).
+
+## Examples
+
+<Tabs items={["Browser", "Cloud Functions", "Development"]}>
+<Tab value="Browser">
+
+```ts
+init({
+  apiKey: import.meta.env.VITE_READMETER_API_KEY,
+  hashKey: import.meta.env.VITE_READMETER_HASH_KEY,
+  endpoint: "https://ingest.example",
+  sampleRate: 0.1,
+});
+```
+
+</Tab>
+<Tab value="Cloud Functions">
+
+```ts
+init({
+  apiKey: process.env.READMETER_API_KEY ?? "",
+  hashKey: process.env.READMETER_HASH_KEY,
+  endpoint: process.env.READMETER_ENDPOINT ?? "http://127.0.0.1:8090",
+  platform: "server",
+});
+```
+
+</Tab>
+<Tab value="Development">
+
+```ts
+init({
+  apiKey: "rm_dev_key",
+  endpoint: "http://127.0.0.1:8090",
+  dev: true,
+  debug: true,
+  onFinding: (f) => console.table([f]),
+});
+```
+
+</Tab>
+</Tabs>
+
+The environment variable names in these examples are your own; the SDK reads only the options you pass.
+
+## Sampling
+
+`sampleRate` is applied per session, not per call. When `init` runs, the core decides from the session id whether this session is sampled in. A sampled-in session uploads all of its calls. A sampled-out session uploads none of them, but local rules still run and their findings are still uploaded. `sampleRate: 0` keeps local findings and uploads no call events. See [Privacy](/docs/sdk/privacy#sampling).
+
+## Rule bundle
+
+The SDK needs a rule bundle (rule metadata, severities and thresholds). At start it uses, in order:
+
+1. `options.bundle`, when given.
+2. The bundle cached from the last `GET {endpoint}/v1/bundle`: `localStorage` in the browser, `~/.readmeter/cache/bundle.bin` on Node.
+3. The `bundle/bundle.bin` shipped in the package.
+
+After start, it requests `GET /v1/bundle` in the background with `If-None-Match`. A new bundle is saved for the next start; the running process keeps the one it loaded. This is how threshold changes reach SDKs without a release.
+
+## Environment variables
+
+These are read on Node only.
+
+| Variable | Effect |
+|---|---|
+| `READMETER_BUNDLE_CACHE` | Directory for the cached rule bundle. Default `~/.readmeter/cache`. |
+| `READMETER_WASM_DIR` | Directory with `readmeter_wasm.js` and `readmeter_wasm_bg.wasm` to load instead of the packaged build. |
+
+In Cloud Functions, `withFlush` also reads `FUNCTION_TARGET`, `K_SERVICE` and `FUNCTION_MEMORY_MB`, which the platform sets. See [Cloud Functions (server)](/docs/sdk/cloud-functions-server#what-each-invocation-records).
+
+## Network behavior
+
+The SDK talks to three ingest routes, all with `Authorization: Bearer <apiKey>`:
+
+| Request | When |
+|---|---|
+| `GET /v1/config` | At start, only when `hashKey` is not set |
+| `GET /v1/bundle` | At start, in the background |
+| `POST /v1/batches` | On each flush, with an `application/octet-stream` body |
+
+Batches are encoded by the core. Delivery works like this:
+
+- `202` removes the batch from the queue.
+- `429` and `503` wait for `Retry-After` (at least one second) before the next try.
+- Other `5xx` responses and network errors retry with exponential backoff, from one second up to 60 seconds.
+- Other `4xx` responses drop the batch and log `[readmeter] ingest rejected a batch (<status>).` once per status code.
+- At most 32 encoded batches wait for delivery. Older ones are dropped first.
+
+`flush()` sends immediately and ignores a pending backoff. `shutdown()` flushes, then stops the timer and removes the exit hooks. The ingest side of these routes is documented in the [ingest API reference](/docs/reference/ingest-api).
