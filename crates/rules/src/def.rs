@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 /// Wildcard for `provider` / `service` in generic rules.
 pub const ANY: &str = "*";
 
+/// `provider` of host events the runtime builds itself (page visibility,
+/// connection). Generic rules receive them like any envelope; a
+/// provider-scoped detector opts in with [`crate::Detector::host_events`].
+pub const HOST_PROVIDER: &str = "sdk";
+
 /// A rule definition as written in `rules/**/*.toml`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

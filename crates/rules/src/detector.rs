@@ -10,6 +10,16 @@ pub trait Detector: Send {
     /// Called for every envelope the rule's scope matches, in arrival order.
     fn observe(&mut self, env: &Envelope, out: &mut Emitter<'_>);
 
+    /// Also receive host events ([`crate::def::HOST_PROVIDER`]: page
+    /// visibility, connection) when the rule is scoped to a provider.
+    /// Generic rules always receive them. Read once at engine build.
+    ///
+    /// Window builds only, so production SDK vtables stay one slot smaller.
+    #[cfg(feature = "window")]
+    fn host_events(&self) -> bool {
+        false
+    }
+
     /// State entries held by this detector. Cap tests assert this stays
     /// bounded. Detectors with no map return `0`.
     ///

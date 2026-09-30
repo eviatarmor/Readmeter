@@ -34,6 +34,8 @@ pub mod large_listener_result;
 #[cfg(feature = "window")]
 pub mod listener_per_item;
 #[cfg(feature = "window")]
+pub mod listener_reconnect_rebill;
+#[cfg(feature = "window")]
 pub mod manual_ttl_cleanup;
 #[cfg(feature = "window")]
 pub mod missing_cursor;
@@ -105,6 +107,11 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (large_listener_result::ID, large_listener_result::build),
         #[cfg(feature = "window")]
         (listener_per_item::ID, listener_per_item::build),
+        #[cfg(feature = "window")]
+        (
+            listener_reconnect_rebill::ID,
+            listener_reconnect_rebill::build,
+        ),
         #[cfg(feature = "window")]
         (manual_ttl_cleanup::ID, manual_ttl_cleanup::build),
         #[cfg(feature = "window")]

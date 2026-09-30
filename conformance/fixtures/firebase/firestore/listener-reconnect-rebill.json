@@ -1,0 +1,31 @@
+{
+  "description": "An orders dashboard keeps onSnapshot on 150 orders. The laptop goes offline for 40 minutes, then comes back online with the listener still attached.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "subscribe", "ts_ms": 1000, "call_id": 1, "listener": 3,
+      "path": "orders",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 150 },
+      "callsite": "src/Orders.tsx:12:5"
+    },
+    {
+      "service": "firestore", "op": "snapshot", "initial": true, "ts_ms": 1500, "call_id": 2, "listener": 3,
+      "path": "orders",
+      "query": { "order_by": [{ "field": "at", "direction": "desc" }], "limit": 150 },
+      "result": { "docs": 150, "bytes": 15000 },
+      "callsite": "src/Orders.tsx:12:5"
+    },
+    { "op": "connection", "ts_ms": 60000, "call_id": 3, "online": false },
+    { "op": "connection", "ts_ms": 2460000, "call_id": 4, "online": true }
+  ],
+  "expect_envelopes": [
+    { "op": "subscribe", "template": "orders", "units": {} },
+    { "op": "snapshot", "template": "orders", "units": { "reads": 150, "egress_bytes": 15000 } },
+    { "op": "connection", "template": "", "units": {} },
+    { "op": "connection", "template": "", "units": {} }
+  ],
+  "expect_findings": [
+    { "rule": "firebase.firestore/listener-reconnect-rebill", "wasted": { "reads": 150 } }
+  ]
+}

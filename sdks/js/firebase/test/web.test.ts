@@ -168,8 +168,9 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
     const listeners: Array<() => void> = [];
     const fakeDocument = {
       visibilityState: "visible",
-      addEventListener(_type: string, listener: () => void) {
-        listeners.push(listener);
+      addEventListener(type: string, listener: () => void) {
+        // Connection events (freeze/resume) are covered in connection.test.ts.
+        if (type === "visibilitychange") listeners.push(listener);
       },
       removeEventListener(_type: string, listener: () => void) {
         const at = listeners.indexOf(listener);

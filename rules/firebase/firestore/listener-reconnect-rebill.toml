@@ -4,27 +4,53 @@ provider = "firebase"
 service = "firestore"
 severity = "medium"
 category = "realtime"
-evaluation = "aggregate"
-status = "planned"
-default_enabled = false
+evaluation = "window"
+status = "beta"
 summary = "Clients reconnect after 30+ minutes offline and re-read full listener results."
 
 description = """
 When a listener has been disconnected for more than 30 minutes, Firestore
-bills it as a new query on reconnect. Mobile apps that background often and
-keep large listeners pay the full result repeatedly.
+bills it as a new query on reconnect: every document in the result is read
+again. Mobile apps and browser tabs that go to the background often, while
+keeping large listeners attached, pay the full result each time they come
+back.
 
-There is still no reconnect signal on the envelope. An unsubscribe followed
-by a subscribe is ordinary navigation, already reported per session by
-`generic/subscription-churn`. A new session that subscribes after a
-page-visible event is an ordinary cold start. Neither one says the client
-was offline long enough for Firestore to rebill the listener, so this rule
-stays planned until shims report that reconnect.
+The browser SDK reports connection events: `offline` and `online` on
+`window`, and `freeze` and `resume` from the Page Lifecycle API (a frozen tab
+stops network activity, so Firestore's stream drops). Per session, the rule
+tracks the listeners that are still open and the documents their initial
+snapshot billed. When the session comes back online after at least
+`min_offline_ms` offline and those listeners hold at least `min_items`
+documents, it reports the documents Firestore is expected to re-read. The
+finding is anchored on the largest listener.
 """
 
 fix = """
-Detach listeners when the app backgrounds and re-attach with a narrower
-query, or listen to a summary document.
+Detach listeners when the app goes to the background (`visibilitychange`,
+`freeze`) and re-attach with a narrower query when it returns, or listen to
+a small summary document and fetch details on demand.
 """
 
 docs = ["https://firebase.google.com/docs/firestore/pricing#listens"]
+
+[params]
+# Offline gap after which Firestore bills a reconnecting listener as a new query.
+min_offline_ms = 1800000
+# Documents across the session's open listeners before a rebill is worth reporting.
+min_items = 100
+
+[[examples]]
+lang = "ts"
+bad = '''
+// Attached once and kept for the life of the tab, including hours in the background.
+onSnapshot(collection(db, "orders"), snap => render(snap.docs));
+'''
+good = '''
+let stop = onSnapshot(collection(db, "orders"), snap => render(snap.docs));
+document.addEventListener("visibilitychange", () => {
+  stop?.();
+  stop = document.visibilityState === "visible"
+    ? onSnapshot(query(collection(db, "orders"), limit(20)), snap => render(snap.docs))
+    : undefined;
+});
+'''

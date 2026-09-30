@@ -4,6 +4,7 @@
 use readmeter_core::{CallContext, Envelope, Op, Outcome, ReadSource, Target};
 use readmeter_provider_api::json::{self, JsonTypeError, JsonValue};
 use readmeter_provider_api::{NormalizeContext, NormalizeError};
+use readmeter_rules::def::HOST_PROVIDER;
 
 /// True when the raw object is a page-visibility (`page`) or connection
 /// (`connection`) event.
@@ -31,7 +32,7 @@ pub fn normalize(value: &JsonValue, cx: &NormalizeContext) -> Result<Envelope, N
         .unwrap_or(0);
     Ok(Envelope {
         ts_ms,
-        provider: "sdk".into(),
+        provider: HOST_PROVIDER.into(),
         service: service.into(),
         op,
         target: Target {
