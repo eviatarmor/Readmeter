@@ -108,6 +108,8 @@ A static name that is not one of those shapes, such as `photos/room.png`, stays 
 
 In the browser, the SDK records each `visibilitychange` with one flag: whether the page is visible. It has no URL, title or other page data.
 
+It also records connection changes (`offline` and `online` on `window`, `freeze` and `resume` on `document`) with one flag: whether the page is online. They carry no network or address data.
+
 ## Salted payload hashes
 
 Firestore writes (`setDoc`, `updateDoc`, `addDoc` and single Admin writes) send a hash of the payload so rules such as [no-op write](/docs/rules/firestore#no-op-write) can see the same data written twice.

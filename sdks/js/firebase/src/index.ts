@@ -38,50 +38,75 @@ let ready: Promise<void> = Promise.resolve();
 let generation = 0;
 let debug = false;
 
-interface PageHost {
-  visibilityState?: string;
+interface EventHost {
   addEventListener?: (type: string, listener: () => void) => void;
   removeEventListener?: (type: string, listener: () => void) => void;
 }
 
-let pageHost: PageHost | undefined;
-let pageHandler: (() => void) | undefined;
+interface PageHost extends EventHost {
+  visibilityState?: string;
+}
+
+interface Watch {
+  host: EventHost;
+  type: string;
+  handler: () => void;
+}
+
+/** Host listeners added by `watchPage`, removed together by `unwatchPage`. */
+let watches: Watch[] = [];
 
 function unwatchPage(): void {
-  if (pageHost && pageHandler) {
+  for (const { host, type, handler } of watches) {
     try {
-      pageHost.removeEventListener?.("visibilitychange", pageHandler);
+      host.removeEventListener?.(type, handler);
     } catch (error) {
       debugOnce(debug, error);
     }
   }
-  pageHost = undefined;
-  pageHandler = undefined;
+  watches = [];
 }
 
-function watchPage(): void {
-  unwatchPage();
+function listen(host: EventHost | undefined, type: string, record: () => Record<string, unknown>): void {
   try {
-    const host = (globalThis as { document?: PageHost }).document;
     if (!host || typeof host.addEventListener !== "function") return;
     const handler = () => {
       try {
-        recordRaw({
-          op: "page",
-          ts_ms: Date.now(),
-          call_id: nextCallId(),
-          visible: host.visibilityState === "visible",
-        });
+        recordRaw({ ts_ms: Date.now(), call_id: nextCallId(), ...record() });
       } catch (error) {
         debugOnce(debug, error);
       }
     };
-    host.addEventListener("visibilitychange", handler);
-    pageHost = host;
-    pageHandler = handler;
+    host.addEventListener(type, handler);
+    watches.push({ host, type, handler });
   } catch (error) {
     debugOnce(debug, error);
   }
+}
+
+/**
+ * Reports page visibility and connection changes. Firestore bills a
+ * listener as a new query when it reconnects after 30+ minutes offline;
+ * `freeze` counts as offline because a frozen tab stops network activity.
+ * No-op where `document` / `window` do not exist (Node, Deno).
+ */
+function watchPage(): void {
+  unwatchPage();
+  let doc: PageHost | undefined;
+  let win: EventHost | undefined;
+  try {
+    const g = globalThis as { document?: PageHost; window?: EventHost };
+    doc = g.document;
+    win = g.window;
+  } catch (error) {
+    debugOnce(debug, error);
+    return;
+  }
+  listen(doc, "visibilitychange", () => ({ op: "page", visible: doc?.visibilityState === "visible" }));
+  listen(win, "offline", () => ({ op: "connection", online: false }));
+  listen(win, "online", () => ({ op: "connection", online: true }));
+  listen(doc, "freeze", () => ({ op: "connection", online: false }));
+  listen(doc, "resume", () => ({ op: "connection", online: true }));
 }
 
 function validate(options: InitOptions): Validated {
