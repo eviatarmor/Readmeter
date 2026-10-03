@@ -39,7 +39,7 @@ CORS preflight requests (`OPTIONS /v1/*`) carry no key, so ingest reflects any o
 
 Every project has a hash key: 32 lowercase hex characters (128 bits) generated with `crypto.randomBytes` when the project is created. The SDK uses it to compute keyed hashes of ids, filter values and callsites before anything leaves the app, so the same value always maps to the same hash within a project and to different hashes in different projects.
 
-The hash key authenticates nothing, and it is readable by several parties. The SDK fetches it from `GET /v1/config` with its API key, the console shows it on the project page to every workspace member, and the `init` snippet includes it. Keyed hashes keep raw values out of Postgres and away from anyone who reads the stored hashes without the hash key. Someone who holds both the hash key and the stored hashes can test guesses against them.
+The hash key authenticates nothing, and it is readable by several parties. The SDK fetches it from `GET /v1/config` with its API key, the console shows it on the project page to every workspace member, and the `init` snippet includes it. Keyed hashes keep raw values out of Postgres and away from anyone who reads the stored hashes without the hash key. Someone who holds both the hash key and the stored hashes can test guesses against them. In a web app the hash key is in the page, so browser builds put only id-shaped filter and cursor values (auto ids, push ids, UUIDs, uids) into hashes and reduce every other value to its type and length first; see [Privacy](/docs/sdk/privacy#browser-builds). Document ids in the target key are hashed as they are, so a guessable document id can still be tested.
 
 What the SDK sends in the first place is listed on [Privacy](/docs/sdk/privacy).
 

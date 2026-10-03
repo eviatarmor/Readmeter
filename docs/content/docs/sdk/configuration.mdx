@@ -19,7 +19,7 @@ description: Every init() option, its type and default, plus the environment var
     },
     hashKey: {
       type: "string",
-      description: "The project's hash key, 32 hex characters. When omitted, the SDK fetches it once from `GET {endpoint}/v1/config`. It stays in the process; the core uses it only to hash ids.",
+      description: "The project's hash key, 32 hex characters. When omitted, the SDK fetches it once from `GET {endpoint}/v1/config`. It is not sent with events; the core uses it only to hash ids and values. In a web app it is visible in the page, so browser builds hash only id-shaped values.",
     },
     dev: {
       type: "boolean",
