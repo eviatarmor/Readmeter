@@ -157,8 +157,68 @@ export const events = pgTable(
     index("events_project_ts_idx").on(t.projectId, t.ts),
     index("events_project_template_idx").on(t.projectId, t.template),
     index("events_project_callsite_idx").on(t.projectId, t.callsite),
+    // Retention deletes batches whose events are gone; the FK cascade and the
+    // "no events left" check both look events up by batch.
+    index("events_batch_idx").on(t.batchId),
   ],
 );
+
+/**
+ * Raw events summed per UTC day, kept after the raw rows are deleted
+ * (`retention.ts`). `callsite` is the empty string when unknown so the key
+ * covers it. Rows only ever grow: late events for a rolled-up day are added
+ * by the next run.
+ */
+export const eventsDaily = pgTable(
+  "events_daily",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    provider: text("provider").notNull(),
+    service: text("service").notNull(),
+    op: text("op").notNull(),
+    template: text("template").notNull(),
+    callsite: text("callsite").notNull().default(""),
+    callsiteLabel: text("callsite_label"),
+    events: counter("events"),
+    items: counter("items"),
+    bytes: counter("bytes"),
+    /** Events served from the client cache. */
+    cached: counter("cached"),
+    /** Events with an error code. */
+    errors: counter("errors"),
+    /** Unit name to summed amount, as in `events.units`. */
+    units: jsonb("units").$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+  },
+  (t) => [
+    uniqueIndex("events_daily_key").on(
+      t.projectId,
+      t.day,
+      t.provider,
+      t.service,
+      t.op,
+      t.template,
+      t.callsite,
+    ),
+  ],
+);
+
+/**
+ * Rollup progress per project. An event is in `events_daily` exactly when
+ * `id <= rolled_event_id and ts < rolled_until`; every other event is still
+ * only in `events`. Reads union the two sides with that predicate, so a row
+ * is never counted twice or skipped.
+ */
+export const eventsRollupState = pgTable("events_rollup_state", {
+  projectId: text("project_id")
+    .primaryKey()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  rolledEventId: bigint("rolled_event_id", { mode: "number" }).notNull().default(0),
+  rolledUntil: date("rolled_until").notNull().default("1970-01-01"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * One row per (project, rule, session, callsite, template); repeats bump

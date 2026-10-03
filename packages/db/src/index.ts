@@ -6,13 +6,22 @@ import postgres from "postgres";
 import * as schema from "./schema.ts";
 
 export * as schema from "./schema.ts";
+export {
+  DEFAULT_RETENTION,
+  retentionFromEnv,
+  runRetention,
+  runRetentionLoop,
+  type RetentionConfig,
+  type RetentionOptions,
+  type RetentionReport,
+} from "./retention.ts";
 
 export const DEFAULT_DATABASE_URL = "postgres://readmeter:readmeter@127.0.0.1:5442/readmeter";
 
 export function connect(url = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL) {
   const client = postgres(url, { max: 10, onnotice: () => {} });
   const db = drizzle(client, { schema });
-  return { db, close: () => client.end() };
+  return { db, client, close: () => client.end() };
 }
 
 export type Db = ReturnType<typeof connect>["db"];

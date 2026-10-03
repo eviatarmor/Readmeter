@@ -3,7 +3,9 @@ set -eu
 case "${1:-console}" in
   console) cd /app/apps/console-api; exec node --import tsx src/server.ts ;;
   ingest) cd /app/apps/ingest; exec node --import tsx src/server.ts ;;
-  connector-gcp) cd /app/apps/connector-gcp; exec node --import tsx src/server.ts ;;
+  # Background worker: retention every hour, plus Google Cloud sync when connected.
+  worker|connector-gcp) cd /app/apps/connector-gcp; exec node --import tsx src/server.ts ;;
   migrate) cd /app/packages/db; exec node --import tsx src/migrate.ts ;;
+  retention) cd /app/packages/db; exec node --import tsx src/retention-cli.ts ;;
   *) exec "$@" ;;
 esac

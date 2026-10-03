@@ -47,7 +47,8 @@ apps/
   console-api/             TypeScript (Hono, Better Auth): workspaces, members, projects,
                            API keys, findings, events, rules, costs, Google Cloud connection
   console-web/             React console
-  connector-gcp/           Cloud Monitoring and billing-export sync
+  connector-gcp/           Worker: retention (daily rollups, deletes) and Cloud
+                           Monitoring and billing-export sync
 packages/
   db/                      Drizzle schema, migrations, seed (shared by all TS services)
 docs/                      Fumadocs site (Next.js): pnpm --filter docs dev (port 3100);

@@ -155,9 +155,9 @@ The console UI is a Vite app ([`apps/console-web`](https://github.com/eviatarmor
   }}
 />
 
-## connector-gcp
+## Worker (connector-gcp)
 
-Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/env.ts). The worker has no HTTP port.
+Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/env.ts) and, for retention, `retentionFromEnv` in [`packages/db/src/retention.ts`](https://github.com/eviatarmor/Readmeter/blob/main/packages/db/src/retention.ts). The worker has no HTTP port. It runs the retention pass and Google Cloud sync; see [Retention](/docs/self-hosting/production#retention).
 
 <TypeTable
   type={{
@@ -189,6 +189,26 @@ Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmete
       type: "\"1\"",
       description: "Use fake Google Cloud clients. For tests only.",
     },
+    READMETER_EVENTS_RETENTION_DAYS: {
+      type: "number",
+      description: "Raw events, and batches with no events left, older than this many UTC days are deleted after they are rolled up into events_daily. 0 keeps them forever. A whole number of days, 0 or more, or startup fails.",
+      default: "30",
+    },
+    READMETER_FINDINGS_RETENTION_DAYS: {
+      type: "number",
+      description: "Findings whose last_seen is older than this many days are deleted. 0 keeps them forever.",
+      default: "365",
+    },
+    READMETER_ROLLUP_RETENTION_DAYS: {
+      type: "number",
+      description: "events_daily rows older than this many days are deleted. 0 keeps them forever. A non-zero value must be at least READMETER_EVENTS_RETENTION_DAYS, which then must not be 0.",
+      default: "0",
+    },
+    READMETER_RETENTION_INTERVAL_MS: {
+      type: "number",
+      description: "Milliseconds between retention passes. The first pass runs at startup. At least 1000.",
+      default: "3600000 (1 hour)",
+    },
   }}
 />
 
@@ -198,7 +218,8 @@ A connection is synced when it has never synced, when its last sync is more than
 
 | Variable | Read by | Effect |
 |---|---|---|
-| `DATABASE_URL` | `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:generate` (drizzle-kit), `scripts/dev-common.sh`, `scripts/read-hash-key.mjs` | Database to use. `dev-common.sh` exports the local default when unset. |
+| `READMETER_EVENTS_RETENTION_DAYS`, `READMETER_FINDINGS_RETENTION_DAYS`, `READMETER_ROLLUP_RETENTION_DAYS` | `pnpm db:retention`, `readmeter retention` | Same meaning as for the worker; one pass, then exit. |
+| `DATABASE_URL` | `pnpm db:migrate`, `pnpm db:retention`, `pnpm db:seed`, `pnpm db:generate` (drizzle-kit), `scripts/dev-common.sh`, `scripts/read-hash-key.mjs` | Database to use. `dev-common.sh` exports the local default when unset. |
 | `READMETER_PG_PORT` | `docker-compose.yml` | Host port for the Postgres container. Default `5442`. |
 | `READMETER_DEV_KEY` | `packages/db/src/seed.ts` | API key seeded for `proj_demo`. Default `rm_dev_key`. |
 | `NODE_ENV` | `seed.ts`, `seed-user.ts` | `production` skips both seeds. |

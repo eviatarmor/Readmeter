@@ -50,6 +50,13 @@
       "when": 1790732616841,
       "tag": "0006_callsite_label",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791036538048,
+      "tag": "0007_events_daily_rollups",
+      "breakpoints": true
     }
   ]
 }

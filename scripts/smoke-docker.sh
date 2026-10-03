@@ -11,11 +11,11 @@ export CONSOLE_ORIGIN=http://localhost:$CONSOLE_PORT
 export INGEST_PUBLIC_URL=http://localhost:$INGEST_PORT
 compose=(docker compose -p "readmeter-smoke-${GITHUB_RUN_ID:-$$}" -f deploy/compose.yml)
 cleanup() {
-  "${compose[@]}" --profile gcp logs --no-color
-  "${compose[@]}" --profile gcp down --volumes
+  "${compose[@]}" logs --no-color
+  "${compose[@]}" down --volumes
 }
 trap cleanup EXIT
-"${compose[@]}" --profile gcp up -d --wait --wait-timeout 180 console ingest connector-gcp
+"${compose[@]}" up -d --wait --wait-timeout 180 console ingest worker
 node --input-type=module <<'EOF'
 import assert from 'node:assert/strict';
 const consoleUrl = process.env.CONSOLE_ORIGIN;
