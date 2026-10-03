@@ -166,6 +166,40 @@ jobs:
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/target/releases"
           node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz
 
+  # The lockfile pins the newest firebase major (sdk-js covers it). The query-shape
+  # reader reads SDK internals, so every older supported major runs the unit tests
+  # and the web emulator suite too.
+  sdk-js-firebase-majors:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        firebase: ["10", "11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @readmeter/firebase build
+      - name: Install firebase ${{ matrix.firebase }}.x
+        run: pnpm --filter @readmeter/firebase add -D "firebase@${{ matrix.firebase }}"
+      - run: pnpm --filter @readmeter/firebase test
+      - run: pnpm --filter @readmeter/firebase test:emulator
+        env:
+          EMULATOR_SUITE: web
+
   e2e:
     runs-on: ubuntu-latest
     services:
