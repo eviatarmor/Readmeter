@@ -187,6 +187,8 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
         hashKey: HASH_KEY,
         bundle: bundleBytes(),
         debug: true,
+        // Browser callsites come from stacks only in dev; production uses the build plugin.
+        dev: true,
         platform: "browser",
       });
       await flush();

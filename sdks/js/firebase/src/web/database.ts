@@ -275,12 +275,16 @@ export const onChildChanged: typeof realOnChildChanged = listen(realOnChildChang
 export const onChildRemoved: typeof realOnChildRemoved = listen(realOnChildRemoved as AnyFn, "child_removed") as typeof realOnChildRemoved;
 export const onChildMoved: typeof realOnChildMoved = listen(realOnChildMoved as AnyFn, "child_moved") as typeof realOnChildMoved;
 
+// Timing first: listeners can fire synchronously inside the real call, and
+// their records must not take this call's injected callsite.
 export const goOnline: typeof realGoOnline = ((db: Parameters<typeof realGoOnline>[0]) => {
+  const at = timing();
   realGoOnline(db);
-  emit("go_online", undefined, timing());
+  emit("go_online", undefined, at);
 }) as typeof realGoOnline;
 
 export const goOffline: typeof realGoOffline = ((db: Parameters<typeof realGoOffline>[0]) => {
+  const at = timing();
   realGoOffline(db);
-  emit("go_offline", undefined, timing());
+  emit("go_offline", undefined, at);
 }) as typeof realGoOffline;

@@ -151,6 +151,8 @@ export default defineConfig({
 });
 ```
 
+In production (`dev` off) the browser SDK does not capture stack traces, so calls have no callsite unless you add the [build plugin](/docs/sdk/build-plugin) (`readmeter()` in `plugins` for Vite, a pre-loader for webpack and Next.js).
+
 ## 5. Instrument Cloud Functions
 
 ### Install

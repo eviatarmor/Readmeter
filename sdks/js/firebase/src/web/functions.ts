@@ -9,7 +9,7 @@
  * unchanged. The SDK does not retry a callable; `attempt` stays 1.
  */
 
-import { callsite } from "../core/callsite.ts";
+import { callsite, takeInjected } from "../core/callsite.ts";
 import { recordRaw, sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
 import { nextCallId } from "../core/session.ts";
@@ -126,8 +126,16 @@ function wrapCallable<RequestData, ResponseData, StreamData>(
   rawName: string,
 ): HttpsCallable<RequestData, ResponseData, StreamData> {
   const name = functionName(rawName);
-  const call = ((data?: RequestData | null) => {
+  // A build plugin marks the `httpsCallable(...)` line; invocations of the
+  // returned function use it when they have no callsite of their own.
+  const created = takeInjected();
+  const timed = (): Timing => {
     const at = timing();
+    if (!at.site && created) at.site = created;
+    return at;
+  };
+  const call = ((data?: RequestData | null) => {
+    const at = timed();
     const requestBytes = jsonBytes(data);
     let pending: Promise<HttpsCallableResult<ResponseData>>;
     try {
@@ -148,7 +156,7 @@ function wrapCallable<RequestData, ResponseData, StreamData>(
     );
   }) as HttpsCallable<RequestData, ResponseData, StreamData>;
   call.stream = (data, options) => {
-    const at = timing();
+    const at = timed();
     const requestBytes = jsonBytes(data);
     let pending: ReturnType<HttpsCallable<RequestData, ResponseData, StreamData>["stream"]>;
     try {

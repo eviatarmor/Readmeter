@@ -3,7 +3,7 @@
  * record. The promise the host awaits is the one Firestore returned.
  */
 
-import { callsite, readSite } from "../core/callsite.ts";
+import { callsite, readSite, takeInjected } from "../core/callsite.ts";
 import { sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
 import { writeSignal } from "../core/payload.ts";
@@ -236,8 +236,10 @@ export const enableMultiTabIndexedDbPersistence: typeof realEnableMultiTabIndexe
 }) as typeof realEnableMultiTabIndexedDbPersistence;
 
 export const writeBatch: typeof realWriteBatch = ((...args: unknown[]) => {
+  // Build-plugin callsite of `writeBatch(...)`, the fallback for `commit()`.
+  const created = takeInjected();
   const batch = (realWriteBatch as AnyFn)(...args);
-  if (batch && typeof batch === "object") bindBatch(batch);
+  if (batch && typeof batch === "object") bindBatch(batch, created);
   return batch;
 }) as typeof realWriteBatch;
 

@@ -305,13 +305,13 @@ function recordCommit(
   });
 }
 
-export function bindBatch(batch: object): void {
+export function bindBatch(batch: object, created?: string): void {
   try {
     const host = batch as { commit?: (...args: unknown[]) => unknown };
     const original = host.commit;
     if (typeof original !== "function") return;
     const wrapped = function (this: unknown, ...args: unknown[]) {
-      const timing: Timing = { site: callsite(), ts: Date.now(), start: performance.now() };
+      const timing: Timing = { site: callsite() ?? created, ts: Date.now(), start: performance.now() };
       const stats = mutationStats(batch);
       let pending: unknown;
       try {

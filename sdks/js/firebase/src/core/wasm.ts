@@ -3,7 +3,7 @@ import { isNode } from "./env.ts";
 /** The slice of the wasm-bindgen glue this package uses. */
 export interface WasmModule {
   Readmeter: new (configJson: string, bundle: Uint8Array) => WasmHandle;
-  initSync(input: { module: BufferSource }): unknown;
+  initSync(input: { module: BufferSource | WebAssembly.Module }): unknown;
 }
 
 export interface WasmHandle {
@@ -105,8 +105,33 @@ async function readWasm(dev: boolean, dir?: URL): Promise<Uint8Array> {
   return decodeBase64(encoded.default);
 }
 
-async function loadBuild(dev: boolean, dir?: URL): Promise<WasmModule> {
+/**
+ * Compiles the `.wasm` at `url`. Streams when the server sends
+ * `application/wasm`; otherwise compiles from the downloaded bytes.
+ * `file:` URLs are read from disk in Node, where `fetch` cannot open them.
+ */
+async function compileFromUrl(url: string): Promise<WebAssembly.Module> {
+  if (isNode() && url.startsWith("file:")) {
+    const fs = await importSpecifier<typeof import("node:fs")>("node:fs");
+    const bytes = new Uint8Array(fs.readFileSync(new URL(url)));
+    return WebAssembly.compile(bytes);
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`wasm fetch failed (${res.status}) at ${url}`);
+  const type = res.headers.get("content-type") ?? "";
+  if (typeof WebAssembly.compileStreaming === "function" && type.toLowerCase().startsWith("application/wasm")) {
+    return WebAssembly.compileStreaming(res);
+  }
+  return WebAssembly.compile(await res.arrayBuffer());
+}
+
+async function loadBuild(dev: boolean, dir?: URL, wasmUrl?: string): Promise<WasmModule> {
   const glue = await loadGlue(dev, dir);
+  if (wasmUrl !== undefined) {
+    // Never touches the inline base64 chunk: that import sits only in `readWasm`.
+    glue.initSync({ module: await compileFromUrl(wasmUrl) });
+    return glue;
+  }
   const bytes = await readWasm(dev, dir);
   // Copy into a plain ArrayBuffer. Node's Buffer is a Uint8Array over a
   // shared pool, and TypeScript will not treat that view as a BufferSource.
@@ -117,16 +142,17 @@ async function loadBuild(dev: boolean, dir?: URL): Promise<WasmModule> {
 }
 
 /**
- * Loads prod or dev wasm. Node reads the `.wasm` file (or `READMETER_WASM_DIR`).
- * The browser decodes the packaged base64 module and calls `initSync`.
+ * Loads prod or dev wasm. With `wasmUrl` the module is fetched (streamed when
+ * possible) from there. Otherwise Node reads the `.wasm` file (or
+ * `READMETER_WASM_DIR`) and the browser decodes the packaged base64 module.
  * `initSync` is once per glue module (the glue's own guard).
  */
-export function loadWasm(dev: boolean, override?: URL): Promise<WasmModule> {
-  const key = cacheKey(dev, override);
+export function loadWasm(dev: boolean, override?: URL, wasmUrl?: string): Promise<WasmModule> {
+  const key = wasmUrl !== undefined ? `${dev ? "dev" : "prod"} ${wasmUrl}` : cacheKey(dev, override);
   const hit = cache.get(key);
   if (hit) return hit;
-  const pending = nodeDir(override)
-    .then((dir) => loadBuild(dev, dir))
+  const pending = (wasmUrl !== undefined ? Promise.resolve(undefined) : nodeDir(override))
+    .then((dir) => loadBuild(dev, dir, wasmUrl))
     .catch((error: unknown) => {
       cache.delete(key);
       throw error;
