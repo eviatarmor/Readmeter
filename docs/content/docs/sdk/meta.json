@@ -1,1 +1,1 @@
-{ "title": "SDK", "pages": ["index", "firestore", "realtime-database", "storage", "authentication", "functions", "cloud-functions-server", "sink", "configuration", "privacy"] }
+{ "title": "SDK", "pages": ["index", "firestore", "realtime-database", "storage", "authentication", "functions", "cloud-functions-server", "sink", "python", "configuration", "privacy"] }

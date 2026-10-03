@@ -166,6 +166,33 @@ jobs:
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/target/releases"
           node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz
 
+  sdk-python:
+    runs-on: ubuntu-latest
+    env:
+      # Fail instead of skipping the envelope check against the server core.
+      READMETER_REQUIRE_ENVELOPES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - name: Build the C ABI library, rule bundle and server core
+        run: |
+          cargo build -p readmeter-ffi --release --features firebase,database,storage,auth,functions,window
+          cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+          ./scripts/build-wasm-server.sh
+      - name: unittest
+        working-directory: sdks/python/readmeter
+        run: PYTHONPATH=src python -m unittest discover -s tests -t . -v
+
   e2e:
     runs-on: ubuntu-latest
     services:
