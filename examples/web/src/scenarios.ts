@@ -48,12 +48,16 @@ async function commitAll(db: Firestore, items: SeedDoc[]): Promise<void> {
   }
 }
 
+/** Authors of the first posts; `unusedPrefetch` queries them (the rule needs results). */
+const UNUSED_AUTHORS = ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"];
+
 export async function seedData(db: Firestore): Promise<string> {
   const items: SeedDoc[] = [];
   for (let i = 0; i < POSTS; i += 1) {
+    const authorId = UNUSED_AUTHORS[i];
     items.push({
       ref: doc(db, "posts", postId(i)),
-      data: { title: "post", createdAt: i, kind: "post" },
+      data: authorId ? { title: "post", createdAt: i, kind: "post", authorId } : { title: "post", createdAt: i, kind: "post" },
     });
   }
   for (let i = 0; i < USERS; i += 1) {
@@ -221,7 +225,7 @@ export async function counterTransaction(db: Firestore): Promise<string> {
  */
 export async function unusedPrefetch(db: Firestore): Promise<string> {
   const posts = collection(db, "posts");
-  for (const authorId of ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"]) {
+  for (const authorId of UNUSED_AUTHORS) {
     await getDocs(query(posts, where("authorId", "==", authorId), limit(5)));
   }
   await flush();

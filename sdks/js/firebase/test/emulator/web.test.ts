@@ -163,10 +163,13 @@ async function seed(db: fb.Firestore): Promise<void> {
   for (let i = 0; i < 3000; i += 1) items.push({ ref: fb.doc(messages), data: { read: false } });
   const feed = fb.collection(db, "feed");
   for (let i = 0; i < 60; i += 1) items.push({ ref: fb.doc(feed), data: { ts: i } });
+  // The unused-result scenario queries the first three posts by auto-id author.
+  const authors = ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"];
   for (let i = 1; i <= 6; i += 1) {
+    const authorId = authors[i - 1];
     items.push({
       ref: fb.doc(db, "posts", `p${String(i).padStart(2, "0")}`),
-      data: { createdAt: i, title: "t" },
+      data: authorId ? { createdAt: i, title: "t", authorId } : { createdAt: i, title: "t" },
     });
   }
   items.push({ ref: fb.doc(db, "users", "u1"), data: { name: "abcde" } });
