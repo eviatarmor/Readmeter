@@ -43,6 +43,24 @@ The hash key authenticates nothing, and it is readable by several parties. The S
 
 What the SDK sends in the first place is listed on [Privacy](/docs/sdk/privacy).
 
+## Rule bundle signing
+
+The SDK takes its rule thresholds and severities from the bundle that ingest serves at `GET /v1/bundle`. A bundle changes what the SDK reports, not what your app does, but if a proxy or a compromised cache could rewrite it, it could switch rules off. Signing lets the SDK refuse a bundle that ingest did not produce.
+
+1. Generate a key pair. In the server image:
+
+   ```sh
+   docker run --rm ghcr.io/eviatarmor/readmeter bundle-keygen
+   ```
+
+   From a checkout: `pnpm --silent bundle:keygen`. It prints `READMETER_BUNDLE_SIGNING_KEY=<base64 seed>` and the matching public key. A PKCS#8 PEM from `openssl genpkey -algorithm ed25519` works too.
+2. Set `READMETER_BUNDLE_SIGNING_KEY` on ingest (in `deploy/.env` for the Compose stack) and restart it. ingest logs `bundle signing on` with the key id and public key, signs the exact bytes it serves for each project (the base bundle and every override-merged variant, cached together with the ETag), and sends the signature in the `x-readmeter-signature` header. `GET /v1/config` returns the public key as `bundle_public_key` so you can copy it.
+3. Pass the public key to the SDK: `init({ bundlePublicKey: "<base64>" })`. The SDK then uses a fetched or cached bundle only when its signature verifies, and otherwise keeps the bundle shipped in the package. See [SDK configuration](/docs/sdk/configuration#rule-bundle).
+
+Keep the seed out of source control like the other secrets. To rotate, set a new key on ingest and ship the new public key with your app; SDKs still holding the old key fall back to the packaged bundle until they are updated.
+
+Release builds of the default bundle are published as GitHub release assets (`bundle.bin`, `catalog.json`, and `bundle.bin.sig` when the release is signed); see [Rule bundle downloads](/docs/self-hosting/production#rule-bundle-downloads).
+
 ## Rate limits and backpressure
 
 Each project has one token bucket, shared by all of its API keys: its own `rate_per_min` (set on the project's settings page or with `ratePerMin` on `PATCH /projects/:projectId`), or `READMETER_RATE_PER_MIN` (default 600) when it has none. The bucket holds `max(1, ceil(rate / 6))` batches, ten seconds of traffic: 100 at 600/min. Browser requests, those with an `Origin` header, also count against a bucket per client IP: `READMETER_RATE_PER_IP_PER_MIN` (default 120, burst 20; `0` turns it off). This keeps one visitor with your public web key from using up the whole project's limit. Server callers (Cloud Functions) send no `Origin` and only meet the project limit. The client IP is the socket address; with `READMETER_TRUST_PROXY=1` it is the last `X-Forwarded-For` entry, the address your reverse proxy saw. Only set that behind a proxy that appends to `X-Forwarded-For`, or clients can pick their own address. When a bucket is empty ingest answers `429 {"error": "rate_limited"}` with a `Retry-After` header in whole seconds, at least 1.

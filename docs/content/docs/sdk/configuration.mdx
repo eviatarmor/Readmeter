@@ -45,6 +45,10 @@ description: Every init() option, its type and default, plus the environment var
       type: "Uint8Array",
       description: "Rule bundle (`bundle.bin`) to use for this start, instead of the cached or packaged one.",
     },
+    bundlePublicKey: {
+      type: "string",
+      description: "Ed25519 public key (base64, raw 32 bytes) of your ingest's `READMETER_BUNDLE_SIGNING_KEY`, from `GET /v1/config` or `bundle-keygen`. When set, a fetched or cached bundle is used only if its signature verifies. See [Rule bundle](#rule-bundle).",
+    },
     platform: {
       type: '"browser" | "server" | "mobile"',
       description: "Where the SDK runs. When omitted: `browser` if both `window` and `document` exist, otherwise `server`.",
@@ -88,6 +92,7 @@ description: Every init() option, its type and default, plus the environment var
 | `maxBatchEvents` | Not a positive integer |
 | `platform` | Not `browser`, `server` or `mobile` |
 | `bundle` | Not a `Uint8Array` |
+| `bundlePublicKey` | Not base64 that decodes to 32 bytes |
 | `dev`, `debug`, `routes` | Not a boolean |
 | `onFinding` | Not a function |
 | `wasmUrl` | Not a non-empty string, a `URL` or a function |
@@ -188,6 +193,27 @@ init({
 ```
 
 With other bundlers, copy `node_modules/@readmeter/firebase/wasm/prod/readmeter_wasm_bg.wasm` into your static files (for example Next.js `public/`) and pass its path, for example `wasmUrl: "/readmeter.wasm"`. If the download or compilation fails, the SDK logs one line and stays disabled, as with any other load failure.
+
+### Signed bundles
+
+If ingest signs bundles ([`READMETER_BUNDLE_SIGNING_KEY`](/docs/self-hosting/security#rule-bundle-signing)), pass its public key:
+
+```ts
+init({
+  apiKey: "rm_live_...",
+  endpoint: "https://ingest.example",
+  bundlePublicKey: "DaUtjThg+2KzpU//CtYzVviKR7nJ0a1Uyivr+02VrCc=",
+});
+```
+
+With `bundlePublicKey` set:
+
+- A fetched bundle is saved only if the `x-readmeter-signature` header verifies against the key. The signature is cached with the bytes (`localStorage`, or `signature.txt` next to `bundle.bin` on Node).
+- The cached bundle is verified again at every start. If the signature is missing or wrong, the SDK uses the packaged bundle.
+- Verification uses WebCrypto Ed25519 (Node 22+, current Chrome, Firefox and Safari). Where Ed25519 is not available, every fetched bundle is rejected and the packaged bundle is used.
+- A rejected bundle never disables the SDK or throws into your app. With `debug: true` it logs one `console.debug` line.
+
+`options.bundle` is used as given, without a signature check. Without `bundlePublicKey` the SDK does not verify anything, even when ingest sends a signature.
 
 ## Environment variables
 

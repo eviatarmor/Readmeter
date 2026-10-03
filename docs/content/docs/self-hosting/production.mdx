@@ -203,6 +203,26 @@ Deletes run in chunks of 5,000 rows, each its own short statement, so ingest and
 
 The overview, costs, top templates and top callsites read rolled-up days from `events_daily` and everything else from `events`, so their 30- and 90-day charts keep their history after the raw rows are gone. The event list (`GET /events`) and per-session detail only cover raw events, that is the retention window. Postgres reuses the space of deleted rows; run `VACUUM FULL` or `pg_repack` if you need to return it to the operating system.
 
+## Rule bundle downloads
+
+Each GitHub release publishes the default rule artifacts as release assets, so you can fetch them without building Rust:
+
+| Asset | Contents |
+|---|---|
+| `bundle.bin` | SDK rule bundle. Point `READMETER_SDK_BUNDLE` at it to serve it from ingest. |
+| `catalog.json` | Rule metadata (titles, descriptions, fixes, params) for every rule. |
+| `bundle.bin.sig` | Raw 64-byte Ed25519 signature of `bundle.bin`. Only on releases signed with the project's key. |
+| `bundle-public-key.txt` | Base64 raw 32-byte public key for `bundle.bin.sig`. Only on signed releases. |
+
+```sh
+v=0.1.0
+base=https://github.com/eviatarmor/Readmeter/releases/download/v$v
+curl -fL -O $base/bundle.bin -O $base/catalog.json -O $base/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The server image already contains the bundle built from the same release, so the Compose stack does not need these downloads. To check a signed release with OpenSSL 3, see [`RELEASING.md`](https://github.com/eviatarmor/Readmeter/blob/main/RELEASING.md#rule-bundle-signing). This release signature is separate from your own ingest signing key ([`READMETER_BUNDLE_SIGNING_KEY`](/docs/self-hosting/security#rule-bundle-signing)), which signs the per-project bundles your ingest serves.
+
 ## Upgrade
 
 ```sh

@@ -55,6 +55,10 @@ Read in [`apps/ingest/src/server.ts`](https://github.com/eviatarmor/Readmeter/bl
       type: "\"1\"",
       description: "Take the client IP for the per-IP limit from the last X-Forwarded-For entry instead of the socket address. Set it only behind a reverse proxy that appends to X-Forwarded-For.",
     },
+    READMETER_BUNDLE_SIGNING_KEY: {
+      type: "string",
+      description: "Ed25519 private key that signs every bundle served at GET /v1/bundle: a base64 32-byte seed (from `readmeter bundle-keygen`) or a PKCS#8 PEM (`openssl genpkey -algorithm ed25519`). Startup fails if it is set but cannot be parsed. Unset: bundles are served unsigned. See [Security](/docs/self-hosting/security#rule-bundle-signing).",
+    },
   }}
 />
 

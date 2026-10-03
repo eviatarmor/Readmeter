@@ -11,7 +11,7 @@ The ingest service ([`apps/ingest/src/app.ts`](https://github.com/eviatarmor/Rea
 | `OPTIONS` | `/v1/*` | none | CORS preflight |
 | `POST` | `/v1/batches` | API key | Store one SDK batch |
 | `GET` | `/v1/bundle` | API key | Download the project's rule bundle |
-| `GET` | `/v1/config` | API key | Read the project id and hash key |
+| `GET` | `/v1/config` | API key | Read the project id, hash key and bundle public key |
 
 ## Authentication
 
@@ -70,6 +70,7 @@ All `/v1/*` routes use the same CORS settings:
 - `Access-Control-Allow-Origin` reflects the request's `Origin`, for any origin. Preflight carries no key, so the allowlist cannot be checked there; it is checked on the real request.
 - Allowed methods: `POST`, `GET`, `OPTIONS`.
 - Allowed request headers: `authorization`, `content-type`.
+- Exposed response headers: `etag`, `x-readmeter-signature`.
 - `Access-Control-Max-Age: 600`.
 
 ## `POST /v1/batches`
@@ -132,15 +133,25 @@ Returns the SDK rule bundle (`bundle.bin`, built by `readmeter-rulec`) for the k
 
 ### Response
 
-- `200` with `Content-Type: application/octet-stream`, the bundle bytes, and an `ETag` header.
-- `304` with the `ETag` header and no body, when `If-None-Match` matches.
+- `200` with `Content-Type: application/octet-stream`, the bundle bytes, an `ETag` header, and `X-Readmeter-Signature` when signing is on.
+- `304` with the `ETag` (and signature) headers and no body, when `If-None-Match` matches.
 - `500 internal` when ingest was started without an SDK bundle.
 
 The ETag is the first 16 hex characters of the SHA-256 of the bytes served. When the project has rule overrides (set on the console's Rules page), ingest merges them into the bundle before serving it, so the bytes and the ETag differ from the base bundle. A project with no overrides gets the file from `READMETER_SDK_BUNDLE` unchanged.
 
+### Signature
+
+When ingest runs with `READMETER_BUNDLE_SIGNING_KEY`, every bundle response carries:
+
+```http
+X-Readmeter-Signature: ed25519:<base64 64-byte signature>
+```
+
+The signature is Ed25519 over the exact response body, so a project with overrides gets a different signature than the base bundle. Verify it with the raw 32-byte public key from `GET /v1/config` (`bundle_public_key`). Without a signing key the header is absent. See [Security](/docs/self-hosting/security#rule-bundle-signing).
+
 ## `GET /v1/config`
 
-Returns the key's project and its hash key.
+Returns the key's project, its hash key and, when bundle signing is on, the public key that verifies `GET /v1/bundle`.
 
 ### Request
 
@@ -149,13 +160,20 @@ Returns the key's project and its hash key.
 ### Response
 
 ```json
-{ "project": "proj_abc123", "hash_key": "000102030405060708090a0b0c0d0e0f" }
+{
+  "project": "proj_abc123",
+  "hash_key": "000102030405060708090a0b0c0d0e0f",
+  "bundle_public_key": "DaUtjThg+2KzpU//CtYzVviKR7nJ0a1Uyivr+02VrCc=",
+  "bundle_key_id": "cb4d03e7736bea11"
+}
 ```
 
 <TypeTable
   type={{
     project: { type: "string", description: "Project id the key belongs to." },
     hash_key: { type: "string", description: "32 lowercase hex characters. The SDK uses it as the key for keyed hashes." },
+    bundle_public_key: { type: "string", description: "Only with READMETER_BUNDLE_SIGNING_KEY. Base64 raw 32-byte Ed25519 public key; pass it to `init({ bundlePublicKey })`." },
+    bundle_key_id: { type: "string", description: "Only with READMETER_BUNDLE_SIGNING_KEY. First 16 hex characters of the SHA-256 of the public key, for telling keys apart." },
   }}
 />
 
