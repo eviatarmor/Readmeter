@@ -16,6 +16,7 @@
     "dev:ingest": "pnpm --filter @readmeter/ingest dev",
     "dev:console-api": "pnpm --filter @readmeter/console-api dev",
     "dev:connector-gcp": "pnpm --filter @readmeter/connector-gcp dev",
+    "bundle:keygen": "pnpm --silent --filter @readmeter/ingest bundle-key keygen",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "sdk:build": "pnpm --filter @readmeter/firebase build",

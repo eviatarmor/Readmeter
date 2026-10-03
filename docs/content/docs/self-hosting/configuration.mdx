@@ -46,6 +46,10 @@ Read in [`apps/ingest/src/server.ts`](https://github.com/eviatarmor/Readmeter/bl
       description: "Accepted batches per minute per API key. Must be a positive number or startup fails. The burst size is fixed at 100.",
       default: "600",
     },
+    READMETER_BUNDLE_SIGNING_KEY: {
+      type: "string",
+      description: "Ed25519 private key that signs every bundle served at GET /v1/bundle: a base64 32-byte seed (from `readmeter bundle-keygen`) or a PKCS#8 PEM (`openssl genpkey -algorithm ed25519`). Startup fails if it is set but cannot be parsed. Unset: bundles are served unsigned. See [Security](/docs/self-hosting/security#rule-bundle-signing).",
+    },
   }}
 />
 

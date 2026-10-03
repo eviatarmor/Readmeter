@@ -35,6 +35,13 @@ export interface InitOptions {
    * bundle, or the bundle cached from the previous `GET /v1/bundle`.
    */
   bundle?: Uint8Array;
+  /**
+   * Ed25519 public key (base64, raw 32 bytes) that signs this ingest's
+   * bundles (`READMETER_BUNDLE_SIGNING_KEY`). When set, a fetched or cached
+   * bundle is used only if its signature verifies; otherwise the packaged
+   * bundle is kept. Needs Ed25519 in WebCrypto (Node 22+, current browsers).
+   */
+  bundlePublicKey?: string;
   /** Default: `window` + `document` means browser, otherwise server. */
   platform?: Platform;
   /** Called for every local finding, including while `dev` is off. */

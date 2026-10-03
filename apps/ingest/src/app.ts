@@ -8,7 +8,8 @@
 // `Retry-After`; SDKs keep the batch buffered and retry.
 //
 // Browser SDKs also call `GET /v1/config` (hash key) and `GET /v1/bundle`
-// (rule bundle). `sendBeacon` may post `application/octet-stream` or omit
+// (rule bundle). With `READMETER_BUNDLE_SIGNING_KEY` set, the bundle response
+// carries an Ed25519 signature of its exact bytes. `sendBeacon` may post `application/octet-stream` or omit
 // the content type; the body is raw bytes either way.
 import { createHash } from "node:crypto";
 import { Hono, type Context } from "hono";
@@ -17,6 +18,7 @@ import { cors } from "hono/cors";
 
 import { CoreError, type Core } from "./core.ts";
 import { TokenBucket } from "./rate.ts";
+import { SIGNATURE_HEADER, type BundleSigner } from "./signing.ts";
 import { overridesRevision, type ProjectAccess, type Store } from "./store.ts";
 
 export interface Limits {
@@ -41,6 +43,14 @@ export interface SdkBundle {
   etag: string;
 }
 
+interface ServedBundle extends SdkBundle {
+  /** `ed25519:<base64>` header value, when a signing key is configured. */
+  signature?: string;
+}
+
+/** Projects whose override-merged bundle is kept. Oldest entry goes first. */
+const BUNDLE_CACHE_MAX = 1_000;
+
 /** First 16 hex chars of the SHA-256 of the bundle bytes. */
 export function bundleEtag(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex").slice(0, 16);
@@ -52,6 +62,8 @@ export interface Deps {
   limits?: Partial<Limits>;
   log?: (msg: string, fields: Record<string, unknown>) => void;
   bundle?: SdkBundle;
+  /** Signs every bundle served at `GET /v1/bundle`. */
+  signer?: BundleSigner;
 }
 
 const STATUS = { bad_batch: 400, batch_too_large: 413, internal: 500 } as const;
@@ -65,11 +77,12 @@ function etagMatches(header: string, etag: string): boolean {
 
 type Authed = { ok: true; access: ProjectAccess; apiKey: string } | { ok: false; response: Response };
 
-export function createApp({ core, store, limits: overrides, log = () => {}, bundle }: Deps) {
+export function createApp({ core, store, limits: overrides, log = () => {}, bundle, signer }: Deps) {
   const limits = { ...DEFAULT_LIMITS, ...overrides };
   let inflight = 0;
   const rates = new TokenBucket(limits.ratePerMin, limits.rateBurst);
   const app = new Hono();
+  const bundles = bundle ? new ProjectBundles(core, store, bundle, signer) : undefined;
 
   const fail = (status: 400 | 401 | 403 | 413 | 429 | 500 | 503, error: string, detail?: string) =>
     Response.json(detail === undefined ? { error } : { error, detail }, { status });
@@ -84,6 +97,7 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
       origin: (origin) => origin || null,
       allowMethods: ["POST", "GET", "OPTIONS"],
       allowHeaders: ["authorization", "content-type"],
+      exposeHeaders: ["etag", SIGNATURE_HEADER],
       maxAge: 600,
     }),
   );
@@ -164,22 +178,27 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
   app.get("/v1/bundle", async (c) => {
     const authz = await authorize(c);
     if (!authz.ok) return authz.response;
-    if (!bundle) return fail(500, "internal", "sdk bundle is not configured");
-    const served = await projectBundle(core, store, bundle, authz.access.projectId);
+    if (!bundles) return fail(500, "internal", "sdk bundle is not configured");
+    const served = await bundles.get(authz.access.projectId);
+    const headers: Record<string, string> = { etag: served.etag };
+    if (served.signature) headers[SIGNATURE_HEADER] = served.signature;
     const inm = c.req.header("if-none-match");
-    if (inm && etagMatches(inm, served.etag)) {
-      return new Response(null, { status: 304, headers: { etag: served.etag } });
-    }
+    if (inm && etagMatches(inm, served.etag)) return new Response(null, { status: 304, headers });
     return new Response(Buffer.from(served.body), {
       status: 200,
-      headers: { "content-type": "application/octet-stream", etag: served.etag },
+      headers: { ...headers, "content-type": "application/octet-stream" },
     });
   });
 
   app.get("/v1/config", async (c) => {
     const authz = await authorize(c);
     if (!authz.ok) return authz.response;
-    return c.json({ project: authz.access.projectId, hash_key: authz.access.hashKey });
+    const body: Record<string, string> = { project: authz.access.projectId, hash_key: authz.access.hashKey };
+    if (signer) {
+      body.bundle_public_key = signer.publicKey;
+      body.bundle_key_id = signer.keyId;
+    }
+    return c.json(body);
   });
 
   return app;
@@ -200,14 +219,43 @@ export function overrideJson(
   return out;
 }
 
-async function projectBundle(
-  core: Core,
-  store: Store,
-  bundle: SdkBundle,
-  projectId: string,
-): Promise<SdkBundle> {
-  const overrides = overrideJson(await store.ruleOverrides(projectId));
-  if (Object.keys(overrides).length === 0) return bundle;
-  const body = core.applyOverrides(bundle.body, JSON.stringify(overrides));
-  return { body, etag: bundleEtag(body) };
+/**
+ * Per-project bundle: the base bundle with the project's overrides merged in,
+ * its ETag and signature. Rebuilt only when the overrides change.
+ */
+class ProjectBundles {
+  private readonly base: ServedBundle;
+  private readonly cache = new Map<string, { overrides: string; served: ServedBundle }>();
+
+  constructor(
+    private readonly core: Core,
+    private readonly store: Store,
+    bundle: SdkBundle,
+    private readonly signer?: BundleSigner,
+  ) {
+    this.base = this.serve(bundle.body, bundle.etag);
+  }
+
+  private serve(body: Uint8Array, etag: string): ServedBundle {
+    return this.signer ? { body, etag, signature: this.signer.sign(body) } : { body, etag };
+  }
+
+  async get(projectId: string): Promise<ServedBundle> {
+    const overrides = JSON.stringify(overrideJson(await this.store.ruleOverrides(projectId)));
+    if (overrides === "{}") {
+      this.cache.delete(projectId);
+      return this.base;
+    }
+    const hit = this.cache.get(projectId);
+    if (hit && hit.overrides === overrides) return hit.served;
+    const body = this.core.applyOverrides(this.base.body, overrides);
+    const served = this.serve(body, bundleEtag(body));
+    this.cache.delete(projectId);
+    this.cache.set(projectId, { overrides, served });
+    if (this.cache.size > BUNDLE_CACHE_MAX) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
+    }
+    return served;
+  }
 }

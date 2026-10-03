@@ -67,6 +67,7 @@ services:
       <<: *environment
       PORT: "8090"
       READMETER_RATE_PER_MIN: ${READMETER_RATE_PER_MIN:-600}
+      READMETER_BUNDLE_SIGNING_KEY: ${READMETER_BUNDLE_SIGNING_KEY:-}
     ports:
       - "${INGEST_BIND:-127.0.0.1}:${INGEST_PORT:-8090}:8090"
     healthcheck: *health

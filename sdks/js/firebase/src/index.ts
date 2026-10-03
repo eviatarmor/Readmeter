@@ -1,9 +1,4 @@
-import {
-  bundleEtag,
-  loadCachedBundle,
-  loadPackagedBundle,
-  refreshBundle,
-} from "./core/bundle.ts";
+import { base64ToBytes, refreshBundle, resolveBundle } from "./core/bundle.ts";
 import { CoreClient, configJson, disableRecording, handoff, recordRaw } from "./core/client.ts";
 import { detectPlatform } from "./core/env.ts";
 import { debugOnce, errorMessage } from "./core/log.ts";
@@ -28,6 +23,7 @@ interface Validated {
   flushIntervalMs: number;
   maxBatchEvents: number;
   bundle?: Uint8Array;
+  bundlePublicKey?: string;
   platform: Platform;
   onFinding?: (finding: Finding) => void;
   debug: boolean;
@@ -109,6 +105,15 @@ function watchPage(): void {
   listen(doc, "resume", () => ({ op: "connection", online: true }));
 }
 
+function isPublicKey(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    return base64ToBytes(value.trim()).byteLength === 32;
+  } catch {
+    return false;
+  }
+}
+
 function validate(options: InitOptions): Validated {
   if (options === null || typeof options !== "object") throw new Error("init options must be an object");
   if (typeof options.apiKey !== "string" || options.apiKey.length === 0) throw new Error("apiKey is required");
@@ -138,6 +143,9 @@ function validate(options: InitOptions): Validated {
     throw new Error("platform must be browser, server, or mobile");
   }
   if (options.bundle !== undefined && !(options.bundle instanceof Uint8Array)) throw new Error("bundle must be a Uint8Array");
+  if (options.bundlePublicKey !== undefined && !isPublicKey(options.bundlePublicKey)) {
+    throw new Error("bundlePublicKey must be a base64 32-byte Ed25519 public key");
+  }
   if (options.dev !== undefined && typeof options.dev !== "boolean") throw new Error("dev must be a boolean");
   if (options.debug !== undefined && typeof options.debug !== "boolean") throw new Error("debug must be a boolean");
   if (options.onFinding !== undefined && typeof options.onFinding !== "function") throw new Error("onFinding must be a function");
@@ -154,6 +162,7 @@ function validate(options: InitOptions): Validated {
   };
   if (options.hashKey !== undefined) validated.hashKey = options.hashKey.toLowerCase();
   if (options.bundle !== undefined) validated.bundle = options.bundle;
+  if (options.bundlePublicKey !== undefined) validated.bundlePublicKey = options.bundlePublicKey.trim();
   if (options.onFinding !== undefined) validated.onFinding = options.onFinding;
   return validated;
 }
@@ -180,15 +189,6 @@ async function fetchHashKey(endpoint: string, apiKey: string): Promise<string> {
   return body.hash_key.toLowerCase();
 }
 
-async function resolveBundle(opts: Validated): Promise<{ bytes: Uint8Array; etag: string }> {
-  if (opts.bundle) return { bytes: opts.bundle, etag: await bundleEtag(opts.bundle) };
-  const cached = await loadCachedBundle();
-  if (cached) return cached;
-  const packaged = await loadPackagedBundle();
-  if (!packaged) throw new Error("rule bundle missing; build the package or pass init({ bundle })");
-  return { bytes: packaged, etag: await bundleEtag(packaged) };
-}
-
 async function boot(
   gen: number,
   opts: Validated,
@@ -206,7 +206,7 @@ async function boot(
 
     const hashKey = opts.hashKey ?? (await fetchHashKey(opts.endpoint, opts.apiKey));
     if (gen !== generation) return;
-    const loaded = await resolveBundle(opts);
+    const loaded = await resolveBundle({ bundle: opts.bundle, publicKey: opts.bundlePublicKey, debug: opts.debug });
     if (gen !== generation) return;
     const wasm = await loadWasm(opts.dev);
     if (gen !== generation) return;
@@ -227,7 +227,12 @@ async function boot(
     }
     const written = client.attach(handle);
     transport?.noteEvents(written);
-    void refreshBundle({ endpoint: opts.endpoint, apiKey: opts.apiKey, etag: loaded.etag }).catch((error: unknown) => {
+    void refreshBundle({
+      endpoint: opts.endpoint,
+      apiKey: opts.apiKey,
+      etag: loaded.etag,
+      publicKey: opts.bundlePublicKey,
+    }).catch((error: unknown) => {
       debugOnce(opts.debug, error);
     });
   } catch (error) {
