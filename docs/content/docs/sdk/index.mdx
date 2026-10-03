@@ -120,7 +120,9 @@ With `dev: true` the SDK loads the dev wasm build, which also runs `window` rule
 [readmeter] high firebase.firestore/unbounded-list orders: ...
 ```
 
-Leave `dev` off in production. The production build runs only `local` rules and is smaller. A bundler puts the prod and dev wasm in separate chunks and loads only the one `dev` selects.
+Leave `dev` off in production. The production build runs only `local` rules and is smaller. A bundler puts the prod and dev wasm in separate chunks and loads only the one `dev` selects. To serve the wasm as a `.wasm` file instead of a base64 chunk, see [`wasmUrl`](/docs/sdk/configuration#serving-the-wasm-as-a-file).
+
+In the browser, `dev: true` also turns on callsites from stack traces. Production browser builds capture no stacks; add the [build plugin](/docs/sdk/build-plugin) to record callsites there.
 
 To handle findings in code instead of the console, pass `onFinding`. It is called for every local finding, with or without `dev`. Set `debug: true` to log every raw call with `console.debug`.
 

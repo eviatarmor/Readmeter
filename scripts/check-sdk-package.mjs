@@ -10,7 +10,7 @@ const pkg = JSON.parse(execFileSync("tar", ["-xOf", tarball, "package/package.js
 assert.equal(pkg.license, "MIT");
 assert.equal(pkg.private, undefined);
 for (const entry of Object.values(pkg.exports)) {
-  for (const path of Object.values(entry)) assert.ok(files.has(`package/${path.slice(2)}`), `Missing export ${path}`);
+  for (const path of typeof entry === "string" ? [entry] : Object.values(entry)) assert.ok(files.has(`package/${path.slice(2)}`), `Missing export ${path}`);
 }
 for (const kind of ["prod", "dev"]) {
   for (const file of ["readmeter_wasm.js", "readmeter_wasm_bg.wasm", "inline.js"]) {

@@ -58,6 +58,10 @@ description: Every init() option, its type and default, plus the environment var
       description: "Log every raw call with `console.debug`, and log SDK errors (at most one line per second).",
       default: "false",
     },
+    wasmUrl: {
+      type: 'string | URL | ((build: "prod" | "dev") => string | URL)',
+      description: "Fetch the wasm core from this URL instead of the base64 chunk bundled into JavaScript. A function receives the build `dev` selects. See [Serving the wasm as a file](#serving-the-wasm-as-a-file).",
+    },
   }}
 />
 
@@ -81,8 +85,9 @@ description: Every init() option, its type and default, plus the environment var
 | `bundle` | Not a `Uint8Array` |
 | `dev`, `debug` | Not a boolean |
 | `onFinding` | Not a function |
+| `wasmUrl` | Not a non-empty string, a `URL` or a function |
 
-The same happens, after `init` returns, when the hash-key fetch fails, when no rule bundle can be found, or when the wasm module does not load. Your Firebase calls are not affected.
+The same happens, after `init` returns, when the hash-key fetch fails, when no rule bundle can be found, or when the wasm module does not load (including a `wasmUrl` that fails to download or compile). Your Firebase calls are not affected.
 
 ### The Finding type
 
@@ -157,6 +162,27 @@ The SDK needs a rule bundle (rule metadata, severities and thresholds). At start
 3. The `bundle/bundle.bin` shipped in the package.
 
 After start, it requests `GET /v1/bundle` in the background with `If-None-Match`. A new bundle is saved for the next start; the running process keeps the one it loaded. This is how threshold changes reach SDKs without a release.
+
+## Serving the wasm as a file
+
+By default the browser build carries the wasm core as base64 inside a lazily loaded JavaScript chunk, which works with any bundler and needs no server setup. Base64 is larger on the wire: the production core is about 97 KB gzipped as a `.wasm` file and about 125 KB gzipped as the base64 chunk. With `wasmUrl` the SDK fetches the `.wasm` file instead (streaming compilation when the server sends `Content-Type: application/wasm`) and never downloads the base64 chunk. Bundlers still emit that chunk, but nothing imports it.
+
+The package ships both builds as `@readmeter/firebase/wasm/prod/readmeter_wasm_bg.wasm` and `@readmeter/firebase/wasm/dev/readmeter_wasm_bg.wasm`. Each must be paired with its own build, so pass a function when you use `dev`. With Vite, `?url` copies the file into your build output and gives you its URL:
+
+```ts
+import { init } from "@readmeter/firebase";
+import prodWasm from "@readmeter/firebase/wasm/prod/readmeter_wasm_bg.wasm?url";
+import devWasm from "@readmeter/firebase/wasm/dev/readmeter_wasm_bg.wasm?url";
+
+init({
+  apiKey: import.meta.env.VITE_READMETER_API_KEY,
+  endpoint: "https://ingest.example",
+  dev: import.meta.env.DEV,
+  wasmUrl: (build) => (build === "dev" ? devWasm : prodWasm),
+});
+```
+
+With other bundlers, copy `node_modules/@readmeter/firebase/wasm/prod/readmeter_wasm_bg.wasm` into your static files (for example Next.js `public/`) and pass its path, for example `wasmUrl: "/readmeter.wasm"`. If the download or compilation fails, the SDK logs one line and stays disabled, as with any other load failure.
 
 ## Environment variables
 

@@ -8,6 +8,7 @@ sdks/js/firebase/dist/
 sdks/js/firebase/wasm/
 sdks/js/firebase/bundle/
 sdks/js/firebase/test/bundle/dist/
+sdks/js/firebase/test/bundle/app/dist/
 sdks/js/firebase/*.tgz
 .readmeter/
 examples/functions/lib/

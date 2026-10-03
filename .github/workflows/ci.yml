@@ -159,7 +159,9 @@ jobs:
       - run: pnpm --filter @readmeter/firebase build
       - run: pnpm --filter @readmeter/firebase test
       - run: pnpm --filter @readmeter/firebase test:emulator
-      - run: pnpm --filter @readmeter/firebase test:bundle
+      # Inline wasm chunks, build-plugin callsites, wasmUrl loading, and the JS glue size budget.
+      - name: SDK bundle checks and JS glue budget
+        run: pnpm --filter @readmeter/firebase test:bundle
       - name: Verify npm release contents
         run: |
           mkdir -p target/releases

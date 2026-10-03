@@ -42,7 +42,7 @@ Both return the same `HttpsCallable` type as Firebase, including `.stream()`. A 
 | Response bytes | Length of `JSON.stringify` of `result.data` |
 | Duration | Time until the callable promise settles |
 | Error | The error code with the `functions/` prefix removed, for example `unavailable` |
-| Callsite | The first stack frame outside the package and `node_modules` |
+| Callsite | Where the callable is invoked (dev and servers, from the stack), else the `httpsCallable(...)` line from the [build plugin](/docs/sdk/build-plugin) |
 
 Both byte counts are capped at 10,000,000.
 

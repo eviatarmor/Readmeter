@@ -1,0 +1,99 @@
+---
+title: Build plugin
+description: Record callsites in production browser builds with the Vite plugin or the webpack loader, without capturing stacks at runtime.
+---
+
+Every recorded call carries a callsite: the file, line and column in your code that made it. Findings are grouped by callsite, so this is what turns "something reads too much" into "line 14 of `Orders.tsx` reads too much".
+
+There are two ways to get it:
+
+| Where | How | Cost |
+|---|---|---|
+| Build plugin | Injects `src/Orders.tsx:14:9` next to each wrapped call at build time | A string and one function call per call |
+| Stack fallback | Parses `new Error().stack` when the call is made | Too slow for production browsers |
+
+The stack fallback runs only with `init({ dev: true })` or on a server (`platform: "server"`, the default when there is no `window`/`document`). A production browser build without the plugin records calls **without callsites**. Install the plugin for production browser builds.
+
+## Install
+
+The plugin parses your source with `@babel/parser` and rewrites it with `magic-string`. Both are optional peer dependencies of `@readmeter/firebase`, used only at build time and never shipped to the browser:
+
+```sh
+npm install --save-dev @babel/parser magic-string
+```
+
+## Vite
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import readmeter from "@readmeter/firebase/vite";
+
+export default defineConfig({
+  plugins: [readmeter()],
+});
+```
+
+The plugin runs before Vite strips TypeScript and JSX, in both `vite dev` and `vite build`. Callsites are relative to Vite's `root`. Pass `readmeter({ root })` to use another directory, for example the repository root in a monorepo.
+
+## webpack and Next.js
+
+The loader must see the original TypeScript/JSX, so register it with `enforce: "pre"`:
+
+```js title="webpack.config.js"
+export default {
+  module: {
+    rules: [
+      {
+        test: /\.[cm]?[jt]sx?$/,
+        exclude: /node_modules/,
+        enforce: "pre",
+        use: "@readmeter/firebase/webpack-loader",
+      },
+    ],
+  },
+};
+```
+
+In Next.js, add the same rule from the `webpack` option. It applies to client and server compilations:
+
+```js title="next.config.mjs"
+export default {
+  webpack(config) {
+    config.module.rules.push({
+      test: /\.[cm]?[jt]sx?$/,
+      exclude: /node_modules/,
+      enforce: "pre",
+      use: "@readmeter/firebase/webpack-loader",
+    });
+    return config;
+  },
+};
+```
+
+Callsites are relative to webpack's `context` (the project directory in Next.js). To use another root, pass `use: { loader: "@readmeter/firebase/webpack-loader", options: { root } }`.
+
+Turbopack is not supported yet. Build with webpack to get callsites (`next build --webpack` in Next.js 16, where Turbopack is the default), or rely on the stack fallback in development.
+
+## What it changes
+
+The plugin only touches files outside `node_modules` that import from `@readmeter/firebase` or one of its web subpaths (`/firestore`, `/database`, `/storage`, `/auth`, `/functions`). In those files it rewrites calls to the wrapped functions, including aliased imports (`import { getDocs as load }`) and namespace imports (`import * as db from "@readmeter/firebase/database"`, then `db.get(ref)`):
+
+```ts
+// before
+const snap = await getDocs(q);
+// after
+const snap = await __rmcs("src/Orders.tsx:14:24", getDocs)(q);
+```
+
+`__rmcs`, imported from `@readmeter/firebase/callsite`, calls `getDocs` with the same arguments and returns its result unchanged. The wrapper reads the pending callsite synchronously and clears it, so it never applies to another call. Nested calls each get their own. The plugin returns a source map, and line numbers in the output do not change.
+
+These are left alone:
+
+- Calls through a local variable that shadows the import (`function f(get) { get(x) }`).
+- Optional calls (`getDocs?.(q)`), `new`, and functions re-exported from your own modules: import directly from `@readmeter/firebase/*` for callsites.
+- Methods on returned objects, such as `batch.commit()` or the function `httpsCallable` returns. Those use the callsite of the `writeBatch(...)` or `httpsCallable(...)` call that created them.
+- The Admin SDK instrumentation (`@readmeter/firebase/admin`), which runs on servers and uses stacks.
+
+## Labels and privacy
+
+A callsite is `path:line:column` with the path relative to the project root and forward slashes, for example `src/Orders.tsx:14:24`. The column points at the called function's name. It goes through the same path as a stack callsite: the core sends a keyed hash and a label of at most 200 bytes. The plugin adds no other data to your bundle. See [Privacy](/docs/sdk/privacy).

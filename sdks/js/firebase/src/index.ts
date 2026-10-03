@@ -4,6 +4,7 @@ import {
   loadPackagedBundle,
   refreshBundle,
 } from "./core/bundle.ts";
+import { allowStackCallsites } from "./core/callsite.ts";
 import { CoreClient, configJson, disableRecording, handoff, recordRaw } from "./core/client.ts";
 import { detectPlatform } from "./core/env.ts";
 import { debugOnce, errorMessage } from "./core/log.ts";
@@ -11,10 +12,10 @@ import { newSessionId, nextCallId, resetIds } from "./core/session.ts";
 import { Transport } from "./core/transport.ts";
 import { flushPendingUsage } from "./core/usage.ts";
 import { loadWasm } from "./core/wasm.ts";
-import type { Finding, InitOptions, Platform, WriteOp } from "./types.ts";
+import type { Finding, InitOptions, Platform, WasmBuild, WriteOp } from "./types.ts";
 import { sink, sinkListener, sinkWrite } from "./web/sink.ts";
 
-export type { Finding, InitOptions, Platform, WriteOp };
+export type { Finding, InitOptions, Platform, WasmBuild, WriteOp };
 
 const DEFAULT_FLUSH_INTERVAL_MS = 10_000;
 const DEFAULT_MAX_BATCH_EVENTS = 200;
@@ -31,6 +32,7 @@ interface Validated {
   platform: Platform;
   onFinding?: (finding: Finding) => void;
   debug: boolean;
+  wasmUrl?: InitOptions["wasmUrl"];
 }
 
 let transport: Transport | undefined;
@@ -141,6 +143,15 @@ function validate(options: InitOptions): Validated {
   if (options.dev !== undefined && typeof options.dev !== "boolean") throw new Error("dev must be a boolean");
   if (options.debug !== undefined && typeof options.debug !== "boolean") throw new Error("debug must be a boolean");
   if (options.onFinding !== undefined && typeof options.onFinding !== "function") throw new Error("onFinding must be a function");
+  const wasmUrl = options.wasmUrl;
+  if (
+    wasmUrl !== undefined &&
+    !(typeof wasmUrl === "string" && wasmUrl.length > 0) &&
+    !(typeof URL !== "undefined" && wasmUrl instanceof URL) &&
+    typeof wasmUrl !== "function"
+  ) {
+    throw new Error("wasmUrl must be a URL, a non-empty string, or a function");
+  }
 
   const validated: Validated = {
     apiKey: options.apiKey,
@@ -155,6 +166,7 @@ function validate(options: InitOptions): Validated {
   if (options.hashKey !== undefined) validated.hashKey = options.hashKey.toLowerCase();
   if (options.bundle !== undefined) validated.bundle = options.bundle;
   if (options.onFinding !== undefined) validated.onFinding = options.onFinding;
+  if (wasmUrl !== undefined) validated.wasmUrl = wasmUrl;
   return validated;
 }
 
@@ -166,6 +178,17 @@ function fail(gen: number, error: unknown): void {
   transport = undefined;
   void current?.shutdown();
   console.error(`[readmeter] ${errorMessage(error)}. The SDK is disabled.`);
+}
+
+/** The `wasmUrl` option as a string for this build, or undefined for the bundled module. */
+function wasmHref(opts: Validated): string | undefined {
+  const option = opts.wasmUrl;
+  if (option === undefined) return undefined;
+  const build: WasmBuild = opts.dev ? "dev" : "prod";
+  const value = typeof option === "function" ? option(build) : option;
+  if (typeof value === "string" && value.length > 0) return value;
+  if (typeof URL !== "undefined" && value instanceof URL) return value.href;
+  throw new Error(`wasmUrl returned no URL for the ${build} build`);
 }
 
 async function fetchHashKey(endpoint: string, apiKey: string): Promise<string> {
@@ -208,7 +231,7 @@ async function boot(
     if (gen !== generation) return;
     const loaded = await resolveBundle(opts);
     if (gen !== generation) return;
-    const wasm = await loadWasm(opts.dev);
+    const wasm = await loadWasm(opts.dev, undefined, wasmHref(opts));
     if (gen !== generation) return;
     const handle = new wasm.Readmeter(
       configJson({
@@ -261,6 +284,8 @@ export function init(options: InitOptions): void {
 
   const gen = ++generation;
   debug = opts.debug;
+  // Stack capture is too slow for production browsers. Build-plugin callsites still apply.
+  allowStackCallsites(opts.dev || opts.platform === "server");
   const previousTransport = transport;
   transport = undefined;
   resetIds();

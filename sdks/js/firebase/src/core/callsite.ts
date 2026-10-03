@@ -1,10 +1,63 @@
 /**
- * First stack frame outside this package and `node_modules`, as `file:line:col`.
- * Stacks are the dev fallback; a build plugin can replace this later.
+ * Where a recorded call came from, as `file:line:col`.
+ *
+ * Order: the callsite a build plugin injected for this call (`__rmcs`), then
+ * the first stack frame outside this package and `node_modules` when stacks
+ * are allowed, else none. Stack capture is too slow for production browsers:
+ * `init` allows it only with `dev: true` or on a server platform.
  */
 
+/** Callsite injected for the wrapped call in progress. Consumed by the first `callsite()`. */
+let injected: string | undefined;
+
+/** `undefined` until `init` decides; then only browsers outside dev skip stacks. */
+let stacksAllowed: boolean | undefined;
+
+function hasDom(): boolean {
+  const g = globalThis as { window?: unknown; document?: unknown };
+  return g.window != null && g.document != null;
+}
+
+/** Called by `init`. `true` in dev builds and on servers. */
+export function allowStackCallsites(allowed: boolean): void {
+  stacksAllowed = allowed;
+}
+
+function stacksOn(): boolean {
+  return stacksAllowed ?? !hasDom();
+}
+
+/**
+ * Build-plugin runtime: `__rmcs("src/a.ts:10:5", getDocs)(q)` calls `getDocs(q)`
+ * with that callsite pending. The wrapper consumes it synchronously; whatever
+ * is left is restored afterwards so nothing leaks into a later call. `this`,
+ * arguments, return value and exceptions pass through unchanged.
+ */
+export function __rmcs<F>(site: string, fn: F): F {
+  if (typeof fn !== "function") return fn;
+  const target = fn as unknown as (...args: unknown[]) => unknown;
+  return function (this: unknown, ...args: unknown[]): unknown {
+    const previous = injected;
+    injected = site;
+    try {
+      return target.apply(this, args);
+    } finally {
+      injected = previous;
+    }
+  } as unknown as F;
+}
+
+/** The injected callsite, if any, cleared so nested or later calls do not reuse it. */
+export function takeInjected(): string | undefined {
+  const site = injected;
+  injected = undefined;
+  return site;
+}
+
 function packageRoot(): string {
-  const url = new URL("../../", import.meta.url);
+  // String math, not `new URL("../../", import.meta.url)`: bundlers treat that
+  // as an asset reference and emit a stray copy of the package entry.
+  const url = new URL(import.meta.url.replace(/(?:[^/]*\/){2}[^/]*$/, ""));
   if (url.protocol !== "file:") return url.href;
   let path = decodeURIComponent(url.pathname);
   if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1);
@@ -73,7 +126,14 @@ export function callsiteFromStack(stack: string | undefined): string | undefined
 }
 
 export function callsite(): string | undefined {
-  return callsiteFromStack(new Error().stack);
+  const site = takeInjected();
+  if (site !== undefined) return site;
+  if (!stacksOn()) return undefined;
+  try {
+    return callsiteFromStack(new Error().stack);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -144,12 +204,18 @@ export function captureStack(): string | undefined {
   }
 }
 
-/** Callsite plus the in-render flag for reads, from one captured stack. */
+/**
+ * Callsite plus the in-render flag for reads, from one captured stack.
+ * Without stacks there is no in-render flag (React's names are minified in
+ * production anyway); an injected callsite still applies.
+ */
 export function readSite(): { site: string | undefined; inRender: boolean } {
+  const site = takeInjected();
+  if (!stacksOn()) return { site, inRender: false };
   try {
     const stack = captureStack();
-    return { site: callsiteFromStack(stack), inRender: inRenderFromStack(stack) };
+    return { site: site ?? callsiteFromStack(stack), inRender: inRenderFromStack(stack) };
   } catch {
-    return { site: undefined, inRender: false };
+    return { site, inRender: false };
   }
 }

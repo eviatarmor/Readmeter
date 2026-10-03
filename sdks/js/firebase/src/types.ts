@@ -41,4 +41,15 @@ export interface InitOptions {
   onFinding?: (finding: Finding) => void;
   /** Log raw calls, and rate-limit SDK errors, to `console.debug`. */
   debug?: boolean;
+  /**
+   * Where to fetch the `.wasm` core from instead of the base64 chunk bundled
+   * into JavaScript. A function gets the build `dev` selects, so prod and dev
+   * can point at their own file (`wasm/prod/readmeter_wasm_bg.wasm` or
+   * `wasm/dev/readmeter_wasm_bg.wasm` in the package). The file must match
+   * the build. A failed fetch disables the SDK like any other load failure.
+   */
+  wasmUrl?: string | URL | ((build: WasmBuild) => string | URL);
 }
+
+/** Which wasm core `init` loads: `dev` when `init({ dev: true })`. */
+export type WasmBuild = "prod" | "dev";

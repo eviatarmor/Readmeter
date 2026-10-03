@@ -3,7 +3,16 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { callsite, callsiteFromStack, captureStack, inRenderFromStack, readSite } from "../src/core/callsite.ts";
+import {
+  __rmcs,
+  allowStackCallsites,
+  callsite,
+  callsiteFromStack,
+  captureStack,
+  inRenderFromStack,
+  readSite,
+  takeInjected,
+} from "../src/core/callsite.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -159,5 +168,59 @@ test("readSite never throws and reports render from a live stack", () => {
     assert.equal(Error.stackTraceLimit, 10);
   } finally {
     Error.stackTraceLimit = previous;
+  }
+});
+
+test("an injected callsite wins, is consumed once, and does not leak", () => {
+  const seen: Array<string | undefined> = [];
+  const wrapped = (a: number, b: number): number => {
+    seen.push(callsite());
+    seen.push(callsite());
+    return a + b;
+  };
+  assert.equal(__rmcs("src/a.ts:3:7", wrapped)(1, 2), 3);
+  assert.equal(seen[0], "src/a.ts:3:7");
+  assert.match(seen[1] ?? "", /callsite\.test\.ts:\d+:\d+$/, "second call falls back to the stack");
+  assert.equal(takeInjected(), undefined);
+
+  // Nested: the inner call takes its own site; the outer one keeps its own.
+  const outer = (inner: string | undefined): [string | undefined, string | undefined] => [callsite(), inner];
+  const inner = (): string | undefined => callsite();
+  const [outerSite, innerSite] = __rmcs("src/a.ts:1:1", outer)(__rmcs("src/a.ts:1:20", inner)());
+  assert.equal(outerSite, "src/a.ts:1:1");
+  assert.equal(innerSite, "src/a.ts:1:20");
+
+  // Unconsumed sites are dropped after the call, also when it throws.
+  assert.throws(() => __rmcs("src/a.ts:9:9", () => {
+    throw new Error("boom");
+  })(), /boom/);
+  assert.equal(takeInjected(), undefined);
+  __rmcs("src/a.ts:9:9", () => undefined)();
+  assert.equal(takeInjected(), undefined);
+
+  // `this` and non-functions pass through.
+  const host = { n: 5, get(this: { n: number }) { return this.n; } };
+  assert.equal(__rmcs("x:1:1", host.get).call(host), 5);
+  const notFn = { a: 1 };
+  assert.equal(__rmcs("x:1:1", notFn), notFn);
+});
+
+test("readSite uses the injected callsite", () => {
+  const got = __rmcs("src/b.tsx:4:2", () => readSite())();
+  assert.equal(got.site, "src/b.tsx:4:2");
+  assert.equal(got.inRender, false);
+});
+
+test("production browsers capture no stacks", () => {
+  allowStackCallsites(false);
+  try {
+    assert.equal(callsite(), undefined);
+    assert.deepEqual(readSite(), { site: undefined, inRender: false });
+    const renderWithHooks = (): ReturnType<typeof readSite> => readSite();
+    assert.deepEqual(renderWithHooks(), { site: undefined, inRender: false });
+    assert.equal(__rmcs("src/c.ts:1:1", () => callsite())(), "src/c.ts:1:1");
+    assert.deepEqual(__rmcs("src/c.ts:2:1", () => readSite())(), { site: "src/c.ts:2:1", inRender: false });
+  } finally {
+    allowStackCallsites(true);
   }
 });
