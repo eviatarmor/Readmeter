@@ -18,7 +18,7 @@ applies to server platforms.
 
 fix = "Add `select(\"field1\", \"field2\")` to the query."
 
-docs = ["https://cloud.google.com/firestore/docs/samples/firestore-query-select"]
+docs = ["https://googleapis.dev/nodejs/firestore/latest/Query.html#select"]
 
 [params]
 min_docs = 20

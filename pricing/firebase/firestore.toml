@@ -1,14 +1,20 @@
-# Firestore Standard edition, pay-as-you-go.
-# UNVERIFIED: numbers are from memory of the public pricing page and must be
-# checked against `source` before any customer-facing estimate uses them.
-# When verified, set checked_on to the date (YYYY-MM-DD).
+# Firestore Standard edition, pay-as-you-go, default (no CUD) prices.
+# Verified 2026-10-04 against https://cloud.google.com/firestore/pricing:
+# us-central1 (and the other single regions on that page) is $0.03 reads,
+# $0.09 writes, $0.01 deletes per 100,000 documents; the free quota is
+# 50,000 reads, 20,000 writes and 20,000 deletes per day (default database
+# only: named databases get no free quota). The multi-regions nam5 and eur3
+# are twice the single-region price (the page renders them behind a location
+# picker; cross-checked against published bills).
+# Aggregations bill one read per batch of up to 1,000 index entries, at
+# least one read (billing.rs); every query bills at least one read.
 # Network egress is intentionally unpriced for now (reported as "unpriced").
 
 provider = "firebase"
 service = "firestore"
 currency = "USD"
 source = "https://cloud.google.com/firestore/pricing"
-checked_on = "unverified"
+checked_on = "2026-10-04"
 default_region = "nam5"
 
 [regions.nam5]

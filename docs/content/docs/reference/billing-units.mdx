@@ -21,7 +21,7 @@ Changing a price means editing the TOML file, rebuilding the server core with `.
 
 | Service | Units | Priced | `checked_on` |
 |---|---|---|---|
-| Firestore | `reads`, `writes`, `deletes`, `egress_bytes` | `reads`, `writes`, `deletes` | `unverified` |
+| Firestore | `reads`, `writes`, `deletes`, `egress_bytes` | `reads`, `writes`, `deletes` | 2026-10-04 |
 | Realtime Database | `download_bytes`, `connections` | `download_bytes` | 2026-09-30 |
 | Cloud Storage | `class_a`, `class_b`, `egress_bytes`, `stored_bytes` | `class_a`, `class_b`, `egress_bytes` | 2026-09-30 |
 | Authentication | `sms`, `sign_ins`, `anonymous_sign_ins` | `sms` | 2026-09-30 |
@@ -55,8 +55,8 @@ A `get`, `query`, `aggregate` or `snapshot` that was not served from the cache a
 
 `free_per_day`: 50,000 reads, 20,000 writes, 20,000 deletes. `egress_bytes` has no price.
 
-<Callout type="warn">
-The Firestore table has `checked_on = "unverified"`. Its comment says the numbers were written from memory of the public pricing page (`https://cloud.google.com/firestore/pricing`) and must be checked before a customer-facing estimate relies on them.
+<Callout type="info">
+Checked on 2026-10-04 against `https://cloud.google.com/firestore/pricing`. The free quota applies to the default database only; named databases bill from the first operation, and the table does not model that. Committed use discounts are not modeled either.
 </Callout>
 
 ## Realtime Database
