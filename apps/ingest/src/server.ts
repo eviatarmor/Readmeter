@@ -6,14 +6,19 @@
 //   (default `target/rules/bundle.json` relative to the repo root)
 // - `READMETER_SDK_BUNDLE`: path to bundle.bin served at `GET /v1/bundle`
 //   (default `target/rules/bundle.bin` relative to the repo root)
-// - `READMETER_RATE_PER_MIN`: accepted batches per minute per API key (default 600, burst 100)
+// - `READMETER_RATE_PER_MIN`: accepted batches per minute per project, for projects
+//   without their own `rate_per_min` (default 600). Burst is ceil(rate / 6), at least 1.
+// - `READMETER_RATE_PER_IP_PER_MIN`: batches per minute per client IP for browser
+//   requests, those with an `Origin` header (default 120, 0 disables)
+// - `READMETER_TRUST_PROXY`: `1` takes the client IP from the last `X-Forwarded-For`
+//   entry instead of the socket address
 // - `PORT` (default 8090)
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { connect } from "@readmeter/db";
 
-import { bundleEtag, createApp } from "./app.ts";
+import { bundleEtag, createApp, DEFAULT_LIMITS } from "./app.ts";
 import { loadCore } from "./core.ts";
 import { PgStore } from "./store.ts";
 
@@ -31,6 +36,11 @@ const ratePerMin = Number(process.env.READMETER_RATE_PER_MIN ?? 600);
 if (!Number.isFinite(ratePerMin) || ratePerMin <= 0) {
   throw new Error("READMETER_RATE_PER_MIN must be a positive number");
 }
+const ratePerIpPerMin = Number(process.env.READMETER_RATE_PER_IP_PER_MIN ?? DEFAULT_LIMITS.ratePerIpPerMin);
+if (!Number.isFinite(ratePerIpPerMin) || ratePerIpPerMin < 0) {
+  throw new Error("READMETER_RATE_PER_IP_PER_MIN must be 0 (off) or a positive number");
+}
+const trustProxy = process.env.READMETER_TRUST_PROXY === "1";
 
 // One evaluator for every project. Aggregate state lives in this process
 // and is dropped on restart; see crates/evaluator.
@@ -50,7 +60,12 @@ const { db, close } = connect();
 const app = createApp({
   core,
   store: new PgStore(db),
-  limits: { ratePerMin },
+  limits: {
+    ratePerMin,
+    rateBurst: Math.max(1, Math.ceil(ratePerMin / 6)),
+    ratePerIpPerMin,
+    trustProxy,
+  },
   bundle: { body: sdkBundle, etag: bundleEtag(sdkBundle) },
   log,
 });

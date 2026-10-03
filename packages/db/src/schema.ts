@@ -53,10 +53,19 @@ export const projects = pgTable(
     hashKey: text("hash_key").notNull(),
     firebaseProjectId: text("firebase_project_id"),
     environment: text("environment").notNull().default("production"),
+    /**
+     * Accepted batches per minute for the whole project (all its keys share
+     * one bucket in each ingest process). Null uses `READMETER_RATE_PER_MIN`.
+     */
+    ratePerMin: integer("rate_per_min"),
     createdAt: createdAt(),
   },
   (t) => [
     index("projects_org_idx").on(t.orgId),
+    check(
+      "projects_rate_per_min",
+      sql`${t.ratePerMin} is null or ${t.ratePerMin} between 1 and 1000000`,
+    ),
     check("projects_hash_key_hex", sql`${t.hashKey} ~ '^[0-9a-f]{32}$'`),
     check(
       "projects_environment",

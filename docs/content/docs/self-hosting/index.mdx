@@ -27,7 +27,7 @@ Postgres 17 holds everything: users, sessions, workspaces, projects, API keys, i
 [`apps/ingest`](https://github.com/eviatarmor/Readmeter/blob/main/apps/ingest) is the HTTP endpoint the SDKs talk to (Hono on Node, port 8090 by default). It:
 
 - authenticates each request with a project API key and checks the key's origin allowlist,
-- applies a per-key rate limit and a cap on writes in flight,
+- applies a per-project rate limit, a per-IP limit for browser requests, and a cap on writes in flight,
 - hands the batch bytes to the Rust core (server build, `apps/ingest/wasm`), which decodes them and runs `window` and `aggregate` rules,
 - writes the batch, its events and its findings to Postgres in one transaction before it answers `202`,
 - serves the SDK rule bundle (`GET /v1/bundle`) with the project's rule overrides applied, and the project's hash key (`GET /v1/config`).

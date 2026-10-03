@@ -10,6 +10,8 @@ export interface ProjectAccess {
   allowedOrigins: string[];
   /** 32 lowercase hex chars. SDKs fetch this from `GET /v1/config`. */
   hashKey: string;
+  /** The project's own batches per minute, or `null` for the ingest default. */
+  ratePerMin: number | null;
 }
 
 /** One project rule override, as stored. Null fields are "leave the default". */
@@ -67,7 +69,7 @@ export function overridesRevision(rows: { updatedAt: Date }[]): string {
 }
 
 export class PgStore implements Store {
-  // Revocations and origin-list edits take effect within KEY_CACHE_TTL_MS.
+  // Revocations, origin-list and project rate limit edits take effect within KEY_CACHE_TTL_MS.
   private readonly keys = new Map<string, { access: ProjectAccess | null; expires: number }>();
   // At most one last_used_at write per key per minute. Not awaited.
   private readonly lastUsed = new Map<string, number>();
@@ -89,6 +91,7 @@ export class PgStore implements Store {
         projectId: schema.apiKeys.projectId,
         allowedOrigins: schema.apiKeys.allowedOrigins,
         hashKey: schema.projects.hashKey,
+        ratePerMin: schema.projects.ratePerMin,
       })
       .from(schema.apiKeys)
       .innerJoin(schema.projects, eq(schema.projects.id, schema.apiKeys.projectId))
@@ -99,6 +102,7 @@ export class PgStore implements Store {
           projectId: row.projectId,
           allowedOrigins: row.allowedOrigins ?? [],
           hashKey: row.hashKey,
+          ratePerMin: row.ratePerMin,
         }
       : null;
     if (this.keys.size >= KEY_CACHE_MAX) this.keys.clear();

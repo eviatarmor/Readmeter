@@ -57,6 +57,13 @@
       "when": 1791036538048,
       "tag": "0007_events_daily_rollups",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791036991818,
+      "tag": "0008_project_rate_limit",
+      "breakpoints": true
     }
   ]
 }

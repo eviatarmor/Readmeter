@@ -47,7 +47,7 @@ The batch uses a versioned binary wire format defined in `crates/core`. The deco
 
 ### 4. Ingest and evaluate
 
-Ingest looks up the key, checks the browser `Origin` against the key's allowed origins, applies a per-key rate limit, and hands the body to the evaluator (`crates/evaluator`). The evaluator decodes the batch, enforces size limits, and runs the `window` and `aggregate` rules. Ingest writes events and findings to Postgres and answers 202 only after the write, so an accepted batch is a stored batch. When too many writes are in flight it answers 503 with `Retry-After`, and the SDK keeps the batch and retries.
+Ingest looks up the key, checks the browser `Origin` against the key's allowed origins, applies the per-IP (browser) and per-project rate limits, and hands the body to the evaluator (`crates/evaluator`). The evaluator decodes the batch, enforces size limits, and runs the `window` and `aggregate` rules. Ingest writes events and findings to Postgres and answers 202 only after the write, so an accepted batch is a stored batch. When too many writes are in flight it answers 503 with `Retry-After`, and the SDK keeps the batch and retries.
 
 The evaluator keeps its rule state in memory, per project. A restart starts every window from empty, and a pattern that appears again is detected again. All batches of one project must reach the same ingest process, or patterns split across processes are missed.
 

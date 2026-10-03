@@ -103,6 +103,7 @@ function ProjectSettingsBody({
   const [name, setName] = React.useState(project.name);
   const [environment, setEnvironment] = React.useState<Environment>(project.environment);
   const [firebaseProjectId, setFirebaseProjectId] = React.useState(project.firebaseProjectId ?? "");
+  const [ratePerMin, setRatePerMin] = React.useState(project.ratePerMin === null ? "" : String(project.ratePerMin));
   const [confirmDelete, setConfirmDelete] = React.useState("");
   const save = useMutation({
     mutationFn: () =>
@@ -112,6 +113,7 @@ function ProjectSettingsBody({
           name,
           environment,
           firebaseProjectId: firebaseProjectId.length > 0 ? firebaseProjectId : null,
+          ratePerMin: ratePerMin.trim().length > 0 ? Number(ratePerMin) : null,
         }),
       }),
     onSuccess: () => {
@@ -161,6 +163,23 @@ function ProjectSettingsBody({
             disabled={!manage}
             onChange={(event) => setFirebaseProjectId(event.target.value)}
           />
+          <Label htmlFor="project-rate">Ingest rate limit (batches per minute)</Label>
+          <Input
+            id="project-rate"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={1_000_000}
+            step={1}
+            placeholder="Server default"
+            value={ratePerMin}
+            disabled={!manage}
+            onChange={(event) => setRatePerMin(event.target.value)}
+          />
+          <p className="text-sm text-muted-foreground">
+            Shared by all of this project&apos;s API keys, in each ingest process. Leave empty to use the server default
+            (<Mono>READMETER_RATE_PER_MIN</Mono>).
+          </p>
           {manage ? (
             <div className="grid gap-2">
               <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>

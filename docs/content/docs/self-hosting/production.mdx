@@ -130,6 +130,8 @@ A minimal ingest environment:
 DATABASE_URL=postgres://...
 PORT=8090
 READMETER_RATE_PER_MIN=600
+READMETER_RATE_PER_IP_PER_MIN=120
+# READMETER_TRUST_PROXY=1   # only behind a proxy that sets X-Forwarded-For
 ```
 
 ## Serve the console from console-api
@@ -177,7 +179,7 @@ Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from a Google OAuth client. Be
 Some state lives in the ingest process, not in Postgres, and is lost on restart:
 
 - window and aggregate rule state, per project (up to 1,024 projects; the least recently active is dropped past that),
-- the per-key rate limit buckets, which refill on restart,
+- the per-project and per-IP rate limit buckets, which refill on restart (so with several ingest instances each applies the limits separately),
 - the 30-second API key cache.
 
 Each ingest process keeps its own copy of this state.

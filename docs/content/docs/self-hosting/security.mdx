@@ -13,7 +13,7 @@ Keys created in the console are `rm_live_` followed by 32 base62 characters from
 - `prefix`: the first 16 characters (`rm_live_` plus 8), so you can tell keys apart in the console,
 - a name, the creator, the allowed origins, `created_at`, `last_used_at` and `revoked_at`.
 
-ingest hashes the presented key and looks it up among keys whose `revoked_at` is null. Lookups, including misses, are cached in memory for 30 seconds, so a revocation or an origin change reaches ingest within 30 seconds. `last_used_at` is written at most once a minute per key.
+ingest hashes the presented key and looks it up among keys whose `revoked_at` is null. Lookups, including misses, are cached in memory for 30 seconds, so a revocation, an origin change or a new project rate limit reaches ingest within 30 seconds. `last_used_at` is written at most once a minute per key.
 
 The local seed scripts create keys in other formats (`rm_dev_key`, and `rm_` plus 32 base62 characters for `demo_local`). They are for development. See [Run locally](/docs/self-hosting/local#seed-data).
 
@@ -45,7 +45,9 @@ What the SDK sends in the first place is listed on [Privacy](/docs/sdk/privacy).
 
 ## Rate limits and backpressure
 
-ingest limits each API key with a token bucket: `READMETER_RATE_PER_MIN` batches per minute (default 600), with a bucket of 100. When the bucket is empty it answers `429 {"error": "rate_limited"}` with a `Retry-After` header in whole seconds, at least 1. The buckets are held in the ingest process for up to 10,000 keys; past that the oldest bucket is dropped. A restart refills every bucket.
+Each project has one token bucket, shared by all of its API keys: its own `rate_per_min` (set on the project's settings page or with `ratePerMin` on `PATCH /projects/:projectId`), or `READMETER_RATE_PER_MIN` (default 600) when it has none. The bucket holds `max(1, ceil(rate / 6))` batches, ten seconds of traffic: 100 at 600/min. Browser requests, those with an `Origin` header, also count against a bucket per client IP: `READMETER_RATE_PER_IP_PER_MIN` (default 120, burst 20; `0` turns it off). This keeps one visitor with your public web key from using up the whole project's limit. Server callers (Cloud Functions) send no `Origin` and only meet the project limit. The client IP is the socket address; with `READMETER_TRUST_PROXY=1` it is the last `X-Forwarded-For` entry, the address your reverse proxy saw. Only set that behind a proxy that appends to `X-Forwarded-For`, or clients can pick their own address. When a bucket is empty ingest answers `429 {"error": "rate_limited"}` with a `Retry-After` header in whole seconds, at least 1.
+
+The buckets are held in each ingest process: with several ingest instances, each enforces the limits on its own, so the effective limit is the per-process limit times the number of instances that receive traffic. Each process tracks up to 10,000 projects and 10,000 client IPs; past that the least recently used bucket is dropped and starts full again. A restart refills every bucket. A change to a project's limit reaches ingest within 30 seconds, with the API key cache.
 
 Other limits protect the process and the database:
 

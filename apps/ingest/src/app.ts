@@ -16,16 +16,32 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 
 import { CoreError, type Core } from "./core.ts";
-import { TokenBucket } from "./rate.ts";
+import { burstFor, TokenBucket } from "./rate.ts";
 import { overridesRevision, type ProjectAccess, type Store } from "./store.ts";
 
 export interface Limits {
   maxBodyBytes: number;
   maxInflight: number;
-  /** Accepted batches per minute per API key. */
+  /**
+   * Accepted batches per minute per project (all its keys share one bucket),
+   * unless the project sets its own `rate_per_min`.
+   */
   ratePerMin: number;
-  /** Token bucket capacity (burst). */
+  /**
+   * Bucket capacity (burst) at `ratePerMin`. Other rates (a project's own
+   * limit, the per-IP limit) get a burst at the same ratio; see `burstFor`.
+   */
   rateBurst: number;
+  /** Batches per minute per client IP for browser requests (with `Origin`). 0 disables. */
+  ratePerIpPerMin: number;
+  /** Most client IPs tracked at once; the least recently seen is dropped. */
+  maxTrackedIps: number;
+  /**
+   * Take the client IP from the last `X-Forwarded-For` entry (the address
+   * the reverse proxy saw) instead of the socket. Only behind a proxy that
+   * sets it.
+   */
+  trustProxy: boolean;
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -33,7 +49,31 @@ export const DEFAULT_LIMITS: Limits = {
   maxInflight: 64,
   ratePerMin: 600,
   rateBurst: 100,
+  ratePerIpPerMin: 120,
+  maxTrackedIps: 10_000,
+  trustProxy: false,
 };
+
+type SocketBindings = { incoming?: { socket?: { remoteAddress?: string } } };
+
+/** Socket address from @hono/node-server bindings, or `null` (e.g. `app.request` in tests). */
+function socketAddress(c: Context): string | null {
+  const env = c.env as (SocketBindings & { server?: SocketBindings }) | undefined;
+  const bindings = env?.server ?? env;
+  return bindings?.incoming?.socket?.remoteAddress ?? null;
+}
+
+export function clientIp(c: Context, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = (c.req.header("x-forwarded-for") ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    const last = forwarded[forwarded.length - 1];
+    if (last) return last;
+  }
+  return socketAddress(c) ?? "unknown";
+}
 
 /** SDK rule bundle served at `GET /v1/bundle`. Hashed once at startup. */
 export interface SdkBundle {
@@ -63,16 +103,25 @@ function etagMatches(header: string, etag: string): boolean {
   });
 }
 
-type Authed = { ok: true; access: ProjectAccess; apiKey: string } | { ok: false; response: Response };
+type Authed = { ok: true; access: ProjectAccess } | { ok: false; response: Response };
 
 export function createApp({ core, store, limits: overrides, log = () => {}, bundle }: Deps) {
   const limits = { ...DEFAULT_LIMITS, ...overrides };
   let inflight = 0;
   const rates = new TokenBucket(limits.ratePerMin, limits.rateBurst);
+  const ipRates =
+    limits.ratePerIpPerMin > 0
+      ? new TokenBucket(limits.ratePerIpPerMin, burstFor(limits.ratePerIpPerMin, limits), limits.maxTrackedIps)
+      : null;
   const app = new Hono();
 
   const fail = (status: 400 | 401 | 403 | 413 | 429 | 500 | 503, error: string, detail?: string) =>
     Response.json(detail === undefined ? { error } : { error, detail }, { status });
+  const limited = (retryAfter: number, detail: string) => {
+    const res = fail(429, "rate_limited", detail);
+    res.headers.set("retry-after", String(retryAfter));
+    return res;
+  };
 
   app.get("/healthz", (c) => c.text("ok"));
 
@@ -97,7 +146,7 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
     if (access.allowedOrigins.length > 0 && origin && !access.allowedOrigins.includes(origin)) {
       return { ok: false, response: fail(403, "origin_not_allowed") };
     }
-    return { ok: true, access, apiKey };
+    return { ok: true, access };
   };
 
   app.post(
@@ -107,15 +156,24 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
       onError: () => fail(413, "batch_too_large", `body exceeds ${limits.maxBodyBytes} bytes`),
     }),
     async (c) => {
+      // Browsers send Origin. Their keys are public, so one client must not
+      // be able to use up the whole project's limit. Checked before the key
+      // lookup so floods with bad keys are limited too.
+      if (ipRates && c.req.header("origin")) {
+        const retryAfter = ipRates.take(clientIp(c, limits.trustProxy));
+        if (retryAfter !== null) return limited(retryAfter, "too many batches from this address");
+      }
+
       const authz = await authorize(c);
       if (!authz.ok) return authz.response;
 
-      const retryAfter = rates.take(authz.apiKey);
-      if (retryAfter !== null) {
-        const res = fail(429, "rate_limited", "too many batches");
-        res.headers.set("retry-after", String(retryAfter));
-        return res;
-      }
+      const own = authz.access.ratePerMin;
+      const retryAfter = rates.take(
+        authz.access.projectId,
+        Date.now(),
+        own == null ? undefined : { perMin: own, burst: burstFor(own, limits) },
+      );
+      if (retryAfter !== null) return limited(retryAfter, "too many batches");
 
       if (inflight >= limits.maxInflight) {
         const res = fail(503, "busy", "too many batches in flight");
