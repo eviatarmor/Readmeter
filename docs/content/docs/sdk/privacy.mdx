@@ -108,6 +108,8 @@ A static name that is not one of those shapes, such as `photos/room.png`, stays 
 
 In the browser, the SDK records each `visibilitychange` with one flag: whether the page is visible. It has no URL, title or other page data.
 
+Client-side route changes (`history.pushState`, `history.replaceState`, `popstate`, `hashchange`) are recorded as navigations with a route template only. The SDK reads `location.pathname` (or the hash path of a `#/...` router) and cuts the query string and fragment; the core then keeps a segment only when it is 1 to 32 lowercase letters, `-` or `_`, and turns every other segment into `{id}`: `/users/u_123/orders?tab=open` is sent as `/users/{id}/orders`. The origin, query string, fragment, title and history state are never sent. A lowercase word in the path is kept, so if your routes carry usernames or slugs made only of letters (`/u/alice`), turn navigations off with `init({ routes: false })`.
+
 It also records connection changes (`offline` and `online` on `window`, `freeze` and `resume` on `document`) with one flag: whether the page is online. They carry no network or address data.
 
 ## Salted payload hashes

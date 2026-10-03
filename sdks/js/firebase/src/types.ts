@@ -41,4 +41,12 @@ export interface InitOptions {
   onFinding?: (finding: Finding) => void;
   /** Log raw calls, and rate-limit SDK errors, to `console.debug`. */
   debug?: boolean;
+  /**
+   * Report client-side route changes (`history.pushState`/`replaceState`,
+   * `popstate`, `hashchange`) as page events. Only a route template leaves
+   * the process: query string and fragment are dropped and segments that are
+   * not short lowercase words become `{id}`. Default true. Set false when
+   * your paths carry names or slugs you do not want reported.
+   */
+  routes?: boolean;
 }

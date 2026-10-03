@@ -31,6 +31,7 @@ interface Validated {
   platform: Platform;
   onFinding?: (finding: Finding) => void;
   debug: boolean;
+  routes: boolean;
 }
 
 let transport: Transport | undefined;
@@ -53,8 +54,32 @@ interface Watch {
   handler: () => void;
 }
 
+interface WindowHost extends EventHost {
+  history?: unknown;
+  location?: unknown;
+}
+
 /** Host listeners added by `watchPage`, removed together by `unwatchPage`. */
 let watches: Watch[] = [];
+
+/** One `history` method replaced by `watchRoutes`. */
+interface HistoryPatch {
+  host: Record<string, unknown>;
+  name: string;
+  original: unknown;
+  wrapper: unknown;
+}
+
+/** Patches installed by the current `watchRoutes`. */
+let patches: HistoryPatch[] = [];
+/**
+ * Patches that could not be undone because something wrapped `history` on
+ * top of ours. They stay in the chain, inert until the next `watchRoutes`,
+ * which reuses them instead of wrapping twice.
+ */
+let stranded: HistoryPatch[] = [];
+/** Called by patched `history` methods. Unset when routes are not watched. */
+let routeChanged: (() => void) | undefined;
 
 function unwatchPage(): void {
   for (const { host, type, handler } of watches) {
@@ -65,14 +90,25 @@ function unwatchPage(): void {
     }
   }
   watches = [];
+  routeChanged = undefined;
+  for (const patch of patches) {
+    try {
+      if (patch.host[patch.name] === patch.wrapper) patch.host[patch.name] = patch.original;
+      else stranded.push(patch);
+    } catch (error) {
+      stranded.push(patch);
+      debugOnce(debug, error);
+    }
+  }
+  patches = [];
 }
 
-function listen(host: EventHost | undefined, type: string, record: () => Record<string, unknown>): void {
+function on(host: EventHost | undefined, type: string, run: () => void): void {
   try {
     if (!host || typeof host.addEventListener !== "function") return;
     const handler = () => {
       try {
-        recordRaw({ ts_ms: Date.now(), call_id: nextCallId(), ...record() });
+        run();
       } catch (error) {
         debugOnce(debug, error);
       }
@@ -84,18 +120,83 @@ function listen(host: EventHost | undefined, type: string, record: () => Record<
   }
 }
 
+function listen(host: EventHost | undefined, type: string, record: () => Record<string, unknown>): void {
+  on(host, type, () => recordRaw({ ts_ms: Date.now(), call_id: nextCallId(), ...record() }));
+}
+
 /**
- * Reports page visibility and connection changes. Firestore bills a
+ * The current route: `location.pathname`, or the hash path for hash routers
+ * (`#/users/1`, `#!/users/1`). Query string and fragment are cut here, and
+ * the core templates what is left before anything leaves the process.
+ */
+function routeOf(location: unknown): string | undefined {
+  if (!location || typeof location !== "object") return undefined;
+  const { pathname, hash } = location as { pathname?: unknown; hash?: unknown };
+  let route: string | undefined;
+  if (typeof hash === "string" && (hash.startsWith("#/") || hash.startsWith("#!/"))) {
+    route = hash.slice(hash.indexOf("/"));
+  } else if (typeof pathname === "string") {
+    route = pathname;
+  }
+  if (route === undefined) return undefined;
+  const cut = route.search(/[?#]/);
+  return cut >= 0 ? route.slice(0, cut) : route;
+}
+
+function patchHistory(history: Record<string, unknown>, name: string): void {
+  const original = history[name];
+  if (typeof original !== "function") return;
+  if (stranded.some((patch) => patch.host === history && patch.name === name)) return;
+  const wrapper = function (this: unknown, ...args: unknown[]): unknown {
+    const result = (original as (...a: unknown[]) => unknown).apply(this, args);
+    try {
+      routeChanged?.();
+    } catch (error) {
+      debugOnce(debug, error);
+    }
+    return result;
+  };
+  history[name] = wrapper;
+  patches.push({ host: history, name, original, wrapper });
+}
+
+/**
+ * Reports SPA route changes as `navigate` page events: `pushState` and
+ * `replaceState` are wrapped (undone by `shutdown`/re-`init`), `popstate`
+ * and `hashchange` are listened to. Only a change of route is reported, so
+ * `replaceState` with the same path (scroll restoration) records nothing.
+ */
+function watchRoutes(win: WindowHost | undefined): void {
+  if (!win) return;
+  const location = (): unknown => win.location ?? (globalThis as { location?: unknown }).location;
+  let last = routeOf(location());
+  routeChanged = () => {
+    const route = routeOf(location());
+    if (route === undefined || route === last) return;
+    last = route;
+    recordRaw({ op: "navigate", ts_ms: Date.now(), call_id: nextCallId(), route });
+  };
+  const history = win.history ?? (globalThis as { history?: unknown }).history;
+  if (history && typeof history === "object") {
+    patchHistory(history as Record<string, unknown>, "pushState");
+    patchHistory(history as Record<string, unknown>, "replaceState");
+  }
+  on(win, "popstate", () => routeChanged?.());
+  on(win, "hashchange", () => routeChanged?.());
+}
+
+/**
+ * Reports page visibility, route and connection changes. Firestore bills a
  * listener as a new query when it reconnects after 30+ minutes offline;
  * `freeze` counts as offline because a frozen tab stops network activity.
  * No-op where `document` / `window` do not exist (Node, Deno).
  */
-function watchPage(): void {
+function watchPage(routes: boolean): void {
   unwatchPage();
   let doc: PageHost | undefined;
-  let win: EventHost | undefined;
+  let win: WindowHost | undefined;
   try {
-    const g = globalThis as { document?: PageHost; window?: EventHost };
+    const g = globalThis as { document?: PageHost; window?: WindowHost };
     doc = g.document;
     win = g.window;
   } catch (error) {
@@ -107,6 +208,12 @@ function watchPage(): void {
   listen(win, "online", () => ({ op: "connection", online: true }));
   listen(doc, "freeze", () => ({ op: "connection", online: false }));
   listen(doc, "resume", () => ({ op: "connection", online: true }));
+  if (!routes) return;
+  try {
+    watchRoutes(win);
+  } catch (error) {
+    debugOnce(debug, error);
+  }
 }
 
 function validate(options: InitOptions): Validated {
@@ -140,6 +247,7 @@ function validate(options: InitOptions): Validated {
   if (options.bundle !== undefined && !(options.bundle instanceof Uint8Array)) throw new Error("bundle must be a Uint8Array");
   if (options.dev !== undefined && typeof options.dev !== "boolean") throw new Error("dev must be a boolean");
   if (options.debug !== undefined && typeof options.debug !== "boolean") throw new Error("debug must be a boolean");
+  if (options.routes !== undefined && typeof options.routes !== "boolean") throw new Error("routes must be a boolean");
   if (options.onFinding !== undefined && typeof options.onFinding !== "function") throw new Error("onFinding must be a function");
 
   const validated: Validated = {
@@ -151,6 +259,7 @@ function validate(options: InitOptions): Validated {
     maxBatchEvents: options.maxBatchEvents ?? DEFAULT_MAX_BATCH_EVENTS,
     platform,
     debug: options.debug ?? false,
+    routes: options.routes ?? true,
   };
   if (options.hashKey !== undefined) validated.hashKey = options.hashKey.toLowerCase();
   if (options.bundle !== undefined) validated.bundle = options.bundle;
@@ -280,7 +389,7 @@ export function init(options: InitOptions): void {
   });
   transport = created;
   created.start();
-  watchPage();
+  watchPage(opts.routes);
   const session = newSessionId();
   ready = boot(gen, opts, client, session, previous, previousTransport);
 }

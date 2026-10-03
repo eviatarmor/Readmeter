@@ -105,6 +105,7 @@ The runtime changes how batches leave the process:
 | Early flush | After `maxBatchEvents` recorded calls (default 200) | Same |
 | On exit | `pagehide` flushes with `keepalive` | `beforeExit` and `SIGTERM` flush |
 | Page visibility | `visibilitychange` is recorded as a page event | Not recorded |
+| Navigation | `pushState`/`replaceState` are wrapped and `popstate`/`hashchange` listened to; a route change is recorded as a page event with a [route template](/docs/sdk/privacy#page-visibility) (`routes: false` turns it off) | Not recorded |
 | Connection | `offline`/`online` on `window` and `freeze`/`resume` are recorded as connection events | Not recorded |
 | Rule bundle cache | `localStorage` | `~/.readmeter/cache`, or `READMETER_BUNDLE_CACHE` |
 

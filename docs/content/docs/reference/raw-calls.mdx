@@ -193,19 +193,23 @@ Emails, phone numbers, uids, tokens and page token strings may be present in a r
 
 Request and response bodies, URLs and project ids are not read.
 
-## Page visibility
+## Page visibility and navigation
 
-The browser SDK also reports page visibility changes. These are not provider calls: the runtime recognizes them by `op` and builds the envelope itself ([`crates/runtime/src/page.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/runtime/src/page.rs)). The envelope has provider `sdk` and service `page`.
+The browser SDK also reports page visibility changes and client-side route changes. These are not provider calls: the runtime recognizes them by `op` and builds the envelope itself ([`crates/runtime/src/page.rs`](https://github.com/eviatarmor/Readmeter/blob/main/crates/runtime/src/page.rs)). The envelope has provider `sdk` and service `page`.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `op` | `"page"` | yes | |
-| `visible` | boolean | yes | Page is visible after the change |
+| `op` | `"page"` or `"navigate"` | yes | |
+| `visible` | boolean | for `page` | Page is visible after the change |
+| `route` | string | for `navigate` | The new route, normally `location.pathname` |
 | `ts_ms` | integer | yes | |
 | `call_id` | integer | no, default `0` | |
 
+A `page` event becomes `op: page` with the `visible` flag. A `navigate` event becomes `op: other` named `navigate`, with the route template in `template`. The template drops everything from the first `?` or `#`, and keeps a path segment only when it is 1 to 32 lowercase ASCII letters, `-` or `_`. Every other segment (digits, uppercase, `%`, `.`, `@`, `:`, longer slugs) becomes `{id}`, and segments past the twelfth fold into `{rest}`. `/users/u_123/orders?tab=open` becomes `/users/{id}/orders`. The target key is a keyed hash of the template, so visits to the same route template share it.
+
 ```json
 { "op": "page", "visible": false, "ts_ms": 61000, "call_id": 12 }
+{ "op": "navigate", "route": "/users/u_123/orders", "ts_ms": 62000, "call_id": 13 }
 ```
 
 ## Checking an SDK

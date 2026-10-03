@@ -58,6 +58,11 @@ description: Every init() option, its type and default, plus the environment var
       description: "Log every raw call with `console.debug`, and log SDK errors (at most one line per second).",
       default: "false",
     },
+    routes: {
+      type: "boolean",
+      description: "In the browser, record client-side route changes (`history.pushState`/`replaceState`, `popstate`, `hashchange`) as page events with a [route template](/docs/sdk/privacy#page-visibility). `shutdown()` and a new `init` restore the `history` methods.",
+      default: "true",
+    },
   }}
 />
 
@@ -79,7 +84,7 @@ description: Every init() option, its type and default, plus the environment var
 | `maxBatchEvents` | Not a positive integer |
 | `platform` | Not `browser`, `server` or `mobile` |
 | `bundle` | Not a `Uint8Array` |
-| `dev`, `debug` | Not a boolean |
+| `dev`, `debug`, `routes` | Not a boolean |
 | `onFinding` | Not a function |
 
 The same happens, after `init` returns, when the hash-key fetch fails, when no rule bundle can be found, or when the wasm module does not load. Your Firebase calls are not affected.

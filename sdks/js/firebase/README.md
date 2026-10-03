@@ -57,6 +57,8 @@ sinkWrite(ref, "update");
 const unsub = onSnapshot(q, sinkListener(q, (next) => render(next)));
 ```
 
+In the browser, page visibility, connection changes and client-side route changes (`history.pushState`/`replaceState`, `popstate`, `hashchange`) are recorded as page events. A route is sent only as a template (`/users/{id}/orders`); pass `routes: false` to `init` to turn navigations off.
+
 React apps can tag calls with the component that made them with [`@readmeter/react`](../react). Other UI bindings can use `newMountId`, `runInMount` and `currentMount` from the root module.
 
 ## Cloud Functions
