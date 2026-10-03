@@ -1,0 +1,107 @@
+---
+title: React
+description: Give each React component a mount id with @readmeter/react, so rules can tell a StrictMode double effect from two components fetching the same data.
+---
+
+`@readmeter/react` tags the Firebase calls a component makes with a mount id. A mount id names one component instance (more precisely, one hook in one instance) for the life of the page. React StrictMode runs an effect, its cleanup and the effect again for the same instance, so both runs carry the same id. Two components rendering side by side get different ids.
+
+Rules use it:
+
+- [react-double-mount](/docs/rules/generic#react-double-mount) only pairs two reads from the same callsite when they come from the same mount (or neither has one). Two sibling components that each read once are no longer reported as a double read. For a subscription that was closed and reopened, the finding says whether the same instance re-ran its effect or a new instance replaced it.
+- [read-in-render](/docs/rules/firestore#read-in-render) counts repeated reads per mount, so a list of items that each read once during render is not a render loop.
+
+The package works with `@readmeter/firebase` drop-ins (`@readmeter/firebase/firestore`, `@readmeter/firebase/database`) and with the [manual sink API](/docs/sdk/sink).
+
+## Install
+
+```sh
+pnpm add @readmeter/react
+```
+
+Peer dependencies: `react` (`>=18`) and `@readmeter/firebase`. Call `init` from `@readmeter/firebase` as usual. Without `init`, the hooks only set and restore a module variable around your callback, so they cost next to nothing.
+
+## Effects
+
+Replace `useEffect` with `useReadmeterEffect` (or `useLayoutEffect` with `useReadmeterLayoutEffect`) where the effect reads or subscribes:
+
+```tsx
+import { onSnapshot, collection, query, limit } from "@readmeter/firebase/firestore";
+import { useReadmeterEffect } from "@readmeter/react";
+
+function Todos({ db }: { db: Firestore }) {
+  const [rows, setRows] = useState<Todo[]>([]);
+  useReadmeterEffect(
+    () => onSnapshot(query(collection(db, "todos"), limit(50)), (snap) => setRows(snap.docs.map(toTodo))),
+    [db],
+  );
+  return <TodoList rows={rows} />;
+}
+```
+
+The effect and its cleanup run inside the mount. Only synchronous work is tagged: the call that starts a read or a listener. A listener keeps the mount that opened it, so its snapshots and its unsubscribe carry the same id even though they happen later. A read that has already started keeps its id when it resolves.
+
+Add the hooks to the exhaustive-deps lint rule:
+
+```json
+{ "rules": { "react-hooks/exhaustive-deps": ["warn", { "additionalHooks": "(useReadmeterEffect|useReadmeterLayoutEffect)" }] } }
+```
+
+## Mount ids and withMount
+
+`useMountId()` returns an id owned by that hook call. It does not change across re-renders or across StrictMode's simulated unmount and remount, and a new instance gets a new id. Each call (including the one inside each `useReadmeterEffect`) owns its own id; to share one id across several effects, call `useMountId` once and use `withMount`:
+
+```tsx
+import { useMountId, withMount } from "@readmeter/react";
+
+function Profile({ uid }: { uid: string }) {
+  const mount = useMountId();
+  useEffect(() => withMount(mount, () => onSnapshot(doc(db, "users", uid), setUser)), [mount, uid]);
+  useEffect(() => withMount(mount, () => onSnapshot(doc(db, "settings", uid), setSettings)), [mount, uid]);
+  // ...
+}
+```
+
+`withMount(mount, fn)` runs `fn` and returns its result. Errors thrown by `fn` reach you unchanged. `withMount(undefined, fn)` just runs `fn`.
+
+## Reads during render
+
+Reading in a component body is usually a bug ([read-in-render](/docs/rules/firestore#read-in-render)). To attribute such reads to the component instance, wrap the component:
+
+```tsx
+import { withReadmeterMount } from "@readmeter/react";
+
+export const Badge = withReadmeterMount(function Badge({ q }: { q: Query }) {
+  // ...
+});
+```
+
+The wrapper calls your function component as a function inside its own render, so your hooks become the wrapper's hooks. That is safe for plain function components. Class components and exotic components (`memo`, `forwardRef`) are rendered unchanged, without a mount.
+
+## ReadmeterProvider
+
+The provider is optional. Use it to turn tagging off for a subtree:
+
+```tsx
+import { ReadmeterProvider } from "@readmeter/react";
+
+<ReadmeterProvider enabled={false}>
+  <LegacyArea />
+</ReadmeterProvider>
+```
+
+With tagging off, `useMountId()` returns `undefined` and the hooks behave like `useEffect` and `useLayoutEffect`.
+
+## What is sent
+
+The raw call gets an integer `mount` field (see [Raw calls](/docs/reference/raw-calls)), and the envelope carries it as `mount`. A mount id is a per-page counter, like listener ids: it identifies nothing outside the page and is not hashed. Component names, props and state are never read.
+
+## Without React
+
+`@readmeter/react` is a thin layer over three functions in `@readmeter/firebase` that any UI binding can use:
+
+```ts
+import { newMountId, runInMount, currentMount } from "@readmeter/firebase";
+
+const mount = newMountId(); // once per component instance
+const unsub = runInMount(mount, () => onSnapshot(q, render));
+```

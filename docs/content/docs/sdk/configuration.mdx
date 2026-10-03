@@ -62,6 +62,11 @@ description: Every init() option, its type and default, plus the environment var
       type: 'string | URL | ((build: "prod" | "dev") => string | URL)',
       description: "Fetch the wasm core from this URL instead of the base64 chunk bundled into JavaScript. A function receives the build `dev` selects. See [Serving the wasm as a file](#serving-the-wasm-as-a-file).",
     },
+    routes: {
+      type: "boolean",
+      description: "In the browser, record client-side route changes (`history.pushState`/`replaceState`, `popstate`, `hashchange`) as page events with a [route template](/docs/sdk/privacy#page-visibility). `shutdown()` and a new `init` restore the `history` methods.",
+      default: "true",
+    },
   }}
 />
 
@@ -83,7 +88,7 @@ description: Every init() option, its type and default, plus the environment var
 | `maxBatchEvents` | Not a positive integer |
 | `platform` | Not `browser`, `server` or `mobile` |
 | `bundle` | Not a `Uint8Array` |
-| `dev`, `debug` | Not a boolean |
+| `dev`, `debug`, `routes` | Not a boolean |
 | `onFinding` | Not a function |
 | `wasmUrl` | Not a non-empty string, a `URL` or a function |
 

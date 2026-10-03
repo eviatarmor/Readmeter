@@ -19,8 +19,8 @@ pub fn build(p: &Params) -> Result<Box<dyn Detector>, ParamError> {
 struct ReadInRender {
     min_reads: usize,
     window_ms: u64,
-    /// (session, callsite or target) -> billed reads of each call
-    window: KeyedWindow<(u64, u8, u64), u64>,
+    /// (session, callsite or target, mount) -> billed reads of each call
+    window: KeyedWindow<(u64, u8, u64, Option<u64>), u64>,
 }
 
 impl Detector for ReadInRender {
@@ -33,9 +33,13 @@ impl Detector for ReadInRender {
         }
         // Without a callsite, repeats of the same request are the best proxy
         // for "the same line in the component body".
+        // With a mount id (from `@readmeter/react`) repeats are counted per
+        // component instance, so N list items that each read once are not a
+        // render loop.
+        let mount = env.ctx.mount;
         let group = match env.ctx.callsite {
-            Some(c) => (env.ctx.session, 1, c),
-            None => (env.ctx.session, 0, env.target.key),
+            Some(c) => (env.ctx.session, 1, c, mount),
+            None => (env.ctx.session, 0, env.target.key, mount),
         };
         let (reads, wasted) = {
             let samples = self.window.push(group, env.ts_ms, env.units.get("reads"));
@@ -151,6 +155,21 @@ mod tests {
         let mut e = engine();
         let envs = (0..4).map(|i| render_get(i * 100, 7).session(1 + (i % 2)).build());
         assert!(run(&mut e, envs).is_empty());
+    }
+
+    #[test]
+    fn repeats_count_per_mount() {
+        // Three list items, each reading once during render: no loop.
+        let mut e = engine();
+        let envs = (0..3).map(|i| render_get(i * 100, 7).mount(10 + i).build());
+        assert!(run(&mut e, envs).is_empty());
+
+        // One instance re-rendering three times does loop.
+        let mut e = engine();
+        let envs = (0..3).map(|i| render_get(i * 100, 7).mount(10).build());
+        let f = run(&mut e, envs);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].wasted.get("reads"), 2);
     }
 
     #[test]

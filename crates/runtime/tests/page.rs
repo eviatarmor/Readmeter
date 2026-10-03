@@ -64,6 +64,66 @@ fn page_requires_a_bool_visible_and_a_timestamp() {
 }
 
 #[test]
+fn navigation_is_a_page_event_with_a_templated_route() {
+    let mut c = client();
+    c.record(
+        br#"{"op":"navigate","ts_ms":5,"call_id":6,"route":"/users/aliceSmith42/orders/Xk9pQ?token=s3cr3tval#frag-mark"}"#,
+    )
+    .expect("record");
+    c.record(br#"{"op":"navigate","ts_ms":6,"call_id":7,"route":"/users/bob77/orders/Zz1"}"#)
+        .expect("record");
+    c.record(br#"{"op":"navigate","ts_ms":7,"call_id":8,"route":"/settings"}"#)
+        .expect("record");
+    // A full URL by mistake: scheme and host are not static names either.
+    c.record(
+        br#"{"op":"navigate","ts_ms":8,"call_id":9,"route":"https://app.example.com/teams/t9"}"#,
+    )
+    .expect("record");
+    let batch = c.drain(10).expect("batch");
+    let [first, second, third, fourth] = &batch.events[..] else {
+        panic!("four events: {:?}", batch.events);
+    };
+    assert_eq!(fourth.target.template, "/{id}/{id}/teams/{id}");
+    assert_eq!(first.provider, "sdk");
+    assert_eq!(first.service, "page");
+    assert_eq!(first.op, Op::Other("navigate".into()));
+    assert_eq!(first.target.template, "/users/{id}/orders/{id}");
+    assert_eq!(first.ctx.call_id, 6);
+    assert!(first.units.is_empty());
+    // Same template, same key: the concrete ids are not part of it.
+    assert_eq!(first.target.key, second.target.key);
+    assert_ne!(first.target.key, third.target.key);
+    assert_eq!(third.target.template, "/settings");
+
+    // Nothing from the raw URL survives in the encoded batch.
+    let bytes = batch.encode().expect("encode");
+    let text = String::from_utf8_lossy(&bytes);
+    for secret in [
+        "aliceSmith42",
+        "Xk9pQ",
+        "s3cr3tval",
+        "token",
+        "frag-mark",
+        "example.com",
+        "bob77",
+        "Zz1",
+    ] {
+        assert!(!text.contains(secret), "{secret} leaked");
+    }
+}
+
+#[test]
+fn navigation_requires_a_string_route() {
+    let mut c = client();
+    assert!(c.record(br#"{"op":"navigate","ts_ms":1}"#).is_err());
+    assert!(
+        c.record(br#"{"op":"navigate","ts_ms":1,"route":3}"#)
+            .is_err()
+    );
+    assert!(c.record(br#"{"op":"navigate","route":"/"}"#).is_err());
+}
+
+#[test]
 fn connection_event_is_recorded() {
     let mut c = client();
     c.record(br#"{"op":"connection","ts_ms":1,"call_id":4,"online":false}"#)

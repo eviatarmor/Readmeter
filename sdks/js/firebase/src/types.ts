@@ -49,6 +49,14 @@ export interface InitOptions {
    * the build. A failed fetch disables the SDK like any other load failure.
    */
   wasmUrl?: string | URL | ((build: WasmBuild) => string | URL);
+  /**
+   * Report client-side route changes (`history.pushState`/`replaceState`,
+   * `popstate`, `hashchange`) as page events. Only a route template leaves
+   * the process: query string and fragment are dropped and segments that are
+   * not short lowercase words become `{id}`. Default true. Set false when
+   * your paths carry names or slugs you do not want reported.
+   */
+  routes?: boolean;
 }
 
 /** Which wasm core `init` loads: `dev` when `init({ dev: true })`. */

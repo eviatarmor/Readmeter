@@ -162,11 +162,16 @@ jobs:
       # Inline wasm chunks, build-plugin callsites, wasmUrl loading, and the JS glue size budget.
       - name: SDK bundle checks and JS glue budget
         run: pnpm --filter @readmeter/firebase test:bundle
+      # @readmeter/react resolves @readmeter/firebase through its built dist/.
+      - run: pnpm --filter @readmeter/react typecheck
+      - run: pnpm --filter @readmeter/react test
+      - run: pnpm --filter @readmeter/react build
       - name: Verify npm release contents
         run: |
           mkdir -p target/releases
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/target/releases"
-          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz
+          pnpm --filter @readmeter/react pack --pack-destination "$PWD/target/releases"
+          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz target/releases/readmeter-react-*.tgz
 
   # The lockfile pins the newest firebase major (sdk-js covers it). The query-shape
   # reader reads SDK internals, so every older supported major runs the unit tests

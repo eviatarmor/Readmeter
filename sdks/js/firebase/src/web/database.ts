@@ -13,6 +13,7 @@
 import { callsite } from "../core/callsite.ts";
 import { recordRaw, sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
+import { currentMount } from "../core/mount.ts";
 import { nextCallId, nextListenerId } from "../core/session.ts";
 import {
   get as realGet,
@@ -40,12 +41,16 @@ interface Timing {
   site?: string;
   ts: number;
   start: number;
+  /** Component instance that issued the call (`runInMount`). */
+  mount?: number;
 }
 
 function timing(): Timing {
   const site = callsite();
   const at: Timing = { ts: Date.now(), start: performance.now() };
   if (site) at.site = site;
+  const mount = currentMount();
+  if (mount !== undefined) at.mount = mount;
   return at;
 }
 
@@ -75,6 +80,7 @@ function emit(op: string, target: unknown, at: Timing, extra: Record<string, unk
       duration_us: elapsed(at.start),
     };
     if (at.site) call.callsite = at.site;
+    if (at.mount !== undefined) call.mount = at.mount;
     const query = readQueryShape(target);
     if (query) call.query = query;
     if (query?.order_by && (op === "subscribe" || op === "get" || op === "query")) {
@@ -152,6 +158,8 @@ function listen(real: AnyFn, event: "value" | "child_added" | "child_changed" | 
   return (...args: unknown[]) => {
     const at = timing();
     const listener = nextListenerId();
+    // Callbacks run outside the component's effect; they keep the opening mount.
+    const mount = at.mount;
     const target = args[0];
     const user = args[1];
     const once = onlyOnce(args);
@@ -160,10 +168,10 @@ function listen(real: AnyFn, event: "value" | "child_added" | "child_changed" | 
     const close = (): void => {
       if (closed) return;
       closed = true;
-      emit("unsubscribe", target, timing(), { listener });
+      emit("unsubscribe", target, timing(), { listener, mount });
     };
     const wrapped = (snap: unknown, prev?: unknown): unknown => {
-      const payload: Record<string, unknown> = { listener, result: resultOf(snap) };
+      const payload: Record<string, unknown> = { listener, mount, result: resultOf(snap) };
       if (event === "value") {
         if (initial) payload.initial = true;
         initial = false;
@@ -181,7 +189,7 @@ function listen(real: AnyFn, event: "value" | "child_added" | "child_changed" | 
       const cancel = next[2] as AnyFn;
       next[2] = (error: unknown) => {
         const op = event === "value" ? "snapshot" : event;
-        emit(op, target, timing(), { listener, error: errorCode(error) });
+        emit(op, target, timing(), { listener, mount, error: errorCode(error) });
         close();
         return cancel(error);
       };
