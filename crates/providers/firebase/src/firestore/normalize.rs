@@ -356,6 +356,22 @@ mod tests {
     }
 
     #[test]
+    fn mount_id_is_carried_and_optional() {
+        let mounted = norm(
+            json!({"op": "subscribe", "ts_ms": 1, "path": "todos", "listener": 2, "mount": 7}),
+        );
+        assert_eq!(mounted.ctx.mount, Some(7));
+        assert_eq!(mounted.ctx.listener, Some(2));
+        let plain = norm(json!({"op": "subscribe", "ts_ms": 1, "path": "todos", "listener": 2}));
+        assert_eq!(plain.ctx.mount, None);
+        let bytes =
+            serde_json::to_vec(&json!({"op": "get", "ts_ms": 1, "path": "a/b", "mount": "7"}))
+                .unwrap();
+        let parsed = readmeter_provider_api::json::parse(&bytes).unwrap();
+        assert!(RawCall::from_json(&parsed).is_err());
+    }
+
+    #[test]
     fn values_change_key_but_not_fingerprint() {
         let q = |uid: &str, limit: u32| {
             norm(json!({

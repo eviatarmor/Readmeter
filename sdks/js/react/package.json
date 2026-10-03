@@ -1,0 +1,51 @@
+{
+  "name": "@readmeter/react",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "@readmeter/firebase": "^0.1.0",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@readmeter/firebase": "workspace:*",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^24",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "firebase": "^12.19.0",
+    "jsdom": "^29.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eviatarmor/Readmeter.git",
+    "directory": "sdks/js/react"
+  },
+  "description": "Component mount ids for @readmeter/firebase, so Readmeter can tell a React StrictMode double effect from two components fetching the same data.",
+  "publishConfig": {
+    "access": "public"
+  }
+}

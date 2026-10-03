@@ -269,6 +269,12 @@ impl EnvBuilder {
         self
     }
 
+    /// Sets the UI component mount id.
+    pub fn mount(mut self, m: u64) -> Self {
+        self.0.ctx.mount = Some(m);
+        self
+    }
+
     pub fn attempt(mut self, a: u32) -> Self {
         self.0.ctx.attempt = a;
         self

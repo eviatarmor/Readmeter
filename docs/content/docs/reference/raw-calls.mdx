@@ -52,7 +52,7 @@ The session, platform, `dev` flag and hash key are not part of a raw call. They 
 | `setup` | object | Required for `init` |
 | `initial` | boolean | For `snapshot`: `true` on the listener's first snapshot. Default `false` |
 | `listener` | integer | Listener id for `subscribe`, `snapshot` and `unsubscribe` |
-| `mount` | integer | UI component mount id |
+| `mount` | integer | UI component mount id (from [`@readmeter/react`](/docs/sdk/react)). A per-page counter, not hashed. Listeners keep the mount that opened them |
 
 `query`:
 
@@ -110,6 +110,7 @@ The session, platform, `dev` flag and hash key are not part of a raw call. They 
 | `result` | object | `children`, `bytes`, `from_cache` |
 | `initial` | boolean | For `snapshot`: first snapshot of the listener. Default `false` |
 | `listener` | integer | Listener id |
+| `mount` | integer | UI component mount id (from [`@readmeter/react`](/docs/sdk/react)) |
 
 `query` has `filters` (array of `{ field, op, value }`), `order_by` (the `orderByChild` path, or `$key`, `$value` or `$priority`), `limit`, `limit_to_last` (default `false`), and `start` and `end` (any JSON).
 

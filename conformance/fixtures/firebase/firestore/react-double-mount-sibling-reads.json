@@ -1,0 +1,22 @@
+{
+  "description": "Two instances of the same React component, mounted side by side with @readmeter/react, each call getDocs(query(collection(db, 'todos'), limit(10))) once in useReadmeterEffect. Different mount ids mean two components that each fetch, not a remount, so react-double-mount stays quiet. The same two reads without mount ids would fire.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "mount": 1,
+      "path": "todos", "query": { "limit": 10 }, "callsite": "src/Todos.tsx:9:5",
+      "result": { "docs": 10, "bytes": 2000 }
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1004, "call_id": 2, "mount": 2,
+      "path": "todos", "query": { "limit": 10 }, "callsite": "src/Todos.tsx:9:5",
+      "result": { "docs": 10, "bytes": 2000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "todos", "units": { "reads": 10, "egress_bytes": 2000 } },
+    { "op": "query", "template": "todos", "units": { "reads": 10, "egress_bytes": 2000 } }
+  ],
+  "expect_findings": []
+}

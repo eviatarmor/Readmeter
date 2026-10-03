@@ -41,6 +41,7 @@ import {
   recordQueryResult,
   recordWrite,
   watch,
+  withCurrentMount,
   type ListenerSession,
   type Timing,
 } from "./sink.ts";
@@ -50,13 +51,13 @@ export * from "firebase/firestore";
 type AnyFn = (...args: unknown[]) => unknown;
 
 function timing(): Timing {
-  return { site: callsite(), ts: Date.now(), start: performance.now() };
+  return withCurrentMount({ site: callsite(), ts: Date.now(), start: performance.now() });
 }
 
 /** Reads also record whether they ran in a React render; one stack serves both. */
 function readTiming(): Timing {
   const { site, inRender } = readSite();
-  return { site, inRender, ts: Date.now(), start: performance.now() };
+  return withCurrentMount({ site, inRender, ts: Date.now(), start: performance.now() });
 }
 
 function traced<T>(

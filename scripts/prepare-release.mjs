@@ -10,4 +10,11 @@ const source = readFileSync(new URL("../sdks/js/firebase/src/version.ts", import
 assert.equal(source.match(/SDK_VERSION = "([^"]+)"/u)?.[1], pkg.version, "SDK telemetry version must match package.json");
 assert.equal(pkg.license, "MIT");
 assert.equal(pkg.publishConfig.access, "public");
-console.log(`Releasing ${pkg.name}@${pkg.version}`);
+
+// @readmeter/react ships in lockstep with @readmeter/firebase.
+const react = JSON.parse(readFileSync(new URL("../sdks/js/react/package.json", import.meta.url)));
+assert.equal(react.version, pkg.version, "@readmeter/react version must match @readmeter/firebase");
+assert.equal(react.peerDependencies["@readmeter/firebase"], `^${pkg.version}`, "@readmeter/react must peer-depend on this release");
+assert.equal(react.license, "MIT");
+assert.equal(react.publishConfig.access, "public");
+console.log(`Releasing ${pkg.name}@${pkg.version} and ${react.name}@${react.version}`);

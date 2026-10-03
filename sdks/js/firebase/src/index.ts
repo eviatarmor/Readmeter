@@ -321,4 +321,6 @@ export async function shutdown(): Promise<void> {
 }
 
 export { sink, sinkListener, sinkWrite };
+/** Component mount ids for UI bindings such as `@readmeter/react`. */
+export { currentMount, newMountId, runInMount } from "./core/mount.ts";
 

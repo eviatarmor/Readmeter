@@ -20,7 +20,9 @@ render entry point (`renderWithHooks`, or `renderWithHooksAgain` in React
 19). Effects and event handlers run from other frames and are not marked.
 This only works with development builds of React: production builds
 minify function names, so reads there are never marked and the rule stays
-silent.
+silent. When reads carry a component mount id (`withReadmeterMount` from
+`@readmeter/react`), repeats are counted per component instance, so a list
+of items that each read once does not fire.
 """
 
 fix = """

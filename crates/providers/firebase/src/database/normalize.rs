@@ -98,7 +98,7 @@ pub fn normalize(mut raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, No
                 .and_then(readmeter_core::callsite_label),
             listener: raw.listener,
             transaction: None,
-            mount: None,
+            mount: raw.mount,
             platform: cx.platform,
             attempt: raw.attempt.max(1),
             dev: cx.dev,
@@ -352,6 +352,16 @@ mod tests {
         let root = norm(json!({"op": "get", "ts_ms": 1, "path": "///"}));
         assert_eq!(root.target.template, "/");
         assert_eq!(root.target.id_shape, None);
+    }
+
+    #[test]
+    fn mount_id_is_carried_and_optional() {
+        let mounted = norm(
+            json!({"op": "subscribe", "ts_ms": 1, "path": "rooms", "listener": 2, "mount": 9}),
+        );
+        assert_eq!(mounted.ctx.mount, Some(9));
+        let plain = norm(json!({"op": "subscribe", "ts_ms": 1, "path": "rooms", "listener": 2}));
+        assert_eq!(plain.ctx.mount, None);
     }
 
     #[test]

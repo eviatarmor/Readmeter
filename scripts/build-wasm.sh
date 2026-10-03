@@ -5,9 +5,11 @@
 set -euo pipefail
 
 # Ratchet: lower this whenever the build shrinks. Raised for schema v4
-# signals, trigger-cascade and unindexed-query (measured gzip 96,429 B,
-# rounded up to the next 256). Cap is 98,304 B.
-BUDGET_GZIP=${BUDGET_GZIP:-96512}
+# signals, trigger-cascade and unindexed-query (measured gzip 96,429 B),
+# then for SPA navigation events with route templating and Realtime
+# Database mount ids (measured gzip 96,939 B, rounded up to the next 256).
+# Cap is 98,304 B.
+BUDGET_GZIP=${BUDGET_GZIP:-97024}
 OUT=${OUT:-target/wasm-pkg}
 FEATURES=${FEATURES:-firebase,database,storage,auth,functions}
 

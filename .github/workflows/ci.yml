@@ -160,11 +160,16 @@ jobs:
       - run: pnpm --filter @readmeter/firebase test
       - run: pnpm --filter @readmeter/firebase test:emulator
       - run: pnpm --filter @readmeter/firebase test:bundle
+      # @readmeter/react resolves @readmeter/firebase through its built dist/.
+      - run: pnpm --filter @readmeter/react typecheck
+      - run: pnpm --filter @readmeter/react test
+      - run: pnpm --filter @readmeter/react build
       - name: Verify npm release contents
         run: |
           mkdir -p target/releases
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/target/releases"
-          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz
+          pnpm --filter @readmeter/react pack --pack-destination "$PWD/target/releases"
+          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz target/releases/readmeter-react-*.tgz
 
   e2e:
     runs-on: ubuntu-latest

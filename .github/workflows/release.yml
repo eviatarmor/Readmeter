@@ -45,11 +45,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @readmeter/firebase build
       - run: pnpm --filter @readmeter/firebase test:bundle
-      - name: Pack and verify public package
+      - run: pnpm --filter @readmeter/react build
+      - name: Pack and verify public packages
         run: |
           mkdir -p artifacts
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/artifacts"
-          node scripts/check-sdk-package.mjs artifacts/readmeter-firebase-*.tgz
+          pnpm --filter @readmeter/react pack --pack-destination "$PWD/artifacts"
+          node scripts/check-sdk-package.mjs artifacts/readmeter-firebase-*.tgz artifacts/readmeter-react-*.tgz
       - uses: actions/upload-artifact@v4
         with:
           name: npm-package
@@ -71,8 +73,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install --global npm@11
-      # Configure this workflow as a trusted publisher on npmjs.com.
-      - run: npm publish artifacts/*.tgz --access public --provenance
+      # Configure this workflow as a trusted publisher on npmjs.com, for each package.
+      # @readmeter/react peer-depends on @readmeter/firebase, so publish that first.
+      - run: |
+          npm publish artifacts/readmeter-firebase-*.tgz --access public --provenance
+          npm publish artifacts/readmeter-react-*.tgz --access public --provenance
 
   image:
     needs: sdk

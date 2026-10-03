@@ -57,6 +57,8 @@ sinkWrite(ref, "update");
 const unsub = onSnapshot(q, sinkListener(q, (next) => render(next)));
 ```
 
+React apps can tag calls with the component that made them with [`@readmeter/react`](../react). Other UI bindings can use `newMountId`, `runInMount` and `currentMount` from the root module.
+
 ## Cloud Functions
 
 ```ts
