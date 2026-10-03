@@ -5,3 +5,11 @@ packages:
   - examples/web
   - examples/e2e
   - docs
+
+# @firebase/database imports @firebase/app but lists it only as a dev
+# dependency, so it resolves only through hoisting. Hoisting skips it when two
+# firebase majors are installed (CI tests each supported major).
+packageExtensions:
+  "@firebase/database":
+    peerDependencies:
+      "@firebase/app": "*"
