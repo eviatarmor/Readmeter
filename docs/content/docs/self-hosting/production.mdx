@@ -7,7 +7,7 @@ Readmeter runs on your own infrastructure. Release images include the rule bundl
 
 ## Docker deployment
 
-The image `ghcr.io/eviatarmor/readmeter` supports Linux amd64 and arm64. It has four commands: `console` (the default, including the web console), `ingest`, `migrate`, and `connector-gcp`.
+The image `ghcr.io/eviatarmor/readmeter` supports Linux amd64 and arm64. It has five commands: `console` (the default, including the web console), `ingest`, `worker` (retention and Google Cloud sync; `connector-gcp` is an alias), `migrate`, and `retention` (one retention pass, then exit).
 
 From a checkout, copy the environment template:
 
@@ -23,7 +23,7 @@ Pin `READMETER_IMAGE` to the version you want, for example `ghcr.io/eviatarmor/r
 docker compose --env-file deploy/.env -f deploy/compose.yml up -d
 ```
 
-Compose waits for Postgres, runs Drizzle migrations once, then starts console and ingest. Postgres has a persistent volume and no public port. HTTP ports bind to `127.0.0.1` by default; put a TLS reverse proxy on the host in front of them. Set `CONSOLE_BIND` and `INGEST_BIND` to `0.0.0.0` if your proxy needs remote access. The console is at port 8091 and ingest at 8090.
+Compose waits for Postgres, runs Drizzle migrations once, then starts console, ingest and the worker. Postgres has a persistent volume and no public port. HTTP ports bind to `127.0.0.1` by default; put a TLS reverse proxy on the host in front of them. Set `CONSOLE_BIND` and `INGEST_BIND` to `0.0.0.0` if your proxy needs remote access. The console is at port 8091 and ingest at 8090.
 
 Open the console, sign up, create a workspace and project, and generate an API key. The production stack does not seed demo accounts or keys. Install `@readmeter/firebase` from npm and point it at your ingest URL. Before the first release is published, build the image locally:
 
@@ -32,21 +32,18 @@ docker build -t readmeter:local .
 # Set READMETER_IMAGE=readmeter:local in deploy/.env, then run Compose.
 ```
 
-Enable Google Cloud sync with the optional profile:
-
-```sh
-docker compose --env-file deploy/.env -f deploy/compose.yml --profile gcp up -d
-```
+The worker applies [retention](#retention) every hour and syncs Google Cloud for projects that have a connection. Google Cloud sync needs `READMETER_SECRET_KEY`; without it the worker logs that it cannot decrypt keys and still runs retention.
 
 For an upgrade, back up Postgres and the secrets, change the pinned image version, pull the new image, and stop the services before migrating:
 
 ```sh
 docker compose --env-file deploy/.env -f deploy/compose.yml pull
-docker compose --env-file deploy/.env -f deploy/compose.yml --profile gcp stop console ingest connector-gcp
+docker compose --env-file deploy/.env -f deploy/compose.yml stop console ingest worker
 docker compose --env-file deploy/.env -f deploy/compose.yml run --rm migrate
-docker compose --env-file deploy/.env -f deploy/compose.yml up -d --force-recreate
-# Include --profile gcp on the last command if you use the worker.
+docker compose --env-file deploy/.env -f deploy/compose.yml up -d --force-recreate --remove-orphans
 ```
+
+Stacks created before the `worker` service existed may still have a `connector-gcp` container from the old `gcp` profile; `--remove-orphans` removes it.
 
 GitHub Releases include `compose.yml`, `readmeter.env.example`, and checksums so deployments can use those files without cloning the source. Rename the environment file to `.env` and run `docker compose --env-file .env -f compose.yml up -d` in that directory. See [release setup](https://github.com/eviatarmor/Readmeter/blob/main/RELEASING.md) for publishing instructions.
 
@@ -122,10 +119,10 @@ Set the environment from [Configuration](/docs/self-hosting/configuration) for e
 ```sh
 pnpm --filter @readmeter/ingest start
 pnpm --filter @readmeter/console-api start
-pnpm --filter @readmeter/connector-gcp start   # only if you connect Google Cloud
+pnpm --filter @readmeter/connector-gcp start   # the worker: retention, and Google Cloud sync
 ```
 
-Each HTTP service exposes `GET /healthz`, which answers `200 ok`. ingest and console-api stop cleanly on `SIGINT` and `SIGTERM`: they close the HTTP server and the database pool before exiting. connector-gcp stops after the pass it is running and closes its pools.
+Each HTTP service exposes `GET /healthz`, which answers `200 ok`. ingest and console-api stop cleanly on `SIGINT` and `SIGTERM`: they close the HTTP server and the database pool before exiting. The worker stops after the pass it is running and closes its pools.
 
 A minimal ingest environment:
 
@@ -133,6 +130,8 @@ A minimal ingest environment:
 DATABASE_URL=postgres://...
 PORT=8090
 READMETER_RATE_PER_MIN=600
+READMETER_RATE_PER_IP_PER_MIN=120
+# READMETER_TRUST_PROXY=1   # only behind a proxy that sets X-Forwarded-For
 ```
 
 ## Serve the console from console-api
@@ -180,7 +179,7 @@ Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from a Google OAuth client. Be
 Some state lives in the ingest process, not in Postgres, and is lost on restart:
 
 - window and aggregate rule state, per project (up to 1,024 projects; the least recently active is dropped past that),
-- the per-key rate limit buckets, which refill on restart,
+- the per-project and per-IP rate limit buckets, which refill on restart (so with several ingest instances each applies the limits separately),
 - the 30-second API key cache.
 
 Each ingest process keeps its own copy of this state.
@@ -189,7 +188,20 @@ Each ingest process keeps its own copy of this state.
 
 All durable data is in Postgres: accounts and sessions, workspaces, projects, API key hashes, events, findings, finding states, rule overrides, the audit log, Google Cloud connections and the imported usage and cost rows. Back it up with your usual Postgres tooling, for example `pg_dump`. Store `READMETER_SECRET_KEY` and `BETTER_AUTH_SECRET` separately from the dump; the service account ciphertext in a backup is useless without the key, and useful to an attacker who has both.
 
-Readmeter has no retention job. The `events`, `batches` and `findings` tables grow until you delete rows yourself.
+## Retention
+
+The worker runs a retention pass when it starts and then every hour (`READMETER_RETENTION_INTERVAL_MS`). Run one pass by hand with `docker compose --env-file deploy/.env -f deploy/compose.yml run --rm migrate retention` (any service using the image works), or `pnpm db:retention` from a checkout. A Postgres advisory lock lets only one pass run at a time, so extra workers or a manual run alongside the worker are safe.
+
+Each pass, per project:
+
+1. **Rollup.** Every complete UTC day of raw events is summed into `events_daily`, one row per day, provider, service, operation, template and callsite, with the event count, items, bytes, cache hits, errors and billed units. Today stays raw until it is over. `events_rollup_state` records how far each project is rolled up (a highest event id and a day), so a pass adds each event exactly once, and an event that arrives late for a day already rolled up is added by the next pass.
+2. **Raw events.** Events older than `READMETER_EVENTS_RETENTION_DAYS` UTC days (default 30) are deleted, but only once they are in the rollup. Batches older than that with no events left are deleted after them.
+3. **Findings.** Findings whose `last_seen` is older than `READMETER_FINDINGS_RETENTION_DAYS` (default 365) are deleted with their workflow state. Set it to `0` to keep findings forever.
+4. **Rollups.** `events_daily` rows older than `READMETER_ROLLUP_RETENTION_DAYS` are deleted. The default `0` keeps them forever. A non-zero value must be at least the raw retention.
+
+Deletes run in chunks of 5,000 rows, each its own short statement, so ingest and the console are not blocked. Reading the rollup watermark takes a `SHARE` lock on `events` for a moment, which waits for in-flight ingest writes and briefly holds new ones.
+
+The overview, costs, top templates and top callsites read rolled-up days from `events_daily` and everything else from `events`, so their 30- and 90-day charts keep their history after the raw rows are gone. The event list (`GET /events`) and per-session detail only cover raw events, that is the retention window. Postgres reuses the space of deleted rows; run `VACUUM FULL` or `pg_repack` if you need to return it to the operating system.
 
 ## Upgrade
 
@@ -200,5 +212,5 @@ cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- bu
 ./scripts/build-wasm-server.sh
 pnpm --filter console-web build
 DATABASE_URL=... pnpm db:migrate
-# restart ingest, console-api and connector-gcp
+# restart ingest, console-api and the worker (connector-gcp)
 ```

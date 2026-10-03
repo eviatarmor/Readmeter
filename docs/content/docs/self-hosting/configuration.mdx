@@ -43,8 +43,17 @@ Read in [`apps/ingest/src/server.ts`](https://github.com/eviatarmor/Readmeter/bl
     },
     READMETER_RATE_PER_MIN: {
       type: "number",
-      description: "Accepted batches per minute per API key. Must be a positive number or startup fails. The burst size is fixed at 100.",
+      description: "Accepted batches per minute per project, for projects without their own limit (set in the console). All keys of a project share it. Burst is max(1, ceil(rate / 6)). Must be a positive number or startup fails.",
       default: "600",
+    },
+    READMETER_RATE_PER_IP_PER_MIN: {
+      type: "number",
+      description: "Batches per minute per client IP for requests with an Origin header (browsers). Burst at the same ratio as the project limit. 0 turns it off. Must be 0 or positive or startup fails.",
+      default: "120",
+    },
+    READMETER_TRUST_PROXY: {
+      type: "\"1\"",
+      description: "Take the client IP for the per-IP limit from the last X-Forwarded-For entry instead of the socket address. Set it only behind a reverse proxy that appends to X-Forwarded-For.",
     },
   }}
 />
@@ -57,9 +66,11 @@ These limits are set in code and have no variable:
 | Events per batch | 10,000 | `413 batch_too_large` |
 | Findings per batch | 1,000 | `413 batch_too_large` |
 | Store writes in flight | 64 | `503 busy` with `Retry-After: 5` |
-| Rate limit bucket size per key | 100 batches | `429 rate_limited` once the bucket is empty |
-| API key cache | 30 seconds | Revocations and origin edits take effect within this time |
+| Rate limit buckets per process | 10,000 projects and 10,000 client IPs | The least recently used bucket is dropped and starts full again |
+| API key cache | 30 seconds | Revocations, origin edits and project rate limits take effect within this time |
 | Projects with rule state in memory | 1,024 | The least recently active project's window state is dropped |
+
+Rate limits are held in each ingest process. With several ingest instances behind a load balancer, each one enforces them separately. See [Security](/docs/self-hosting/security#rate-limits-and-backpressure).
 
 ## console-api
 
@@ -155,9 +166,9 @@ The console UI is a Vite app ([`apps/console-web`](https://github.com/eviatarmor
   }}
 />
 
-## connector-gcp
+## Worker (connector-gcp)
 
-Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/env.ts). The worker has no HTTP port.
+Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmeter/blob/main/apps/connector-gcp/src/env.ts) and, for retention, `retentionFromEnv` in [`packages/db/src/retention.ts`](https://github.com/eviatarmor/Readmeter/blob/main/packages/db/src/retention.ts). The worker has no HTTP port. It runs the retention pass and Google Cloud sync; see [Retention](/docs/self-hosting/production#retention).
 
 <TypeTable
   type={{
@@ -189,6 +200,26 @@ Read in [`apps/connector-gcp/src/env.ts`](https://github.com/eviatarmor/Readmete
       type: "\"1\"",
       description: "Use fake Google Cloud clients. For tests only.",
     },
+    READMETER_EVENTS_RETENTION_DAYS: {
+      type: "number",
+      description: "Raw events, and batches with no events left, older than this many UTC days are deleted after they are rolled up into events_daily. 0 keeps them forever. A whole number of days, 0 or more, or startup fails.",
+      default: "30",
+    },
+    READMETER_FINDINGS_RETENTION_DAYS: {
+      type: "number",
+      description: "Findings whose last_seen is older than this many days are deleted. 0 keeps them forever.",
+      default: "365",
+    },
+    READMETER_ROLLUP_RETENTION_DAYS: {
+      type: "number",
+      description: "events_daily rows older than this many days are deleted. 0 keeps them forever. A non-zero value must be at least READMETER_EVENTS_RETENTION_DAYS, which then must not be 0.",
+      default: "0",
+    },
+    READMETER_RETENTION_INTERVAL_MS: {
+      type: "number",
+      description: "Milliseconds between retention passes. The first pass runs at startup. At least 1000.",
+      default: "3600000 (1 hour)",
+    },
   }}
 />
 
@@ -198,7 +229,8 @@ A connection is synced when it has never synced, when its last sync is more than
 
 | Variable | Read by | Effect |
 |---|---|---|
-| `DATABASE_URL` | `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:generate` (drizzle-kit), `scripts/dev-common.sh`, `scripts/read-hash-key.mjs` | Database to use. `dev-common.sh` exports the local default when unset. |
+| `READMETER_EVENTS_RETENTION_DAYS`, `READMETER_FINDINGS_RETENTION_DAYS`, `READMETER_ROLLUP_RETENTION_DAYS` | `pnpm db:retention`, `readmeter retention` | Same meaning as for the worker; one pass, then exit. |
+| `DATABASE_URL` | `pnpm db:migrate`, `pnpm db:retention`, `pnpm db:seed`, `pnpm db:generate` (drizzle-kit), `scripts/dev-common.sh`, `scripts/read-hash-key.mjs` | Database to use. `dev-common.sh` exports the local default when unset. |
 | `READMETER_PG_PORT` | `docker-compose.yml` | Host port for the Postgres container. Default `5442`. |
 | `READMETER_DEV_KEY` | `packages/db/src/seed.ts` | API key seeded for `proj_demo`. Default `rm_dev_key`. |
 | `NODE_ENV` | `seed.ts`, `seed-user.ts` | `production` skips both seeds. |

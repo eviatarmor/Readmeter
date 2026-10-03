@@ -64,8 +64,13 @@ export const growingPages = [20, 40, 60].map((limit, i) => ({
 
 export const HASH_KEY = "000102030405060708090a0b0c0d0e0f";
 
-export function access(projectId: string, allowedOrigins: string[] = [], hashKey = HASH_KEY): ProjectAccess {
-  return { projectId, allowedOrigins, hashKey };
+export function access(
+  projectId: string,
+  allowedOrigins: string[] = [],
+  hashKey = HASH_KEY,
+  ratePerMin: number | null = null,
+): ProjectAccess {
+  return { projectId, allowedOrigins, hashKey, ratePerMin };
 }
 
 export class MemoryStore implements Store {

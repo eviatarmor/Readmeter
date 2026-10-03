@@ -114,6 +114,30 @@ test("console api", { skip: !databaseUrl }, async () => {
     assert.match(keyBody.key, /^rm_live_[0-9A-Za-z]{32}$/);
     const access = await new PgStore(db).projectForKey(keyBody.key);
     assert.equal(access?.projectId, project.id);
+    assert.equal(access?.ratePerMin, null);
+
+    const projectPath = `/api/v1/workspaces/${slug}/projects/${project.id}`;
+    for (const bad of [0, -5, 1.5, 1_000_001, "60"]) {
+      const res = await call(app, "PATCH", projectPath, { cookie, body: { ratePerMin: bad } });
+      assert.equal(res.status, 400, `ratePerMin ${String(bad)}`);
+      assert.match(((await res.json()) as { error: { message: string } }).error.message, /ratePerMin/);
+    }
+    const limited = await call(app, "PATCH", projectPath, { cookie, body: { ratePerMin: 120 } });
+    assert.equal(limited.status, 200, await limited.clone().text());
+    assert.equal(((await limited.json()) as { ratePerMin: number | null }).ratePerMin, 120);
+    const limitedDetail = await call(app, "GET", projectPath, { cookie });
+    assert.equal(((await limitedDetail.json()) as { ratePerMin: number | null }).ratePerMin, 120);
+    const listed = await call(app, "GET", `/api/v1/workspaces/${slug}/projects`, { cookie });
+    const listedBody = (await listed.json()) as { items: { id: string; ratePerMin: number | null }[] };
+    assert.equal(listedBody.items.find((item) => item.id === project.id)?.ratePerMin, 120);
+    assert.equal((await new PgStore(db).projectForKey(keyBody.key))?.ratePerMin, 120);
+    const cleared = await call(app, "PATCH", projectPath, { cookie, body: { ratePerMin: null } });
+    assert.equal(((await cleared.json()) as { ratePerMin: number | null }).ratePerMin, null);
+    const [stored] = await db
+      .select({ ratePerMin: schema.projects.ratePerMin })
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id));
+    assert.equal(stored?.ratePerMin, null);
 
     const memberEmail = `member-${suffix}@readmeter.test`;
     const invite = await call(app, "POST", `/api/v1/workspaces/${slug}/invitations`, {

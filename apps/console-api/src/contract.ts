@@ -85,6 +85,12 @@ export interface Project {
   name: string;
   environment: Environment;
   firebaseProjectId: string | null;
+  /**
+   * Accepted ingest batches per minute for the whole project (all keys
+   * share it, per ingest process). `null` uses `READMETER_RATE_PER_MIN`.
+   * `PATCH` accepts a whole number from 1 to 1,000,000, or `null`.
+   */
+  ratePerMin: number | null;
   createdAt: string;
   events24h: number;
   openFindings: number;
@@ -102,6 +108,7 @@ export interface CreatedProject {
   hashKey: string;
   environment: Environment;
   firebaseProjectId: string | null;
+  ratePerMin: number | null;
   createdAt: string;
 }
 

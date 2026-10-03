@@ -125,15 +125,15 @@ Workspaces are Better Auth organizations, with the organization plugin's `owner`
 | `GET` | `/api/v1/workspaces/:slug/projects` | member | | `Page<Project>` |
 | `POST` | `/api/v1/workspaces/:slug/projects` | admin | `{ name, environment?, firebaseProjectId? }` | `201 CreatedProject` |
 | `GET` | `/api/v1/workspaces/:slug/projects/:projectId` | member | | `ProjectDetail` |
-| `PATCH` | `/api/v1/workspaces/:slug/projects/:projectId` | admin | `{ name?, environment?, firebaseProjectId? }` | project |
+| `PATCH` | `/api/v1/workspaces/:slug/projects/:projectId` | admin | `{ name?, environment?, firebaseProjectId?, ratePerMin? }` | project |
 | `DELETE` | `/api/v1/workspaces/:slug/projects/:projectId` | admin | | `{ "ok": true }` |
 
-- `name` is 1 to 80 characters. `environment` is `production` (the default), `staging` or `development`. `firebaseProjectId` is 1 to 120 characters or `null`.
+- `name` is 1 to 80 characters. `environment` is `production` (the default), `staging` or `development`. `firebaseProjectId` is 1 to 120 characters or `null`. `ratePerMin` is the project's ingest limit in batches per minute, shared by all its keys: a whole number from 1 to 1,000,000, or `null` for the ingest default (`READMETER_RATE_PER_MIN`).
 - A new project gets the id `proj_` plus a random suffix and a new random hash key.
-- `Project` in the list is `{ id, name, environment, firebaseProjectId, createdAt, events24h, openFindings }`: events in the last 24 hours and findings without a resolved or ignored state.
-- `CreatedProject` is `{ id, orgId, name, hashKey, environment, firebaseProjectId, createdAt }`.
-- `ProjectDetail` is `{ id, name, environment, firebaseProjectId, createdAt, hashKey, snippets: { web, functions } }`. The snippets are `init` code with the hash key and `INGEST_PUBLIC_URL` filled in and `YOUR_API_KEY` as a placeholder.
-- `PATCH` needs at least one field and returns `{ id, name, environment, firebaseProjectId, createdAt }`.
+- `Project` in the list is `{ id, name, environment, firebaseProjectId, ratePerMin, createdAt, events24h, openFindings }`: events in the last 24 hours and findings without a resolved or ignored state.
+- `CreatedProject` is `{ id, orgId, name, hashKey, environment, firebaseProjectId, ratePerMin, createdAt }`.
+- `ProjectDetail` is `{ id, name, environment, firebaseProjectId, ratePerMin, createdAt, hashKey, snippets: { web, functions } }`. The snippets are `init` code with the hash key and `INGEST_PUBLIC_URL` filled in and `YOUR_API_KEY` as a placeholder.
+- `PATCH` needs at least one field and returns `{ id, name, environment, firebaseProjectId, ratePerMin, createdAt }`.
 - `DELETE` removes the project with its keys, events, findings, overrides and Google Cloud connection.
 
 ## API keys

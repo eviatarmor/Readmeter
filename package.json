@@ -13,6 +13,7 @@
     "db:generate": "pnpm --filter @readmeter/db generate",
     "db:migrate": "pnpm --filter @readmeter/db migrate",
     "db:seed": "pnpm --filter @readmeter/db seed",
+    "db:retention": "pnpm --filter @readmeter/db retention",
     "dev:ingest": "pnpm --filter @readmeter/ingest dev",
     "dev:console-api": "pnpm --filter @readmeter/console-api dev",
     "dev:connector-gcp": "pnpm --filter @readmeter/connector-gcp dev",

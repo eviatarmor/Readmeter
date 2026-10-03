@@ -707,9 +707,37 @@ async function ownedProject(db: Db, orgId: string, projectId: string) {
   return project ?? null;
 }
 
-// Existing indexes events_project_ts_idx and findings_project_last_seen_idx
-// cover the project + time range. date_trunc only groups rows already filtered.
-async function unitRows(db: Db, projectIds: string[], from: Date, extra: ReturnType<typeof sql>) {
+/**
+ * Events since `from` (a UTC day start), one row per raw event or per
+ * `events_daily` row: rolled-up days come from the rollup, everything not
+ * rolled up yet from `events`. The predicate matches `events_rollup_state`
+ * (see packages/db/src/schema.ts), so no event is counted twice or missed,
+ * and history survives raw retention. Columns: project_id, day
+ * (`YYYY-MM-DD`), provider, service, op, template, callsite (null when
+ * unknown), callsite_label, n (events), units.
+ */
+function eventFacts(projectIds: string[], from: Date) {
+  const fromTs = from.toISOString();
+  const fromDay = fromTs.slice(0, 10);
+  return sql`(
+    select r.project_id, r.day::text as day, r.provider, r.service, r.op, r.template,
+           nullif(r.callsite, '') as callsite, r.callsite_label, r.events as n, r.units
+    from ${schema.eventsDaily} r
+    where ${inArray(sql`r.project_id`, projectIds)}
+      and r.day >= ${fromDay}::date
+    union all
+    select e.project_id, to_char(e.ts at time zone 'UTC', 'YYYY-MM-DD') as day, e.provider, e.service,
+           e.op, e.template, e.callsite, e.callsite_label, 1::bigint as n, e.units
+    from ${schema.events} e
+    left join ${schema.eventsRollupState} s on s.project_id = e.project_id
+    where ${inArray(sql`e.project_id`, projectIds)}
+      and e.ts >= ${fromTs}::timestamptz
+      and (e.id > coalesce(s.rolled_event_id, 0)
+           or e.ts >= coalesce(s.rolled_until, '1970-01-01'::date)::timestamp at time zone 'UTC')
+  ) as f`;
+}
+
+async function unitRows(db: Db, projectIds: string[], from: Date, byDay: boolean) {
   if (projectIds.length === 0) return [];
   const result = await db.execute<{
     bucket: string | null;
@@ -718,15 +746,13 @@ async function unitRows(db: Db, projectIds: string[], from: Date, extra: ReturnT
     unit: string;
     amount: string;
   }>(sql`
-    select ${extra} as bucket,
-           ${schema.events.provider} as provider,
-           ${schema.events.service} as service,
-           e.key as unit,
-           sum((e.value)::text::numeric) as amount
-    from ${schema.events}
-    cross join lateral jsonb_each(${schema.events.units}) as e(key, value)
-    where ${inArray(schema.events.projectId, projectIds)}
-      and ${schema.events.ts} >= ${from.toISOString()}::timestamptz
+    select ${byDay ? sql`f.day` : sql`null`} as bucket,
+           f.provider as provider,
+           f.service as service,
+           u.key as unit,
+           sum((u.value)::text::numeric) as amount
+    from ${eventFacts(projectIds, from)}
+    cross join lateral jsonb_each(f.units) as u(key, value)
     group by 1, 2, 3, 4
   `);
   return rowsOf(result);
@@ -767,18 +793,11 @@ async function overview(
       openFindingsBySeverity: {},
     };
   }
-  const dailyUnits = await unitRows(
-    db,
-    projectIds,
-    from,
-    sql`to_char(${schema.events.ts} at time zone 'UTC', 'YYYY-MM-DD')`,
-  );
-  const rangeUnits = await unitRows(db, projectIds, from, sql`null`);
+  const dailyUnits = await unitRows(db, projectIds, from, true);
+  const rangeUnits = await unitRows(db, projectIds, from, false);
   const counts = await db.execute<{ day: Date | string; events: string }>(sql`
-    select to_char(${schema.events.ts} at time zone 'UTC', 'YYYY-MM-DD') as day, count(*)::int as events
-    from ${schema.events}
-    where ${inArray(schema.events.projectId, projectIds)}
-      and ${schema.events.ts} >= ${from.toISOString()}::timestamptz
+    select f.day as day, sum(f.n)::bigint as events
+    from ${eventFacts(projectIds, from)}
     group by 1
     order by 1
   `);
@@ -836,33 +855,27 @@ async function overview(
     openFindings += n;
   }
   const openIssues = await countOpenIssues(db, projectIds);
-  const templates = await db
-    .select({
-      template: schema.events.template,
-      events: sql<number>`count(*)::int`,
-    })
-    .from(schema.events)
-    .where(and(inArray(schema.events.projectId, projectIds), gte(schema.events.ts, from)))
-    .groupBy(schema.events.template)
-    .orderBy(desc(sql`count(*)`))
-    .limit(10);
-  const callsites = await db
-    .select({
-      callsite: schema.events.callsite,
-      callsiteLabel: sql<string | null>`max(${schema.events.callsiteLabel})`,
-      events: sql<number>`count(*)::int`,
-    })
-    .from(schema.events)
-    .where(
-      and(
-        inArray(schema.events.projectId, projectIds),
-        gte(schema.events.ts, from),
-        sql`${schema.events.callsite} is not null and ${schema.events.callsite} <> ''`,
-      ),
-    )
-    .groupBy(schema.events.callsite)
-    .orderBy(desc(sql`count(*)`))
-    .limit(10);
+  const templateRows = await db.execute<{ template: string; events: string }>(sql`
+    select f.template as template, sum(f.n)::bigint as events
+    from ${eventFacts(projectIds, from)}
+    group by 1
+    order by 2 desc, 1
+    limit 10
+  `);
+  const templates = rowsOf(templateRows).map((row) => ({ template: row.template, events: Number(row.events) }));
+  const callsiteRows = await db.execute<{ callsite: string; callsite_label: string | null; events: string }>(sql`
+    select f.callsite as callsite, max(f.callsite_label) as callsite_label, sum(f.n)::bigint as events
+    from ${eventFacts(projectIds, from)}
+    where f.callsite is not null and f.callsite <> ''
+    group by 1
+    order by 3 desc, 1
+    limit 10
+  `);
+  const callsites = rowsOf(callsiteRows).map((row) => ({
+    callsite: row.callsite,
+    callsiteLabel: row.callsite_label,
+    events: Number(row.events),
+  }));
   const titles = new Map(core.catalog().rules.map((rule) => [rule.id, rule.title]));
   const topRules = [...(await wastedBy(db, core, projectIds, from, "rule")).entries()]
     .map(([rule, micros]) => ({ rule, title: titles.get(rule) ?? rule, wastedMicros: micros }))
@@ -950,11 +963,7 @@ async function costFromEvents(
 ) {
   if (projectIds.length === 0) return [];
   const bucket =
-    groupBy === "day"
-      ? sql`to_char(${schema.events.ts} at time zone 'UTC', 'YYYY-MM-DD')`
-      : groupBy === "template"
-        ? schema.events.template
-        : sql`${schema.events.provider} || '/' || ${schema.events.service}`;
+    groupBy === "day" ? sql`f.day` : groupBy === "template" ? sql`f.template` : sql`f.provider || '/' || f.service`;
   const result = await db.execute<{
     key: string;
     provider: string;
@@ -963,14 +972,12 @@ async function costFromEvents(
     amount: string;
   }>(sql`
     select ${bucket} as key,
-           ${schema.events.provider} as provider,
-           ${schema.events.service} as service,
-           e.key as unit,
-           sum((e.value)::text::numeric) as amount
-    from ${schema.events}
-    cross join lateral jsonb_each(${schema.events.units}) as e(key, value)
-    where ${inArray(schema.events.projectId, projectIds)}
-      and ${schema.events.ts} >= ${from.toISOString()}::timestamptz
+           f.provider as provider,
+           f.service as service,
+           u.key as unit,
+           sum((u.value)::text::numeric) as amount
+    from ${eventFacts(projectIds, from)}
+    cross join lateral jsonb_each(f.units) as u(key, value)
     group by 1, 2, 3, 4
   `);
   const grouped = new Map<string, { provider: string; service: string; unit: string; amount: number }[]>();
@@ -1079,12 +1086,10 @@ async function sdkCoverage(db: Db, projectIds: string[], from: Date) {
   if (projectIds.length === 0) return null;
   const day = from.toISOString().slice(0, 10);
   const estimated = await db.execute<{ reads: string }>(sql`
-    select coalesce(sum((${schema.events.units}->>'reads')::numeric), 0)::float8 as reads
-    from ${schema.events}
-    where ${inArray(schema.events.projectId, projectIds)}
-      and ${schema.events.ts} >= ${from.toISOString()}::timestamptz
-      and ${schema.events.provider} = 'firebase'
-      and ${schema.events.service} = 'firestore'
+    select coalesce(sum((f.units->>'reads')::numeric), 0)::float8 as reads
+    from ${eventFacts(projectIds, from)}
+    where f.provider = 'firebase'
+      and f.service = 'firestore'
   `);
   const billed = await db.execute<{ reads: string }>(sql`
     select coalesce(sum(${schema.usageDaily.amount}), 0)::float8 as reads
