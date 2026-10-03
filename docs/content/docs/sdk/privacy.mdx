@@ -18,9 +18,27 @@ Only envelopes and findings are buffered and uploaded. Raw calls never leave the
 
 ## Keyed hashes
 
-Each project has a 32-character hash key. The core uses it as the key of a SipHash-1-3 hasher for every hash it produces: the identity of a path, the values in a query, the callsite. The same input hashes the same way across sessions of one project, so the backend can group repeated reads of the same document. Without the key, hashes of low-entropy values such as emails or small integers cannot be reversed by brute force, and hashes from different projects cannot be compared.
+Each project has a 32-character hash key. The core uses it as the key of a SipHash-1-3 hasher for every hash it produces: the identity of a path, the values in a query, the callsite. The same input hashes the same way across sessions of one project, so the backend can group repeated reads of the same document. Hashes from different projects cannot be compared.
 
 The hash key is never sent with events. It comes from `init({ hashKey })` or from one `GET /v1/config` at start, and it is used only inside the core. The hash key is not an API secret. The API key is.
+
+### Browser builds
+
+In a web app the hash key is part of the page: anyone who opens the app can read it. With the key and some events, a low-entropy value can be recovered by hashing every candidate and comparing. That takes seconds for `true`, `"admin"`, `30` or a known list of emails. A keyed hash protects only values that are hard to guess.
+
+So when the platform is `browser` (or not set), the core hashes a Firestore or Realtime Database filter, cursor, bound or `equalTo` value in full only when it is id-shaped: a 20-character auto id or push id, a UUID, or a 16 to 128 character token of `[A-Za-z0-9_-]` with both letters and digits (Firebase uids match this). A document reference counts when its last segment is one of those. Every other value is reduced before hashing to a coarse token that keeps only:
+
+| Value | What goes into the hash |
+|---|---|
+| String, including timestamps (which arrive as ISO strings) | Its length in UTF-8 bytes (`"admin"` and `"owner"` hash the same) |
+| Number | Only that it is a number (`30` and `31` hash the same) |
+| Boolean, null | Only the type |
+| Array | Its length, and each element by these same rules |
+| Map | Its number of entries |
+
+The length is kept so rules can still tell queries apart as a user types (`a`, `ab`, `abc`). The cost is that two different values of the same type and length look like one request. [Duplicate read](/docs/rules/generic#duplicate-read) skips paged browser queries for that reason, and can over-count repeated queries whose only difference is such a value. Server (Cloud Functions, Admin SDK) and mobile builds hash every value in full: on a server the key never reaches end users. A mobile app binary can be unpacked, so treat the key there as readable too and prefer random ids for anything private.
+
+The target key also covers the concrete document path. A document id that is easy to guess, such as a username, a small number or an email, can be recovered from a browser build the same way. Key such documents by a random id if the id itself should stay private.
 
 ## Fields on every envelope
 
@@ -47,7 +65,7 @@ Each batch also carries the SDK name and version.
 | Sent | Not sent |
 |---|---|
 | Path template: every document id becomes `{id}`, collection names stay (`users/{id}/orders`). Collection group queries become `**/<collection>`. | Document ids |
-| Field names and operators of filters, `orderBy` fields and direction, `select` field names, aggregation names (`count`, `sum:<field>`, `avg:<field>`) | Filter values and cursor values (folded into keyed hashes) |
+| Field names and operators of filters, `orderBy` fields and direction, `select` field names, aggregation names (`count`, `sum:<field>`, `avg:<field>`) | Filter values and cursor values (folded into keyed hashes; in browser builds only id-shaped values, others as type and length) |
 | `limit`, `limitToLast`, `offset`, and whether start and end cursors are set | |
 | Result document count, estimated stored bytes, cache flag, count result | Document fields and values |
 | Read source (`server`, `cache`), result usage flags | |
@@ -63,7 +81,7 @@ Field names are sent as written. If your schema puts personal data in field name
 | Sent | Not sent |
 |---|---|
 | Path template: segments that look like ids become `{id}` | Id segments |
-| `orderByChild` field, or `$key` / `$value` / `$priority`; `limit` and direction; whether `start` / `end` bounds are set; `==` for `equalTo` | Bound and `equalTo` values (folded into keyed hashes) |
+| `orderByChild` field, or `$key` / `$value` / `$priority`; `limit` and direction; whether `start` / `end` bounds are set; `==` for `equalTo` | Bound and `equalTo` values (folded into keyed hashes; in browser builds only id-shaped values, others as type and length) |
 | Child count and JSON size of the snapshot, capped at 10,000,000 | Snapshot values |
 | One connection per explicit `goOnline` | Write payloads |
 
@@ -134,7 +152,7 @@ A finding carries the rule id, severity, template, session, callsite hash, the c
 ## What never leaves the app
 
 - Document data, snapshot values and write payloads.
-- Filter values, cursor values and `equalTo` values, except as keyed hashes.
+- Filter values, cursor values and `equalTo` values, except as keyed hashes. In browser builds, only id-shaped values reach the hash; the rest only as type and length.
 - Document ids and id-shaped path segments.
 - Object bytes, download URLs, signed URLs and page tokens.
 - Emails, phone numbers, uids, tokens, claims and verification codes.

@@ -21,6 +21,8 @@ pub mod functions;
 pub mod storage;
 
 pub mod path;
+#[cfg(any(feature = "firestore", feature = "database", feature = "storage"))]
+mod values;
 
 pub const PROVIDER_ID: &str = "firebase";
 

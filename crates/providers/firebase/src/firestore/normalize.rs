@@ -1,13 +1,14 @@
 use readmeter_core::{
-    CallContext, Envelope, FilterShape, HashBuilder, IdShape, Op, OrderShape, Outcome, QueryShape,
-    ReadSource, ResultStats, Target, WriteStats,
+    CallContext, Envelope, FilterShape, HashBuilder, IdShape, Op, OrderShape, Outcome, Platform,
+    QueryShape, ReadSource, ResultStats, Target, WriteStats,
 };
-use readmeter_provider_api::{NormalizeContext, NormalizeError, hash_json};
+use readmeter_provider_api::{NormalizeContext, NormalizeError};
 
 use super::SERVICE_ID;
 use super::billing;
 use super::raw::{Direction, RawCall, RawOp, RawQuery};
 use crate::PROVIDER_ID;
+use crate::values::{hash_value, is_iso_date_prefix, is_uuid};
 
 /// Placeholder for document ids in templates.
 const ID: &str = "{id}";
@@ -41,10 +42,10 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             .str(&segments.join("/"));
         let (key, query) = match &raw.query {
             Some(q) => {
-                let base = hash_query_base(base, q);
+                let base = hash_query_base(base, q, cx.platform);
                 // Aggregations stay out of base_key but in the target key, so a
                 // count and a fetch of the same query do not collapse into one read.
-                let key = hash_paging(hash_aggregations(base.clone(), q), q).finish();
+                let key = hash_paging(hash_aggregations(base.clone(), q), q, cx.platform).finish();
                 (
                     key,
                     Some(shape(q, base.finish(), fingerprint(cx, &template, q))),
@@ -181,13 +182,13 @@ fn template(segments: &[&str], collection_group: bool) -> String {
         .join("/")
 }
 
-/// Filters (with values), ordering and `select`.
+/// Filters (with values, coarsened per [`hash_value`]), ordering and `select`.
 /// Aggregations and paging are not included: a `count()` and a fetch of the
 /// same query share this hash, and so do pages of one query.
-fn hash_query_base(mut h: HashBuilder, q: &RawQuery) -> HashBuilder {
+fn hash_query_base(mut h: HashBuilder, q: &RawQuery, platform: Platform) -> HashBuilder {
     h = h.u64(q.filters.len() as u64);
     for f in &q.filters {
-        h = hash_json(h.str(&f.field).str(&f.op), &f.value);
+        h = hash_value(h.str(&f.field).str(&f.op), &f.value, platform);
     }
     h = h.u64(q.order_by.len() as u64);
     for o in &q.order_by {
@@ -208,17 +209,17 @@ fn hash_aggregations(h: HashBuilder, q: &RawQuery) -> HashBuilder {
         .fold(h.u64(q.aggregations.len() as u64), |h, a| h.str(a))
 }
 
-fn hash_paging(h: HashBuilder, q: &RawQuery) -> HashBuilder {
+fn hash_paging(h: HashBuilder, q: &RawQuery, platform: Platform) -> HashBuilder {
     let h = h
         .opt_u64(q.limit.map(u64::from))
         .bool(q.limit_to_last)
         .opt_u64(q.offset.map(u64::from));
     let h = match &q.start {
-        Some(v) => hash_json(h.tag(1), v),
+        Some(v) => hash_value(h.tag(1), v, platform),
         None => h.tag(0),
     };
     match &q.end {
-        Some(v) => hash_json(h.tag(1), v),
+        Some(v) => hash_value(h.tag(1), v, platform),
         None => h.tag(0),
     }
 }
@@ -290,27 +291,9 @@ pub fn classify_id(id: &str) -> IdShape {
     IdShape::Other
 }
 
-fn is_uuid(b: &[u8]) -> bool {
-    b.len() == 36
-        && b.iter().enumerate().all(|(i, c)| match i {
-            8 | 13 | 18 | 23 => *c == b'-',
-            _ => c.is_ascii_hexdigit(),
-        })
-}
-
-/// `YYYY-MM-DD...`
-fn is_iso_date_prefix(b: &[u8]) -> bool {
-    b.len() >= 10
-        && b[..4].iter().all(u8::is_ascii_digit)
-        && b[4] == b'-'
-        && b[5..7].iter().all(u8::is_ascii_digit)
-        && b[7] == b'-'
-        && b[8..10].iter().all(u8::is_ascii_digit)
-}
-
 #[cfg(test)]
 mod tests {
-    use readmeter_core::{KeyedHasher, Platform};
+    use readmeter_core::KeyedHasher;
     use serde_json::json;
 
     use super::*;
@@ -424,6 +407,112 @@ mod tests {
         let dump = format!("{env:?}");
         assert!(!dump.contains("secret"), "{dump}");
         assert_eq!(env.ctx.callsite_label.as_deref(), Some("src/File.tsx:1"));
+    }
+
+    fn filtered(platform: Platform, field: &str, op: &str, value: serde_json::Value) -> Envelope {
+        let mut cx = cx();
+        cx.platform = platform;
+        normalize(
+            raw_call(json!({
+                "op": "query", "ts_ms": 1, "path": "users",
+                "query": {"filters": [{"field": field, "op": op, "value": value}]}
+            })),
+            &cx,
+        )
+        .unwrap()
+    }
+
+    /// The hash key is in the browser bundle: a low-entropy value must not
+    /// be in the hash input, or it could be brute forced from the events.
+    #[test]
+    fn browser_hashes_leave_low_entropy_values_out() {
+        let same = [
+            ("role", "==", json!("admin"), json!("owner")),
+            ("active", "==", json!(true), json!(false)),
+            ("age", ">", json!(30), json!(31)),
+            ("age", ">", json!(30), json!(9_000.5)),
+            (
+                "email",
+                "==",
+                json!("alice@example.com"),
+                json!("carol@example.org"),
+            ),
+            ("deleted_at", "==", json!(null), json!(null)),
+            (
+                "created",
+                ">=",
+                json!("2026-01-01T00:00:00.000Z"),
+                json!("2027-05-09T13:14:15.000Z"),
+            ),
+            ("tags", "in", json!(["a", "b"]), json!(["c", "d"])),
+        ];
+        for (field, op, a, b) in same {
+            let (ea, eb) = (
+                filtered(Platform::Browser, field, op, a.clone()),
+                filtered(Platform::Browser, field, op, b.clone()),
+            );
+            assert_eq!(ea.target.key, eb.target.key, "{field} {a} vs {b}");
+            assert_eq!(
+                ea.query.unwrap().base_key,
+                eb.query.unwrap().base_key,
+                "{field} {a} vs {b}"
+            );
+            if a != b {
+                // The secret-key platforms keep exact values.
+                for p in [Platform::Server, Platform::Mobile] {
+                    assert_ne!(
+                        filtered(p, field, op, a.clone()).target.key,
+                        filtered(p, field, op, b.clone()).target.key,
+                        "{p:?} {field} {a} vs {b}"
+                    );
+                }
+            }
+        }
+
+        let key = |v: serde_json::Value| filtered(Platform::Browser, "owner", "==", v).target.key;
+        assert_ne!(
+            key(json!("Xb3kD9aQ2mLp7rT1vY0z")),
+            key(json!("Yc4lE0bR3nMq8sU2wZ1a")),
+            "auto ids stay distinct"
+        );
+        assert_ne!(
+            key(json!("users/Xb3kD9aQ2mLp7rT1vY0z")),
+            key(json!("users/Yc4lE0bR3nMq8sU2wZ1a")),
+            "document references to auto ids stay distinct"
+        );
+        assert_ne!(
+            key(json!("kT9pQ2xZ7vLm4nB8cR1sW6yD3fH0")),
+            key(json!("aB1cD2eF3gH4iJ5kL6mN7oP8qR9s")),
+            "auth uids stay distinct"
+        );
+        assert_ne!(key(json!("admin")), key(json!("editor")), "length kept");
+        assert_ne!(key(json!("admin")), key(json!(true)), "type kept");
+    }
+
+    #[test]
+    fn browser_cursors_keep_ids_and_drop_values() {
+        let page = |start: serde_json::Value| {
+            norm(json!({
+                "op": "query", "ts_ms": 1, "path": "feed",
+                "query": {"order_by": [{"field": "ts"}], "limit": 20, "start": start}
+            }))
+            .target
+            .key
+        };
+        assert_eq!(
+            page(json!(["2026-01-01T00:00:00.000Z"])),
+            page(json!(["2026-01-02T00:00:00.000Z"]))
+        );
+        assert_ne!(
+            page(json!([
+                "2026-01-01T00:00:00.000Z",
+                "feed/Xb3kD9aQ2mLp7rT1vY0z"
+            ])),
+            page(json!([
+                "2026-01-01T00:00:00.000Z",
+                "feed/Yc4lE0bR3nMq8sU2wZ1a"
+            ]))
+        );
     }
 
     #[test]

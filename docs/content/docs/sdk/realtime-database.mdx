@@ -92,7 +92,7 @@ A default query (no ordering other than priority, no bounds, no limit) is record
 
 Reads and listener events record a result: the number of children in the snapshot and its size, measured as the length of `JSON.stringify(snapshot.val())` and capped at 10,000,000. The core uses that size as download bytes.
 
-The core then replaces path segments that look like ids (numbers, UUIDs, push ids, 20-character auto ids, ISO dates, long tokens such as uids, emails, phone numbers, IP addresses, or anything longer than 40 characters) with `{id}`, and folds query values into keyed hashes. See [Privacy](/docs/sdk/privacy#realtime-database).
+The core then replaces path segments that look like ids (numbers, UUIDs, push ids, 20-character auto ids, ISO dates, long tokens such as uids, emails, phone numbers, IP addresses, or anything longer than 40 characters) with `{id}`, and folds query values into keyed hashes (in the browser, only id-shaped values as they are, others as type and length; see [Browser builds](/docs/sdk/privacy#browser-builds)). See [Privacy](/docs/sdk/privacy#realtime-database).
 
 ### Listeners
 

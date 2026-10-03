@@ -346,8 +346,8 @@ test("web drop-in matches the firestore fixtures", { timeout: 180_000 }, async (
 
     await scenario(async () => {
       const posts = fb.collection(db, "posts");
-      for (const createdAt of [1, 2, 3]) {
-        await rm.getDocs(fb.query(posts, fb.where("createdAt", "==", createdAt), fb.limit(5)));
+      for (const authorId of ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"]) {
+        await rm.getDocs(fb.query(posts, fb.where("authorId", "==", authorId), fb.limit(5)));
       }
       await flush();
       assertCalls(raw.slice(), loadFixture("unused-result"));
