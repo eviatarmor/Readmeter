@@ -214,11 +214,15 @@ export async function counterTransaction(db: Firestore): Promise<string> {
   return "incremented a counter with 3 transactions";
 }
 
-/** generic/unused-result: three queries whose snapshots are never read. */
+/**
+ * generic/unused-result: three queries whose snapshots are never read. The
+ * author ids are auto-id shaped: browser builds only hash id-shaped filter
+ * values, so `1`, `2`, `3` would share one key and also look like duplicates.
+ */
 export async function unusedPrefetch(db: Firestore): Promise<string> {
   const posts = collection(db, "posts");
-  for (const createdAt of [1, 2, 3]) {
-    await getDocs(query(posts, where("createdAt", "==", createdAt), limit(5)));
+  for (const authorId of ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"]) {
+    await getDocs(query(posts, where("authorId", "==", authorId), limit(5)));
   }
   await flush();
   return "prefetched 3 post queries and ignored them";

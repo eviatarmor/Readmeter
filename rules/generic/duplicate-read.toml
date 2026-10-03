@@ -11,6 +11,11 @@ summary = "The exact same request (same path, filters and values) is billed seve
 description = """
 Several components, or the same component on every render, issue the
 same request instead of sharing one result. Each copy is billed in full.
+
+In browser builds, query values that are not ids are compared by type and
+length only (the hash key is visible there), so two values of the same type
+and length count as the same request. Paged browser queries, which carry a
+cursor, are not checked.
 """
 
 fix = """

@@ -1,14 +1,15 @@
 use readmeter_core::{
-    CallContext, Envelope, FilterShape, HashBuilder, IdShape, Op, OrderShape, Outcome, QueryShape,
+    CallContext, Envelope, FilterShape, HashBuilder, Op, OrderShape, Outcome, Platform, QueryShape,
     ResultStats, Target,
 };
-use readmeter_provider_api::{NormalizeContext, NormalizeError, hash_json};
+use readmeter_provider_api::{NormalizeContext, NormalizeError};
 
 use super::SERVICE_ID;
 use super::billing;
 use super::raw::{RawCall, RawOp, RawQuery};
 
 use crate::PROVIDER_ID;
+use crate::values::{hash_value, segment_id};
 
 /// Placeholder for redacted path segments.
 const ID: &str = "{id}";
@@ -21,8 +22,8 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
     let base = cx.hasher.start().str(SERVICE_ID).str(&joined);
     let (key, query) = match raw.query.as_ref().filter(|q| q.has_constraints()) {
         Some(q) => {
-            let base = hash_query_base(base, q);
-            let key = hash_paging(base.clone(), q).finish();
+            let base = hash_query_base(base, q, cx.platform);
+            let key = hash_paging(base.clone(), q, cx.platform).finish();
             (
                 key,
                 Some(shape(q, base.finish(), fingerprint(cx, &template, q))),
@@ -111,101 +112,11 @@ fn template(segments: &[&str]) -> String {
         .join("/")
 }
 
-/// `Some` when the segment is an identifier and must leave the template.
-/// Static keys (alphabetic names, short slugs) stay.
-fn segment_id(id: &str) -> Option<IdShape> {
-    let bytes = id.as_bytes();
-    if !bytes.is_empty() && bytes.iter().all(u8::is_ascii_digit) {
-        return Some(
-            if (bytes.len() == 10 || bytes.len() == 13) && bytes[0] == b'1' {
-                IdShape::TimestampLike
-            } else {
-                IdShape::Numeric
-            },
-        );
-    }
-    if is_uuid(bytes) {
-        return Some(IdShape::Uuid);
-    }
-    if is_iso_date_prefix(bytes) {
-        return Some(IdShape::TimestampLike);
-    }
-    if bytes.len() == 20 && bytes.iter().all(u8::is_ascii_alphanumeric) {
-        return Some(IdShape::AutoId);
-    }
-    if is_push_id(bytes) {
-        return Some(IdShape::AutoId);
-    }
-    if is_long_token(bytes) {
-        return Some(IdShape::Other);
-    }
-    if crate::path::personal_segment(id) {
-        return Some(IdShape::Other);
-    }
-    None
-}
-
-fn is_uuid(b: &[u8]) -> bool {
-    b.len() == 36
-        && b.iter().enumerate().all(|(i, c)| match i {
-            8 | 13 | 18 | 23 => *c == b'-',
-            _ => c.is_ascii_hexdigit(),
-        })
-}
-
-/// `YYYY-MM-DD...`
-fn is_iso_date_prefix(b: &[u8]) -> bool {
-    b.len() >= 10
-        && b[..4].iter().all(u8::is_ascii_digit)
-        && b[4] == b'-'
-        && b[5..7].iter().all(u8::is_ascii_digit)
-        && b[7] == b'-'
-        && b[8..10].iter().all(u8::is_ascii_digit)
-}
-
-/// Firebase push id: 20 chars from the push alphabet, and not a plain word.
-/// Plain words have no `-`, `_`, or digit, so `orderByChild` keys stay.
-fn is_push_id(b: &[u8]) -> bool {
-    if b.len() != 20 {
-        return false;
-    }
-    let mut marked = false;
-    for &c in b {
-        let ok = matches!(c, b'-' | b'0'..=b'9' | b'A'..=b'Z' | b'_' | b'a'..=b'z');
-        if !ok {
-            return false;
-        }
-        if c == b'-' || c == b'_' || c.is_ascii_digit() {
-            marked = true;
-        }
-    }
-    marked
-}
-
-/// Long opaque token (Firebase UID and similar): 16..=128 of `[A-Za-z0-9_-]`
-/// with both a letter and a digit. Short slugs such as `room_1` stay.
-fn is_long_token(b: &[u8]) -> bool {
-    if b.len() < 16 || b.len() > 128 {
-        return false;
-    }
-    let mut digit = false;
-    let mut letter = false;
-    for &c in b {
-        if c.is_ascii_digit() {
-            digit = true;
-        } else if c.is_ascii_alphabetic() {
-            letter = true;
-        } else if c != b'-' && c != b'_' {
-            return false;
-        }
-    }
-    digit && letter
-}
-
-fn hash_query_base(mut h: HashBuilder, q: &RawQuery) -> HashBuilder {
+/// Filter values are coarsened per [`hash_value`].
+fn hash_query_base(mut h: HashBuilder, q: &RawQuery, platform: Platform) -> HashBuilder {
     h = h.u64(q.filters.len() as u64);
     for f in &q.filters {
-        h = hash_json(h.str(&f.field).str(&f.op), &f.value);
+        h = hash_value(h.str(&f.field).str(&f.op), &f.value, platform);
     }
     match &q.order_by {
         Some(field) => h.tag(1).str(field),
@@ -213,14 +124,14 @@ fn hash_query_base(mut h: HashBuilder, q: &RawQuery) -> HashBuilder {
     }
 }
 
-fn hash_paging(h: HashBuilder, q: &RawQuery) -> HashBuilder {
+fn hash_paging(h: HashBuilder, q: &RawQuery, platform: Platform) -> HashBuilder {
     let h = h.opt_u64(q.limit.map(u64::from)).bool(q.limit_to_last);
     let h = match &q.start {
-        Some(v) => hash_json(h.tag(1), v),
+        Some(v) => hash_value(h.tag(1), v, platform),
         None => h.tag(0),
     };
     match &q.end {
-        Some(v) => hash_json(h.tag(1), v),
+        Some(v) => hash_value(h.tag(1), v, platform),
         None => h.tag(0),
     }
 }
@@ -274,7 +185,7 @@ fn shape(q: &RawQuery, base_key: u64, fingerprint: u64) -> QueryShape {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
-    use readmeter_core::{KeyedHasher, Platform};
+    use readmeter_core::{IdShape, KeyedHasher, Platform};
     use readmeter_provider_api::Provider;
     use serde_json::json;
 
@@ -412,6 +323,48 @@ mod tests {
         }));
         assert_ne!(limited.target.key, other_value.target.key);
         assert_ne!(q.base_key, other_value.query.unwrap().base_key);
+    }
+
+    /// The hash key is in the browser bundle: query values that are not
+    /// ids must not be in the hash input.
+    #[test]
+    fn browser_hashes_leave_low_entropy_values_out() {
+        let key = |platform: Platform, value: serde_json::Value, start: serde_json::Value| {
+            let mut cx = cx();
+            cx.platform = platform;
+            normalize(
+                raw_call(json!({
+                    "op": "query", "ts_ms": 1, "path": "users",
+                    "query": {
+                        "order_by": "role",
+                        "filters": [{"field": "role", "op": "==", "value": value}],
+                        "start": start
+                    }
+                })),
+                &cx,
+            )
+            .unwrap()
+            .target
+            .key
+        };
+        let b = Platform::Browser;
+        assert_eq!(
+            key(b, json!("admin"), json!(30)),
+            key(b, json!("owner"), json!(31))
+        );
+        assert_eq!(
+            key(b, json!(true), json!("alice@example.com")),
+            key(b, json!(false), json!("carol@example.org"))
+        );
+        assert_ne!(
+            key(b, json!("-NabcDEFghi123456789"), json!(1)),
+            key(b, json!("-NabcDEFghi123456780"), json!(1)),
+            "push ids stay distinct"
+        );
+        assert_ne!(
+            key(Platform::Server, json!("admin"), json!(30)),
+            key(Platform::Server, json!("owner"), json!(31))
+        );
     }
 
     #[test]
