@@ -54,10 +54,21 @@ export function takeInjected(): string | undefined {
   return site;
 }
 
-function packageRoot(): string {
-  // String math, not `new URL("../../", import.meta.url)`: bundlers treat that
+/**
+ * The package root for a module at `<root>/dist/core/callsite.js` (or
+ * `src/core/callsite.ts`): two directories up. In a bundle the module sits
+ * at `/assets/index-<hash>.js`, so this stops at `/` instead of failing;
+ * nothing then matches the root, and bundled frames are told apart by the
+ * other checks in `isInternal`.
+ */
+export function packageRootOf(moduleUrl: string): string {
+  // Path math, not `new URL("../../", import.meta.url)`: bundlers treat that
   // as an asset reference and emit a stray copy of the package entry.
-  const url = new URL(import.meta.url.replace(/(?:[^/]*\/){2}[^/]*$/, ""));
+  const url = new URL(moduleUrl);
+  const parts = url.pathname.split("/");
+  url.pathname = `${parts.slice(0, Math.max(1, parts.length - 3)).join("/")}/`;
+  url.search = "";
+  url.hash = "";
   if (url.protocol !== "file:") return url.href;
   let path = decodeURIComponent(url.pathname);
   if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1);
@@ -116,7 +127,7 @@ function parseFrame(line: string): { file: string; line: number; col: number } |
 
 export function callsiteFromStack(stack: string | undefined): string | undefined {
   if (!stack) return undefined;
-  const root = norm(packageRoot());
+  const root = norm(packageRootOf(import.meta.url));
   for (const line of stack.split("\n")) {
     const frame = parseFrame(line);
     if (!frame || isInternal(frame.file, root)) continue;

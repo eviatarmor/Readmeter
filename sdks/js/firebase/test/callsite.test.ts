@@ -10,6 +10,7 @@ import {
   callsiteFromStack,
   captureStack,
   inRenderFromStack,
+  packageRootOf,
   readSite,
   takeInjected,
 } from "../src/core/callsite.ts";
@@ -223,4 +224,13 @@ test("production browsers capture no stacks", () => {
   } finally {
     allowStackCallsites(true);
   }
+});
+
+test("packageRootOf: two directories up, and the origin for a bundled chunk", () => {
+  assert.equal(packageRootOf("file:///C:/w/node_modules/@readmeter/firebase/dist/core/callsite.js"), "C:/w/node_modules/@readmeter/firebase");
+  assert.equal(packageRootOf("file:///srv/app/sdk/src/core/callsite.ts"), "/srv/app/sdk");
+  assert.equal(packageRootOf("http://127.0.0.1:5173/@fs/C:/w/sdk/dist/core/callsite.js?v=1"), "http://127.0.0.1:5173/@fs/C:/w/sdk/");
+  // A production bundle: everything is in one chunk at the site root.
+  assert.equal(packageRootOf("http://127.0.0.1:5173/assets/index-abc123.js"), "http://127.0.0.1:5173/");
+  assert.equal(packageRootOf("https://example.com/app.js"), "https://example.com/");
 });
