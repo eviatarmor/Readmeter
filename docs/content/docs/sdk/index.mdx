@@ -51,7 +51,7 @@ init({
 
 `init` never throws. A bad option, a failed hash-key fetch, or a wasm file that does not load logs one `console.error` line (`[readmeter] ... The SDK is disabled.`) and turns recording off. Your Firebase calls keep working either way.
 
-Calls made before the wasm core is ready are queued (up to 1000, oldest dropped first) and replayed once it loads. Calling `init` again replaces the previous session: the old buffer is flushed and a new session id is created.
+Calls made before the wasm core is ready are queued (up to 1000, oldest dropped first) and replayed once it loads. With a bundler, `init` loads most of the SDK (hash key and rule bundle fetch, wasm loading, batch delivery, route tracking) as a separate chunk, in parallel with the wasm, so the code a page parses up front stays under 10 KB gzip. Calling `init` again replaces the previous session: the old buffer is flushed and a new session id is created.
 
 The root module exports:
 

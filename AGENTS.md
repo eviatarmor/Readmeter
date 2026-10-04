@@ -61,6 +61,7 @@ rules/<scope>/*.toml       Rule definitions (data). Scope: generic/, firebase/fi
 pricing/<provider>/*.toml  Price tables (data)
 conformance/fixtures/      Raw calls -> expected envelopes/findings, shared with SDK shims
 sdks/js/firebase/          @readmeter/firebase: web drop-in and Cloud Functions admin instrumentation
+sdks/js/react/             @readmeter/react: component mount ids for the react-double-mount rule
 sdks/python/readmeter/     `readmeter` (Python): sink API over the C ABI via ctypes, stdlib only
 scripts/                   build-wasm.sh (size gate), build-wasm-server.sh, smoke-wasm.mjs, smoke-ffi.sh
 .github/workflows/ci.yml   Rust checks, wasm size gate + smoke, header drift, C smoke, TS + Postgres

@@ -6,7 +6,7 @@
 
 import { decodeValue } from "../web/values.ts";
 import { warnShape } from "../web/warn.ts";
-import type { RawQueryShape } from "../web/shape.ts";
+import { setAdminReader, type RawQueryShape } from "../web/shape.ts";
 
 export interface AdminTarget {
   path: string;
@@ -170,3 +170,5 @@ export function readAdminTarget(target: unknown): AdminTarget | undefined {
   shape.query = query;
   return shape;
 }
+
+setAdminReader(readAdminTarget);

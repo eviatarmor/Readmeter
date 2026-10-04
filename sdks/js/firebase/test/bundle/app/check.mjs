@@ -1,6 +1,7 @@
 // Checks the minimal app built by ./vite.config.ts:
 // 1. the Vite plugin injected callsites for the wrapped calls;
-// 2. the JS glue (everything a production page loads except the wasm) fits the budget;
+// 2. the JS glue (everything a production page loads except the wasm) fits the eager
+//    and total budgets;
 // 3. at runtime, with `wasmUrl` set and the inline wasm chunks deleted, the SDK
 //    streams the wasm from the URL and the batch carries the injected callsite labels.
 import assert from "node:assert/strict";
@@ -10,15 +11,21 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 
 /**
- * JS glue budget, gzip bytes. The target is 10 KB on top of the wasm; the
- * glue measured 14,607 B when this check landed, so this is a ratchet at that
- * size rounded up to 512 B. Lower it as the glue shrinks; do not raise it
- * without a reason in the commit. Biggest contributors then (minified bytes):
- * index.js 13%, web/usage.js 10%, web/shape.js 10%, core/transport.js 9%,
- * web/sink.js 8%, admin/shape.js 7% (sink accepts Admin SDK targets),
- * core/wasm.js 7%, core/callsite.js 7%.
+ * JS glue budgets, gzip bytes, for everything a production page loads
+ * except the wasm itself.
+ *
+ * Eager: main.js and the chunks it imports statically, i.e. what the page
+ * parses before `init` returns. The target is 10 KB. Lazy chunks (hash key,
+ * rule bundle, wasm loading, the wasm-bindgen glue) load in parallel with
+ * the wasm fetch, so they sit under a separate total.
+ *
+ * Measured when this split landed: eager 9,860 B, total 17,368 B (the lazy
+ * chunk compresses separately, so the total grew from 15,410 B in one file).
+ * The total is a ratchet at that size rounded up to 512 B. Lower both as the
+ * glue shrinks; do not raise them without a reason in the commit.
  */
-const GLUE_BUDGET_GZIP = 14_848;
+const EAGER_BUDGET_GZIP = 10_240;
+const TOTAL_BUDGET_GZIP = 17_408;
 
 const here = (rel) => fileURLToPath(new URL(rel, import.meta.url));
 const dist = here("./dist");
@@ -75,14 +82,40 @@ const gz = (file) => gzipSync(readFileSync(file)).length;
 // chunks are the same size within a few bytes, so count the larger one.
 const glueChunk = glueChunks.reduce((a, b) => (gz(a) >= gz(b) ? a : b));
 const loaded = js.filter((file) => !inline.includes(file) && !glueChunks.includes(file)).concat(glueChunk);
-const sizes = loaded.map((file) => ({ file: file.slice(dist.length + 1), gzip: gz(file), raw: statSync(file).size }));
-const glue = sizes.reduce((sum, entry) => sum + entry.gzip, 0);
-for (const entry of sizes) console.log(`  ${entry.file}: raw ${entry.raw} B, gzip ${entry.gzip} B`);
+
+/** Static imports of one chunk (`import … from "./x.js"`, not `import("./x.js")`), as dist paths. */
+function staticImports(file) {
+  const text = readFileSync(file, "utf8");
+  const out = [];
+  for (const match of text.matchAll(/(?:^|[;\n}])\s*import\s*(?:[\w$*{}\s,]+?\s*from\s*)?["']([^"']+)["']/g)) {
+    const spec = match[1];
+    if (!spec.startsWith(".")) continue;
+    out.push(slashes(fileURLToPath(new URL(spec, pathToFileURL(file)))));
+  }
+  return out;
+}
+const slashes = (file) => file.replace(/\\/g, "/");
+const eager = new Set();
+const pending = [slashes(`${dist}/main.js`)];
+while (pending.length > 0) {
+  const file = pending.pop();
+  if (eager.has(file)) continue;
+  eager.add(file);
+  pending.push(...staticImports(file));
+}
+const isEager = (file) => eager.has(slashes(file));
+assert.ok(!inline.some(isEager) && !glueChunks.some(isEager), "wasm and its glue load lazily");
+
+const sizes = loaded.map((file) => ({ file: file.slice(dist.length + 1), gzip: gz(file), raw: statSync(file).size, eager: isEager(file) }));
+const eagerGzip = sizes.filter((entry) => entry.eager).reduce((sum, entry) => sum + entry.gzip, 0);
+const total = sizes.reduce((sum, entry) => sum + entry.gzip, 0);
+for (const entry of sizes) console.log(`  ${entry.eager ? "eager" : "lazy "} ${entry.file}: raw ${entry.raw} B, gzip ${entry.gzip} B`);
 const prodInline = inline.find((file) => readFileSync(file, "utf8").includes(prodWasm.toString("base64")));
 console.log(
-  `JS glue: gzip ${glue} B (budget ${GLUE_BUDGET_GZIP} B); prod wasm: file gzip ${gzipSync(prodWasm).length} B, inline chunk gzip ${gz(prodInline)} B`,
+  `JS glue: eager gzip ${eagerGzip} B (budget ${EAGER_BUDGET_GZIP} B), total gzip ${total} B (budget ${TOTAL_BUDGET_GZIP} B); prod wasm: file gzip ${gzipSync(prodWasm).length} B, inline chunk gzip ${gz(prodInline)} B`,
 );
-assert.ok(glue <= GLUE_BUDGET_GZIP, `JS glue ${glue} B gzip exceeds ${GLUE_BUDGET_GZIP} B`);
+assert.ok(eagerGzip <= EAGER_BUDGET_GZIP, `eager JS glue ${eagerGzip} B gzip exceeds ${EAGER_BUDGET_GZIP} B`);
+assert.ok(total <= TOTAL_BUDGET_GZIP, `total JS glue ${total} B gzip exceeds ${TOTAL_BUDGET_GZIP} B`);
 
 // 3. Runtime with wasmUrl. Without the inline chunks, any import of them fails
 // and the SDK disables itself, so a batch proves the URL path never touched them.
@@ -118,6 +151,15 @@ const originalError = console.error;
 console.error = (...args) => {
   errors.push(args.join(" "));
 };
+// Vite's preload helper adds `<link rel=modulepreload>` for the lazy chunk's
+// dependencies. Node has no DOM, so give it just enough of one.
+const links = [];
+globalThis.document = {
+  getElementsByTagName: () => [],
+  querySelector: () => null,
+  createElement: () => ({ setAttribute() {} }),
+  head: { appendChild: (link) => links.push(link) },
+};
 try {
   const app = await import(pathToFileURL(`${dist}/main.js`).href);
   const { initializeApp, deleteApp } = await import("firebase/app");
@@ -152,6 +194,7 @@ try {
     await deleteApp(fbApp);
   }
 } finally {
+  delete globalThis.document;
   console.error = originalError;
   server.close();
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { openCore } from "../src/core/client.ts";
+import { openCore } from "../src/core/open.ts";
 import type { Platform } from "../src/types.ts";
 import { HASH_KEY, bundleBytes } from "./bundle.ts";
 

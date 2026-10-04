@@ -14,6 +14,8 @@ import { protoWriteSignal } from "../core/payload.ts";
 import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.ts";
 import { documentByteSize } from "../core/size.ts";
 import type { RawQueryShape } from "../web/shape.ts";
+// Lets the root `sink` read Admin SDK targets.
+import "./shape.ts";
 import { instrumentAuth } from "./auth.ts";
 import { instrumentDatabase } from "./database.ts";
 import { instrumentStorage } from "./storage.ts";

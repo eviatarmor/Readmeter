@@ -1,12 +1,10 @@
-import { base64ToBytes, refreshBundle, resolveBundle } from "./core/bundle.ts";
 import { allowStackCallsites } from "./core/callsite.ts";
-import { CoreClient, configJson, disableRecording, handoff, recordRaw } from "./core/client.ts";
+import { CoreClient, disableRecording, handoff, recordRaw } from "./core/client.ts";
 import { detectPlatform } from "./core/env.ts";
 import { debugOnce, errorMessage } from "./core/log.ts";
 import { newSessionId, nextCallId, resetIds } from "./core/session.ts";
-import { Transport } from "./core/transport.ts";
+import type { Transport } from "./core/transport.ts";
 import { flushPendingUsage } from "./core/usage.ts";
-import { loadWasm } from "./core/wasm.ts";
 import type { Finding, InitOptions, Platform, WasmBuild, WriteOp } from "./types.ts";
 import { sink, sinkListener, sinkWrite } from "./web/sink.ts";
 
@@ -52,34 +50,22 @@ interface Watch {
   handler: () => void;
 }
 
-interface WindowHost extends EventHost {
-  history?: unknown;
-  location?: unknown;
-}
-
 /** Host listeners added by `watchPage`, removed together by `unwatchPage`. */
 let watches: Watch[] = [];
+/** Bumped by `unwatchPage`: a route watcher that loads after that is not installed. */
+let watchToken = 0;
+/** The lazy part of the SDK (core/open.ts), once loaded. */
+let routes: typeof import("./core/open.ts") | undefined;
+let lazy: Promise<typeof import("./core/open.ts")> | undefined;
 
-/** One `history` method replaced by `watchRoutes`. */
-interface HistoryPatch {
-  host: Record<string, unknown>;
-  name: string;
-  original: unknown;
-  wrapper: unknown;
+/** Imports core/open.ts once. Pages load it with the wasm, not with the page. */
+function loadLazy(): Promise<typeof import("./core/open.ts")> {
+  lazy ??= import("./core/open.ts");
+  return lazy;
 }
 
-/** Patches installed by the current `watchRoutes`. */
-let patches: HistoryPatch[] = [];
-/**
- * Patches that could not be undone because something wrapped `history` on
- * top of ours. They stay in the chain, inert until the next `watchRoutes`,
- * which reuses them instead of wrapping twice.
- */
-let stranded: HistoryPatch[] = [];
-/** Called by patched `history` methods. Unset when routes are not watched. */
-let routeChanged: (() => void) | undefined;
-
 function unwatchPage(): void {
+  watchToken += 1;
   for (const { host, type, handler } of watches) {
     try {
       host.removeEventListener?.(type, handler);
@@ -88,17 +74,11 @@ function unwatchPage(): void {
     }
   }
   watches = [];
-  routeChanged = undefined;
-  for (const patch of patches) {
-    try {
-      if (patch.host[patch.name] === patch.wrapper) patch.host[patch.name] = patch.original;
-      else stranded.push(patch);
-    } catch (error) {
-      stranded.push(patch);
-      debugOnce(debug, error);
-    }
+  try {
+    routes?.unwatchRoutes();
+  } catch (error) {
+    debugOnce(debug, error);
   }
-  patches = [];
 }
 
 function on(host: EventHost | undefined, type: string, run: () => void): void {
@@ -123,78 +103,19 @@ function listen(host: EventHost | undefined, type: string, record: () => Record<
 }
 
 /**
- * The current route: `location.pathname`, or the hash path for hash routers
- * (`#/users/1`, `#!/users/1`). Query string and fragment are cut here, and
- * the core templates what is left before anything leaves the process.
- */
-function routeOf(location: unknown): string | undefined {
-  if (!location || typeof location !== "object") return undefined;
-  const { pathname, hash } = location as { pathname?: unknown; hash?: unknown };
-  let route: string | undefined;
-  if (typeof hash === "string" && (hash.startsWith("#/") || hash.startsWith("#!/"))) {
-    route = hash.slice(hash.indexOf("/"));
-  } else if (typeof pathname === "string") {
-    route = pathname;
-  }
-  if (route === undefined) return undefined;
-  const cut = route.search(/[?#]/);
-  return cut >= 0 ? route.slice(0, cut) : route;
-}
-
-function patchHistory(history: Record<string, unknown>, name: string): void {
-  const original = history[name];
-  if (typeof original !== "function") return;
-  if (stranded.some((patch) => patch.host === history && patch.name === name)) return;
-  const wrapper = function (this: unknown, ...args: unknown[]): unknown {
-    const result = (original as (...a: unknown[]) => unknown).apply(this, args);
-    try {
-      routeChanged?.();
-    } catch (error) {
-      debugOnce(debug, error);
-    }
-    return result;
-  };
-  history[name] = wrapper;
-  patches.push({ host: history, name, original, wrapper });
-}
-
-/**
- * Reports SPA route changes as `navigate` page events: `pushState` and
- * `replaceState` are wrapped (undone by `shutdown`/re-`init`), `popstate`
- * and `hashchange` are listened to. Only a change of route is reported, so
- * `replaceState` with the same path (scroll restoration) records nothing.
- */
-function watchRoutes(win: WindowHost | undefined): void {
-  if (!win) return;
-  const location = (): unknown => win.location ?? (globalThis as { location?: unknown }).location;
-  let last = routeOf(location());
-  routeChanged = () => {
-    const route = routeOf(location());
-    if (route === undefined || route === last) return;
-    last = route;
-    recordRaw({ op: "navigate", ts_ms: Date.now(), call_id: nextCallId(), route });
-  };
-  const history = win.history ?? (globalThis as { history?: unknown }).history;
-  if (history && typeof history === "object") {
-    patchHistory(history as Record<string, unknown>, "pushState");
-    patchHistory(history as Record<string, unknown>, "replaceState");
-  }
-  on(win, "popstate", () => routeChanged?.());
-  on(win, "hashchange", () => routeChanged?.());
-}
-
-/**
  * Reports page visibility, route and connection changes. Firestore bills a
  * listener as a new query when it reconnects after 30+ minutes offline;
  * `freeze` counts as offline because a frozen tab stops network activity.
- * No-op where `document` / `window` do not exist (Node, Deno).
+ * No-op where `document` / `window` do not exist (Node, Deno). Resolves once
+ * the route watcher (loaded lazily, see web/routes.ts) is in place.
  */
-function watchPage(routes: boolean): void {
+async function watchPage(watchRoutes: boolean): Promise<void> {
   unwatchPage();
+  const token = watchToken;
   let doc: PageHost | undefined;
-  let win: WindowHost | undefined;
+  let win: (EventHost & { history?: unknown; location?: unknown }) | undefined;
   try {
-    const g = globalThis as { document?: PageHost; window?: WindowHost };
+    const g = globalThis as { document?: PageHost; window?: typeof win };
     doc = g.document;
     win = g.window;
   } catch (error) {
@@ -206,21 +127,18 @@ function watchPage(routes: boolean): void {
   listen(win, "online", () => ({ op: "connection", online: true }));
   listen(doc, "freeze", () => ({ op: "connection", online: false }));
   listen(doc, "resume", () => ({ op: "connection", online: true }));
-  if (!routes) return;
+  if (!watchRoutes || !win) return;
   try {
-    watchRoutes(win);
+    routes = await loadLazy();
+    if (token === watchToken) routes.watchRoutes(win, on, debug);
   } catch (error) {
     debugOnce(debug, error);
   }
 }
 
+/** Base64 of 32 bytes. Checked by shape so the bundle code can load lazily. */
 function isPublicKey(value: unknown): boolean {
-  if (typeof value !== "string") return false;
-  try {
-    return base64ToBytes(value.trim()).byteLength === 32;
-  } catch {
-    return false;
-  }
+  return typeof value === "string" && /^[A-Za-z0-9+/]{43}=?$/.test(value.trim());
 }
 
 function validate(options: InitOptions): Validated {
@@ -309,18 +227,6 @@ function wasmHref(opts: Validated): string | undefined {
   throw new Error(`wasmUrl returned no URL for the ${build} build`);
 }
 
-async function fetchHashKey(endpoint: string, apiKey: string): Promise<string> {
-  const res = await fetch(`${endpoint}/v1/config`, {
-    headers: { authorization: `Bearer ${apiKey}` },
-  });
-  if (!res.ok) throw new Error(`GET /v1/config failed (${res.status})`);
-  const body = (await res.json()) as { hash_key?: unknown };
-  if (typeof body.hash_key !== "string" || !/^[0-9a-fA-F]{32}$/.test(body.hash_key)) {
-    throw new Error("GET /v1/config did not return a hash_key");
-  }
-  return body.hash_key.toLowerCase();
-}
-
 async function boot(
   gen: number,
   opts: Validated,
@@ -336,35 +242,43 @@ async function boot(
     previous.free();
     released = true;
 
-    const hashKey = opts.hashKey ?? (await fetchHashKey(opts.endpoint, opts.apiKey));
+    const { startCore, Transport } = await loadLazy();
     if (gen !== generation) return;
-    const loaded = await resolveBundle({ bundle: opts.bundle, publicKey: opts.bundlePublicKey, debug: opts.debug });
-    if (gen !== generation) return;
-    const wasm = await loadWasm(opts.dev, undefined, wasmHref(opts));
-    if (gen !== generation) return;
-    const handle = new wasm.Readmeter(
-      configJson({
-        hashKey,
+    const started = await startCore(
+      {
+        endpoint: opts.endpoint,
+        apiKey: opts.apiKey,
+        hashKey: opts.hashKey,
+        bundle: opts.bundle,
+        bundlePublicKey: opts.bundlePublicKey,
+        debug: opts.debug,
+        dev: opts.dev,
+        wasmHref: wasmHref(opts),
         session,
         platform: opts.platform,
-        dev: opts.dev,
         sampleRate: opts.sampleRate,
-        evaluations: opts.dev ? ["local", "window"] : ["local"],
-      }),
-      loaded.bytes,
+      },
+      () => gen === generation,
     );
-    if (gen !== generation) {
-      handle.free();
-      return;
-    }
-    const written = client.attach(handle);
-    transport?.noteEvents(written);
-    void refreshBundle({
+    if (!started) return;
+    const written = client.attach(started.handle);
+    // Nothing can be sent before wasm encodes it, so timers and exit hooks start here.
+    const created = new Transport({
       endpoint: opts.endpoint,
       apiKey: opts.apiKey,
-      etag: loaded.etag,
-      publicKey: opts.bundlePublicKey,
-    }).catch((error: unknown) => {
+      flushIntervalMs: opts.flushIntervalMs,
+      maxBatchEvents: opts.maxBatchEvents,
+      takeBatch: () => {
+        // Usage is recorded on a timer. A flush should not leave it behind.
+        flushPendingUsage();
+        return client.drain(Date.now());
+      },
+      debug: opts.debug,
+    });
+    transport = created;
+    created.start();
+    created.noteEvents(written);
+    void started.refresh().catch((error: unknown) => {
       debugOnce(opts.debug, error);
     });
   } catch (error) {
@@ -400,28 +314,18 @@ export function init(options: InitOptions): void {
   debug = opts.debug;
   // Stack capture is too slow for production browsers. Build-plugin callsites still apply.
   allowStackCallsites(opts.dev || opts.platform === "server");
+  // Starts the lazy chunk now; it also lets `sink` read Admin SDK targets.
+  loadLazy().catch((error: unknown) => {
+    debugOnce(opts.debug, error);
+  });
   const previousTransport = transport;
   transport = undefined;
   resetIds();
   const client = new CoreClient({ dev: opts.dev, debug: opts.debug, onFinding: opts.onFinding });
   const previous = handoff(client, () => transport?.noteEvent());
-  const created = new Transport({
-    endpoint: opts.endpoint,
-    apiKey: opts.apiKey,
-    flushIntervalMs: opts.flushIntervalMs,
-    maxBatchEvents: opts.maxBatchEvents,
-    takeBatch: () => {
-      // Usage is recorded on a timer. A flush should not leave it behind.
-      flushPendingUsage();
-      return client.drain(Date.now());
-    },
-    debug: opts.debug,
-  });
-  transport = created;
-  created.start();
-  watchPage(opts.routes);
+  const watching = watchPage(opts.routes);
   const session = newSessionId();
-  ready = boot(gen, opts, client, session, previous, previousTransport);
+  ready = Promise.all([boot(gen, opts, client, session, previous, previousTransport), watching]).then(() => undefined);
 }
 
 /** Sends what is buffered. Resolves even when the request fails. */
