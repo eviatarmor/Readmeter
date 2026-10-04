@@ -3,9 +3,10 @@
  * Manual `sink*` omits `duration_us`. Drop-in wrappers pass `timing.start`.
  */
 
-import { callsite } from "../core/callsite.ts";
+import { callsite, readSite } from "../core/callsite.ts";
 import { recordRaw, sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
+import { currentMount } from "../core/mount.ts";
 import type { WriteSignal } from "../core/payload.ts";
 import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.ts";
 import { scheduleUsage } from "../core/usage.ts";
@@ -35,6 +36,17 @@ export interface Timing {
   site?: string;
   attempt?: number;
   callId?: number;
+  /** Read issued from a React component body (dev builds only). */
+  inRender?: boolean;
+  /** Component instance that issued the call (`runInMount`). */
+  mount?: number;
+}
+
+/** `timing` plus the current mount id, when there is one. */
+export function withCurrentMount(timing: Timing): Timing {
+  const mount = currentMount();
+  if (mount !== undefined) timing.mount = mount;
+  return timing;
 }
 
 interface Emit {
@@ -62,6 +74,7 @@ interface Emit {
 }
 
 const WRITES = new Set<WriteOp>(["set", "update", "create", "delete"]);
+const READS = new Set(["get", "query", "aggregate"]);
 
 function elapsed(start: number | undefined): number | undefined {
   if (start === undefined) return undefined;
@@ -99,6 +112,10 @@ function usageBody(flags: UsageFlags): UsageFlags {
     read_empty: flags.read_empty,
   };
   if (typeof flags.items_used === "number") usage.items_used = flags.items_used;
+  if (typeof flags.fields_read === "number") {
+    usage.fields_read = flags.fields_read;
+    usage.fields_numeric = flags.fields_numeric === true;
+  }
   return usage;
 }
 
@@ -116,9 +133,11 @@ function emit(input: Emit): number {
     const duration = elapsed(input.timing.start);
     if (duration !== undefined) raw.duration_us = duration;
     if (input.timing.site) raw.callsite = input.timing.site;
+    if (input.timing.inRender && READS.has(input.op)) raw.in_render = true;
   }
   if (input.timing.attempt !== undefined && input.timing.attempt !== 1) raw.attempt = input.timing.attempt;
   if (input.listener !== undefined) raw.listener = input.listener;
+  if (input.timing.mount !== undefined && !input.usageCall) raw.mount = input.timing.mount;
   if (input.initial) raw.initial = true;
   if (input.error) raw.error = input.error;
   if (input.shape.collectionGroup) raw.collection_group = true;
@@ -297,13 +316,13 @@ function recordCommit(
   });
 }
 
-export function bindBatch(batch: object): void {
+export function bindBatch(batch: object, created?: string): void {
   try {
     const host = batch as { commit?: (...args: unknown[]) => unknown };
     const original = host.commit;
     if (typeof original !== "function") return;
     const wrapped = function (this: unknown, ...args: unknown[]) {
-      const timing: Timing = { site: callsite(), ts: Date.now(), start: performance.now() };
+      const timing = withCurrentMount({ site: callsite() ?? created, ts: Date.now(), start: performance.now() });
       const stats = mutationStats(batch);
       let pending: unknown;
       try {
@@ -430,7 +449,7 @@ export function instrumentUpdate(updateFunction: (tx: object) => unknown): Trans
           emit({
             op: "get",
             shape: { kind: "document", path: get.path },
-            timing: { ts: get.ts, start: timing.start, site: get.site, attempt: success.attempt },
+            timing: { ts: get.ts, start: timing.start, site: get.site, attempt: success.attempt, mount: timing.mount },
             withResult: true,
             docs: docCount(get.snap, "document"),
             bytes: resultByteSize(get.snap),
@@ -463,6 +482,10 @@ export function openListener(target: unknown): ListenerSession | undefined {
     const kind = shape.kind === "document" ? "document" : "query";
     let opened = false;
     let initial = true;
+    // Snapshots arrive outside the component's effect; they inherit the
+    // mount that opened the listener.
+    let mount: number | undefined;
+    const stamp = (at: Timing): Timing => (mount === undefined || at.mount !== undefined ? at : { ...at, mount });
     const buffer: Array<() => void> = [];
     const run = (job: () => void): void => {
       if (!opened) buffer.push(job);
@@ -477,7 +500,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
             emit({
               op: "snapshot",
               shape,
-              timing: at ?? { ts: Date.now() },
+              timing: stamp(at ?? { ts: Date.now() }),
               listener: id,
               initial: first ? true : undefined,
               withResult: true,
@@ -498,7 +521,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
             emit({
               op: "snapshot",
               shape,
-              timing: at ?? { ts: Date.now() },
+              timing: stamp(at ?? { ts: Date.now() }),
               listener: id,
               error: errorCode(error),
               instance: target,
@@ -509,6 +532,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
         });
       },
       open(timing) {
+        mount = timing.mount;
         try {
           emit({ op: "subscribe", shape, timing, listener: id, instance: target });
         } catch (error) {
@@ -519,7 +543,7 @@ export function openListener(target: unknown): ListenerSession | undefined {
       },
       close(timing) {
         try {
-          emit({ op: "unsubscribe", shape, timing, listener: id, instance: target });
+          emit({ op: "unsubscribe", shape, timing: stamp(timing), listener: id, instance: target });
         } catch (error) {
           debugOnce(sdkDebug(), error);
         }
@@ -554,7 +578,8 @@ export function watch<T>(pending: Promise<T>, ok: (value: T) => void, fail: (err
 /** Returns `result`. Plain objects that are not Firestore values are ignored. */
 export function sink<T>(target: unknown, result: T): T {
   try {
-    const timing: Timing = { ts: Date.now(), site: callsite() };
+    const { site, inRender } = readSite();
+    const timing = withCurrentMount({ ts: Date.now(), site, inRender });
     if (isAggregateSnapshot(result)) {
       let names = aggregationsFromSpec((target as { _aggregateSpec?: unknown } | null)?._aggregateSpec);
       if (!names) {
@@ -583,7 +608,7 @@ export function sink<T>(target: unknown, result: T): T {
 export function sinkWrite<T>(ref: T, op: WriteOp): T {
   try {
     if (!WRITES.has(op)) return ref;
-    recordWrite(op, ref, { ts: Date.now(), site: callsite() });
+    recordWrite(op, ref, withCurrentMount({ ts: Date.now(), site: callsite() }));
   } catch (error) {
     debugOnce(sdkDebug(), error);
   }
@@ -600,7 +625,7 @@ export function sinkListener<T>(target: unknown, listener: T): T {
     const session = openListener(target);
     if (!session) return listener;
     const site = callsite();
-    session.open({ ts: Date.now(), site });
+    session.open(withCurrentMount({ ts: Date.now(), site }));
     if (typeof listener === "function") {
       const wrapped = (snap: unknown, ...rest: unknown[]) => {
         try {

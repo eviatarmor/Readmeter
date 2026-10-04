@@ -36,6 +36,10 @@ test("stores batches, events and deduped findings in Postgres", { skip: !url }, 
     assert.equal(loaded?.projectId, project);
     assert.deepEqual(loaded?.allowedOrigins, []);
     assert.equal(loaded?.hashKey, "000102030405060708090a0b0c0d0e0f");
+    assert.equal(loaded?.ratePerMin, null);
+    await db.update(schema.projects).set({ ratePerMin: 42 }).where(eq(schema.projects.id, project));
+    // Cached for 30 s; a fresh store sees the project's limit with the key.
+    assert.equal((await new PgStore(db).projectForKey(key))?.ratePerMin, 42);
 
     const app = createApp({ core: await core(), store });
     const send = (calls: object[]) =>

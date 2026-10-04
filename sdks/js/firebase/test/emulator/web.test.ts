@@ -163,10 +163,13 @@ async function seed(db: fb.Firestore): Promise<void> {
   for (let i = 0; i < 3000; i += 1) items.push({ ref: fb.doc(messages), data: { read: false } });
   const feed = fb.collection(db, "feed");
   for (let i = 0; i < 60; i += 1) items.push({ ref: fb.doc(feed), data: { ts: i } });
+  // The unused-result scenario queries the first three posts by auto-id author.
+  const authors = ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"];
   for (let i = 1; i <= 6; i += 1) {
+    const authorId = authors[i - 1];
     items.push({
       ref: fb.doc(db, "posts", `p${String(i).padStart(2, "0")}`),
-      data: { createdAt: i, title: "t" },
+      data: authorId ? { createdAt: i, title: "t", authorId } : { createdAt: i, title: "t" },
     });
   }
   items.push({ ref: fb.doc(db, "users", "u1"), data: { name: "abcde" } });
@@ -307,6 +310,18 @@ test("web drop-in matches the firestore fixtures", { timeout: 180_000 }, async (
     });
 
     await scenario(async () => {
+      const snap = await rm.getDocs(fb.query(fb.collection(db, "feed"), fb.where("ts", ">=", 0)));
+      let total = 0;
+      snap.forEach((item) => {
+        total += (item.data() as { ts: number }).ts;
+      });
+      assert.equal(total, (59 * 60) / 2);
+      await flush();
+      assertCalls(raw.slice(), loadFixture("client-side-aggregation"));
+      assertRule("firebase.firestore/client-side-aggregation");
+    });
+
+    await scenario(async () => {
       const latest = fb.query(fb.collection(db, "posts"), fb.limit(1));
       for (let i = 0; i < 3; i += 1) await rm.getDocsFromServer(latest);
       assertCalls(raw.slice(), loadFixture("force-server-read"));
@@ -334,8 +349,8 @@ test("web drop-in matches the firestore fixtures", { timeout: 180_000 }, async (
 
     await scenario(async () => {
       const posts = fb.collection(db, "posts");
-      for (const createdAt of [1, 2, 3]) {
-        await rm.getDocs(fb.query(posts, fb.where("createdAt", "==", createdAt), fb.limit(5)));
+      for (const authorId of ["Xb3kD9aQ2mLp7rT1vY0z", "Yc4lE0bR3nMq8sU2wZ1a", "Zd5mF1cS4oNr9tV3xA2b"]) {
+        await rm.getDocs(fb.query(posts, fb.where("authorId", "==", authorId), fb.limit(5)));
       }
       await flush();
       assertCalls(raw.slice(), loadFixture("unused-result"));

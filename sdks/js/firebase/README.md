@@ -12,7 +12,7 @@ pnpm add @readmeter/firebase
 
 Before the first npm release, build with `pnpm sdk:build` in the repository root, then run `pnpm pack` in `sdks/js/firebase` and install the generated tarball. Point the SDK at your self-hosted ingest service.
 
-Peer dependencies are optional. Install the ones you call: `firebase` (web, `>=10 <13`), `firebase-admin` (`>=12`), `@google-cloud/firestore` (`>=7`), and `@google-cloud/storage` (`>=8`) for Cloud Functions.
+Peer dependencies are optional. Install the ones you call: `firebase` (web, `>=10 <13`), `firebase-admin` (`>=12`), `@google-cloud/firestore` (`>=7`), and `@google-cloud/storage` (`>=8`) for Cloud Functions, and `@babel/parser` plus `magic-string` for the [build plugin](#callsites).
 
 ## init
 
@@ -57,6 +57,10 @@ sinkWrite(ref, "update");
 const unsub = onSnapshot(q, sinkListener(q, (next) => render(next)));
 ```
 
+In the browser, page visibility, connection changes and client-side route changes (`history.pushState`/`replaceState`, `popstate`, `hashchange`) are recorded as page events. A route is sent only as a template (`/users/{id}/orders`); pass `routes: false` to `init` to turn navigations off.
+
+React apps can tag calls with the component that made them with [`@readmeter/react`](../react). Other UI bindings can use `newMountId`, `runInMount` and `currentMount` from the root module.
+
 ## Cloud Functions
 
 ```ts
@@ -97,6 +101,30 @@ const result = await echo({ n: 1 });
 ## dev mode
 
 `init({ dev: true, ... })` loads the dev build, which runs window rules in-process and logs each finding. Leave `dev` off in production. A bundler keeps the prod and dev modules in separate chunks and loads only the one `dev` selects.
+
+To fetch the wasm as a `.wasm` file (smaller than the default base64 chunk), pass `wasmUrl`. With Vite:
+
+```ts
+import prodWasm from "@readmeter/firebase/wasm/prod/readmeter_wasm_bg.wasm?url";
+import devWasm from "@readmeter/firebase/wasm/dev/readmeter_wasm_bg.wasm?url";
+
+init({ apiKey: "rm_...", endpoint: "https://ingest.example", wasmUrl: (build) => (build === "dev" ? devWasm : prodWasm) });
+```
+
+## Callsites
+
+In dev and on servers, callsites come from stack traces. Production browser builds capture no stacks: add the build plugin (needs `@babel/parser` and `magic-string` as dev dependencies).
+
+```ts
+// vite.config.ts
+import readmeter from "@readmeter/firebase/vite";
+export default defineConfig({ plugins: [readmeter()] });
+
+// webpack / Next.js `webpack(config)`: a pre-loader on your own sources
+config.module.rules.push({ test: /\.[cm]?[jt]sx?$/, exclude: /node_modules/, enforce: "pre", use: "@readmeter/firebase/webpack-loader" });
+```
+
+Turbopack is not supported yet.
 
 ## Privacy
 

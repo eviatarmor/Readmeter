@@ -28,7 +28,7 @@ The workspace is defined in the root [`Cargo.toml`](https://github.com/eviatarmo
 
 - `envelope.rs` defines `Envelope` and its parts (`Target`, `QueryShape`, `ResultStats`, `WriteStats`, `CallContext`, `Op`, `Outcome`, and others) and `SCHEMA_VERSION`, currently `3`.
 - `wire.rs` is the upload format: `RM` magic, a little-endian `u16` schema version, then a postcard-encoded `Batch`. Only Rust encodes and decodes it, so SDK shims never touch it.
-- `hash.rs` has `KeyedHasher`, a SipHash-1-3 keyed per project. The key is never sent with events, so hashes of low-entropy values such as emails or small integers cannot be brute forced without it.
+- `hash.rs` has `KeyedHasher`, a SipHash-1-3 keyed per project. The key is never sent with events, but browser builds ship it to every visitor, so a hash of a low-entropy value such as an email or a small integer can be brute forced there. Providers decide what enters the hash: the Firebase provider (`crates/providers/firebase/src/values.rs`) hashes filter and cursor values in full only on `server` and `mobile`, and on `browser` or an unset platform keeps only id-shaped values, reducing the rest to type and string length.
 - `buffer.rs` is a bounded queue of events and findings (defaults: 2,000 events, 200 findings). When full it drops the oldest entries and counts them, so memory stays bounded if the host never flushes. It never blocks.
 - `map.rs` has `VecMap`, used instead of `BTreeMap` on the SDK path.
 
@@ -163,12 +163,12 @@ Do not add heavy dependencies to `core`, `rules`, `provider-api`, providers or `
 
 ```sh
 ./scripts/build-wasm.sh
-# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 95744 B)
+# readmeter_wasm_bg.wasm: raw ... B, gzip ... B (budget 97024 B)
 ```
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BUDGET_GZIP` | `95744` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
+| `BUDGET_GZIP` | `97024` | Maximum gzip bytes. The script comment sets a cap of 98,304 B. |
 | `FEATURES` | `firebase,database,storage,auth,functions` | Features passed to `readmeter-wasm`. |
 | `OUT` | `target/wasm-pkg` | Output directory. |
 

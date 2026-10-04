@@ -32,7 +32,7 @@ The SDK never throws into your code. A bad config or a wasm load failure logs on
 The Firebase provider (`crates/providers/firebase`) turns the raw call into an envelope:
 
 - Ids in the path become placeholders, so `users/8f3k/orders` becomes `users/{id}/orders`.
-- A Firestore query becomes a shape: filter fields and operators, ordering, limit, offset, cursor flags, projection, aggregations. Filter values are dropped.
+- A Firestore query becomes a shape: filter fields and operators, ordering, limit, offset, cursor flags, projection, aggregations. Filter values are dropped from the shape and only enter the target hash (in browser builds, only id-shaped values; others as type and length).
 - The result becomes counts and sizes: items returned, bytes, whether it came from the local cache.
 - Concrete values that rules need to compare (the exact target, a callsite) become keyed hashes. The callsite also keeps a short label: the source path with any URL origin and query string removed. The console shows that label.
 - The provider computes billing units for the call, such as `reads`, `writes` or `egress_bytes`.
@@ -47,7 +47,7 @@ The batch uses a versioned binary wire format defined in `crates/core`. The deco
 
 ### 4. Ingest and evaluate
 
-Ingest looks up the key, checks the browser `Origin` against the key's allowed origins, applies a per-key rate limit, and hands the body to the evaluator (`crates/evaluator`). The evaluator decodes the batch, enforces size limits, and runs the `window` and `aggregate` rules. Ingest writes events and findings to Postgres and answers 202 only after the write, so an accepted batch is a stored batch. When too many writes are in flight it answers 503 with `Retry-After`, and the SDK keeps the batch and retries.
+Ingest looks up the key, checks the browser `Origin` against the key's allowed origins, applies the per-IP (browser) and per-project rate limits, and hands the body to the evaluator (`crates/evaluator`). The evaluator decodes the batch, enforces size limits, and runs the `window` and `aggregate` rules. Ingest writes events and findings to Postgres and answers 202 only after the write, so an accepted batch is a stored batch. When too many writes are in flight it answers 503 with `Retry-After`, and the SDK keeps the batch and retries.
 
 The evaluator keeps its rule state in memory, per project. A restart starts every window from empty, and a pattern that appears again is detected again. All batches of one project must reach the same ingest process, or patterns split across processes are missed.
 
@@ -83,7 +83,7 @@ The redacted, normalized record of one call. It holds the provider and service, 
 
 ### Keyed hash
 
-A SipHash-1-3 hash keyed with the project's hash key, a 32-character hex value shown on the project's SDK tab. The SDK uses it to hash anything a rule has to compare for equality: the exact request including filter values and paging, the callsite, a listener. Two equal hashes mean the same request. Without the key, hashes of low-entropy values such as small numbers or emails cannot be reversed by trying every value, and the key is not sent with events. If you leave `hashKey` out of `init`, the SDK fetches it once from `GET /v1/config`. The hash key is not a secret in the way the API key is.
+A SipHash-1-3 hash keyed with the project's hash key, a 32-character hex value shown on the project's SDK tab. The SDK uses it to hash anything a rule has to compare for equality: the exact request including filter values and paging, the callsite, a listener. Two equal hashes mean the same request. The key is not sent with events, but a web app ships it to every visitor, and with the key a hash of a low-entropy value such as a small number or an email can be reversed by trying every value. Browser builds therefore hash only id-shaped filter and cursor values (auto ids, push ids, UUIDs, uids) and reduce every other value to its type and, for strings, its length before hashing; see [Privacy](/docs/sdk/privacy#browser-builds). If you leave `hashKey` out of `init`, the SDK fetches it once from `GET /v1/config`. The hash key is not a secret in the way the API key is.
 
 Write payload hashes also mix in a random salt created per session that never leaves the process, so the same payload cannot be matched across sessions.
 

@@ -1,0 +1,46 @@
+{
+  "description": "Server build (hash key kept secret): the same six members queries as browser-value-redaction. Every filter value is hashed in full, so the three role queries have distinct keys and nothing repeats.",
+  "platform": "server",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "path": "members",
+      "query": { "filters": [{ "field": "role", "op": "==", "value": "admin" }], "limit": 10 },
+      "result": { "docs": 2, "bytes": 200 }, "callsite": "src/Roles.tsx:10:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 2700, "call_id": 2, "path": "members",
+      "query": { "filters": [{ "field": "role", "op": "==", "value": "owner" }], "limit": 10 },
+      "result": { "docs": 2, "bytes": 200 }, "callsite": "src/Roles.tsx:20:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 3100, "call_id": 3, "path": "members",
+      "query": { "filters": [{ "field": "role", "op": "==", "value": "guest" }], "limit": 10 },
+      "result": { "docs": 2, "bytes": 200 }, "callsite": "src/Roles.tsx:30:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 10000, "call_id": 4, "path": "members",
+      "query": { "filters": [{ "field": "ownerId", "op": "==", "value": "Xb3kD9aQ2mLp7rT1vY0z" }], "limit": 10 },
+      "result": { "docs": 2, "bytes": 200 }, "callsite": "src/Owners.tsx:10:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 11700, "call_id": 5, "path": "members",
+      "query": { "filters": [{ "field": "ownerId", "op": "==", "value": "Yc4lE0bR3nMq8sU2wZ1a" }], "limit": 10 },
+      "result": { "docs": 2, "bytes": 200 }, "callsite": "src/Owners.tsx:20:5"
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 12100, "call_id": 6, "path": "members",
+      "query": { "filters": [{ "field": "ownerId", "op": "==", "value": "Zd5mF1cS4oNr9tV3xA2b" }], "limit": 10 },
+      "result": { "docs": 2, "bytes": 200 }, "callsite": "src/Owners.tsx:30:5"
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "members", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "members", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "members", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "members", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "members", "units": { "reads": 2, "egress_bytes": 200 } },
+    { "op": "query", "template": "members", "units": { "reads": 2, "egress_bytes": 200 } }
+  ],
+  "expect_findings": []
+}

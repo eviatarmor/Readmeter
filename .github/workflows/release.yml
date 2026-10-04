@@ -45,15 +45,39 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @readmeter/firebase build
       - run: pnpm --filter @readmeter/firebase test:bundle
-      - name: Pack and verify public package
+      - run: pnpm --filter @readmeter/react build
+      - name: Pack and verify public packages
         run: |
           mkdir -p artifacts
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/artifacts"
-          node scripts/check-sdk-package.mjs artifacts/readmeter-firebase-*.tgz
+          pnpm --filter @readmeter/react pack --pack-destination "$PWD/artifacts"
+          node scripts/check-sdk-package.mjs artifacts/readmeter-firebase-*.tgz artifacts/readmeter-react-*.tgz
       - uses: actions/upload-artifact@v4
         with:
           name: npm-package
           path: artifacts/*.tgz
+          if-no-files-found: error
+      # The build above ran readmeter-rulec into target/rules. These files are
+      # the default rule bundle self-hosted operators can download.
+      - name: Collect default rule bundle
+        run: |
+          mkdir -p rules-out
+          cp target/rules/catalog.json target/rules/bundle.bin rules-out/
+      - name: Sign rule bundle
+        env:
+          READMETER_BUNDLE_SIGNING_KEY: ${{ secrets.READMETER_BUNDLE_SIGNING_KEY }}
+        run: |
+          if [ -z "$READMETER_BUNDLE_SIGNING_KEY" ]; then
+            echo "READMETER_BUNDLE_SIGNING_KEY is not set; publishing an unsigned bundle."
+            exit 0
+          fi
+          pnpm --silent --filter @readmeter/ingest exec tsx src/bundle-key.ts sign "$PWD/rules-out/bundle.bin" > rules-out/bundle.bin.sig
+          pnpm --silent --filter @readmeter/ingest exec tsx src/bundle-key.ts public > rules-out/bundle-public-key.txt
+          test "$(wc -c < rules-out/bundle.bin.sig)" -eq 64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rule-bundle
+          path: rules-out/*
           if-no-files-found: error
 
   npm:
@@ -71,8 +95,11 @@ jobs:
         with:
           node-version: 22
       - run: npm install --global npm@11
-      # Configure this workflow as a trusted publisher on npmjs.com.
-      - run: npm publish artifacts/*.tgz --access public --provenance
+      # Configure this workflow as a trusted publisher on npmjs.com, for each package.
+      # @readmeter/react peer-depends on @readmeter/firebase, so publish that first.
+      - run: |
+          npm publish artifacts/readmeter-firebase-*.tgz --access public --provenance
+          npm publish artifacts/readmeter-react-*.tgz --access public --provenance
 
   image:
     needs: sdk
@@ -120,6 +147,10 @@ jobs:
         with:
           name: npm-package
           path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: rule-bundle
+          path: artifacts
       - name: Publish release and deployment files
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,6 +158,11 @@ jobs:
           cp deploy/compose.yml artifacts/compose.yml
           cp deploy/.env.example artifacts/readmeter.env.example
           cd artifacts
-          sha256sum *.tgz compose.yml readmeter.env.example > SHA256SUMS
+          # bundle.bin.sig and bundle-public-key.txt exist only when the signing secret is set.
+          files=(*.tgz compose.yml readmeter.env.example catalog.json bundle.bin)
+          for optional in bundle.bin.sig bundle-public-key.txt; do
+            if [ -f "$optional" ]; then files+=("$optional"); fi
+          done
+          sha256sum "${files[@]}" > SHA256SUMS
           gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
-            --title "Readmeter $GITHUB_REF_NAME" *.tgz compose.yml readmeter.env.example SHA256SUMS
+            --title "Readmeter $GITHUB_REF_NAME" "${files[@]}" SHA256SUMS

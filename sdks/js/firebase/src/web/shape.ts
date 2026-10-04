@@ -5,7 +5,7 @@
  */
 
 import { documentByteSize } from "../core/size.ts";
-import { readAdminTarget, type AdminTarget } from "../admin/shape.ts";
+import type { AdminTarget } from "../admin/shape.ts";
 import { decodeValue } from "./values.ts";
 import { warnShape } from "./warn.ts";
 
@@ -201,6 +201,17 @@ export function aggregationsFromSpec(spec: unknown): string[] | undefined {
   return out;
 }
 
+/**
+ * Admin SDK target reader. `admin/shape.ts` installs it when it loads (the
+ * admin entry imports it, and so does the lazy chunk `init` starts), so it
+ * stays out of the eager browser glue.
+ */
+let adminReader: ((target: unknown) => AdminTarget | undefined) | undefined;
+
+export function setAdminReader(reader: (target: unknown) => AdminTarget | undefined): void {
+  adminReader = reader;
+}
+
 export function readTarget(target: unknown): TargetShape | undefined {
   try {
     if (!target || typeof target !== "object") return undefined;
@@ -208,7 +219,7 @@ export function readTarget(target: unknown): TargetShape | undefined {
     if (t.type === "query" || t.type === "collection") return webQuery(t);
     if (t.type === "document" && typeof t.path === "string") return { kind: "document", path: t.path };
     if (t.type === "AggregateQuery") return webAggregate(t);
-    const admin = readAdminTarget(target);
+    const admin = adminReader?.(target);
     if (!admin) return undefined;
     return admin as TargetShape;
   } catch (error) {

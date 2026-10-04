@@ -5,19 +5,23 @@ service = "database"
 severity = "high"
 category = "reads"
 evaluation = "local"
-status = "planned"
-default_enabled = false
-summary = "orderByChild on a path with no .indexOn makes the server scan and the client download extra data."
+status = "beta"
+summary = "orderByChild on a path with no .indexOn makes the server send the whole location for the client to filter."
 
 description = """
-A query ordered by a child that is not declared with `.indexOn` is logged by
-the SDK as "Using an unspecified index". The server scans the whole location
-and can download more than the limit. That warning is emitted later, inside
-the connection's listen response (`no_index`), and is not attached to the
-query or the snapshot. Wrapping `console.warn` only while `query()` runs
-misses it, and a large `orderByChild` result is already covered by the
-unlimited-list rule. This stays planned until a shim can see that warning
-without guessing.
+When a listener (`onValue`, `onChildAdded`, ...) orders by a child that is
+not declared with `.indexOn`, the server cannot run the query. It sends the
+whole location and the client applies the order and limit, so a
+`limitToLast(25)` still downloads every child. The Realtime Database web SDK
+reports this in the listen response and logs "Using an unspecified index"
+through `console.warn`, later and unattached to the query.
+
+The web drop-in (`@readmeter/firebase/database`) passes `console.warn`
+through unchanged and records that warning with the path and child it names.
+The callsite comes from the most recent listener on the same path and child.
+Only the web SDK is covered. Nothing is reported when the host silences the
+Firebase logger (`setLogLevel("silent")` or `"error"`) or replaces
+`console.warn` without calling the previous one.
 """
 
 fix = """

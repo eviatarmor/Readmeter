@@ -43,6 +43,10 @@ pub struct RawCall {
     pub cpu_milli: Option<u64>,
     pub rtdb_download_bytes: u64,
     pub storage_ops: u64,
+    /// Firestore writes made during a Firestore-triggered invocation whose
+    /// path matches that trigger's document pattern. Only the count reaches
+    /// the core; the pattern and the paths stay in the shim.
+    pub trigger_writes: u64,
     pub error: Option<String>,
     pub duration_us: Option<u64>,
     pub call_id: u64,
@@ -65,6 +69,7 @@ impl RawCall {
             cpu_milli: opt_u64(value, "cpu_milli")?,
             rtdb_download_bytes: def_u64(value, "rtdb_download_bytes", 0)?,
             storage_ops: def_u64(value, "storage_ops", 0)?,
+            trigger_writes: def_u64(value, "trigger_writes", 0)?,
             error: opt_error(value)?,
             duration_us: opt_u64(value, "duration_us")?,
             call_id: def_u64(value, "call_id", 0)?,

@@ -51,7 +51,7 @@ init({
 
 `init` never throws. A bad option, a failed hash-key fetch, or a wasm file that does not load logs one `console.error` line (`[readmeter] ... The SDK is disabled.`) and turns recording off. Your Firebase calls keep working either way.
 
-Calls made before the wasm core is ready are queued (up to 1000, oldest dropped first) and replayed once it loads. Calling `init` again replaces the previous session: the old buffer is flushed and a new session id is created.
+Calls made before the wasm core is ready are queued (up to 1000, oldest dropped first) and replayed once it loads. With a bundler, `init` loads most of the SDK (hash key and rule bundle fetch, wasm loading, batch delivery, route tracking) as a separate chunk, in parallel with the wasm, so the code a page parses up front stays under 10 KB gzip. Calling `init` again replaces the previous session: the old buffer is flushed and a new session id is created.
 
 The root module exports:
 
@@ -105,6 +105,8 @@ The runtime changes how batches leave the process:
 | Early flush | After `maxBatchEvents` recorded calls (default 200) | Same |
 | On exit | `pagehide` flushes with `keepalive` | `beforeExit` and `SIGTERM` flush |
 | Page visibility | `visibilitychange` is recorded as a page event | Not recorded |
+| Navigation | `pushState`/`replaceState` are wrapped and `popstate`/`hashchange` listened to; a route change is recorded as a page event with a [route template](/docs/sdk/privacy#page-visibility) (`routes: false` turns it off) | Not recorded |
+| Connection | `offline`/`online` on `window` and `freeze`/`resume` are recorded as connection events | Not recorded |
 | Rule bundle cache | `localStorage` | `~/.readmeter/cache`, or `READMETER_BUNDLE_CACHE` |
 
 ## Dev mode
@@ -119,7 +121,9 @@ With `dev: true` the SDK loads the dev wasm build, which also runs `window` rule
 [readmeter] high firebase.firestore/unbounded-list orders: ...
 ```
 
-Leave `dev` off in production. The production build runs only `local` rules and is smaller. A bundler puts the prod and dev wasm in separate chunks and loads only the one `dev` selects.
+Leave `dev` off in production. The production build runs only `local` rules and is smaller. A bundler puts the prod and dev wasm in separate chunks and loads only the one `dev` selects. To serve the wasm as a `.wasm` file instead of a base64 chunk, see [`wasmUrl`](/docs/sdk/configuration#serving-the-wasm-as-a-file).
+
+In the browser, `dev: true` also turns on callsites from stack traces. Production browser builds capture no stacks; add the [build plugin](/docs/sdk/build-plugin) to record callsites there.
 
 To handle findings in code instead of the console, pass `onFinding`. It is called for every local finding, with or without `dev`. Set `debug: true` to log every raw call with `console.debug`.
 

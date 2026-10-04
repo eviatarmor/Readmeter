@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CoreClient, configJson, openCore, recordRaw } from "../src/core/client.ts";
+import { CoreClient, recordRaw } from "../src/core/client.ts";
+import { configJson, openCore } from "../src/core/open.ts";
 import { loadWasm } from "../src/core/wasm.ts";
 import { flush, init, shutdown } from "../src/index.ts";
 import { HASH_KEY, bundleBytes } from "./bundle.ts";

@@ -159,12 +159,80 @@ jobs:
       - run: pnpm --filter @readmeter/firebase build
       - run: pnpm --filter @readmeter/firebase test
       - run: pnpm --filter @readmeter/firebase test:emulator
-      - run: pnpm --filter @readmeter/firebase test:bundle
+      # Inline wasm chunks, build-plugin callsites, wasmUrl loading, and the JS glue size budget.
+      - name: SDK bundle checks and JS glue budget
+        run: pnpm --filter @readmeter/firebase test:bundle
+      # @readmeter/react resolves @readmeter/firebase through its built dist/.
+      - run: pnpm --filter @readmeter/react typecheck
+      - run: pnpm --filter @readmeter/react test
+      - run: pnpm --filter @readmeter/react build
       - name: Verify npm release contents
         run: |
           mkdir -p target/releases
           pnpm --filter @readmeter/firebase pack --pack-destination "$PWD/target/releases"
-          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz
+          pnpm --filter @readmeter/react pack --pack-destination "$PWD/target/releases"
+          node scripts/check-sdk-package.mjs target/releases/readmeter-firebase-*.tgz target/releases/readmeter-react-*.tgz
+
+  # The lockfile pins the newest firebase major (sdk-js covers it). The query-shape
+  # reader reads SDK internals, so every older supported major runs the unit tests
+  # and the web emulator suite too.
+  sdk-js-firebase-majors:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        firebase: ["10", "11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @readmeter/firebase build
+      - name: Install firebase ${{ matrix.firebase }}.x
+        run: pnpm --filter @readmeter/firebase add -D "firebase@${{ matrix.firebase }}"
+      - run: pnpm --filter @readmeter/firebase test
+      - run: pnpm --filter @readmeter/firebase test:emulator
+        env:
+          EMULATOR_SUITE: web
+
+  sdk-python:
+    runs-on: ubuntu-latest
+    env:
+      # Fail instead of skipping the envelope check against the server core.
+      READMETER_REQUIRE_ENVELOPES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cargo install --locked wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
+      - name: Build the C ABI library, rule bundle and server core
+        run: |
+          cargo build -p readmeter-ffi --release --features firebase,database,storage,auth,functions,window
+          cargo run -q -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+          ./scripts/build-wasm-server.sh
+      - name: unittest
+        working-directory: sdks/python/readmeter
+        run: PYTHONPATH=src python -m unittest discover -s tests -t . -v
 
   e2e:
     runs-on: ubuntu-latest

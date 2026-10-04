@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { bundleEtag, createApp } from "../src/app.ts";
-import { TokenBucket } from "../src/rate.ts";
+import { burstFor, TokenBucket } from "../src/rate.ts";
 import { collapseFindings } from "../src/store.ts";
 import { access, batch, core, growingPages, HASH_KEY, MemoryStore, offsetQuery } from "./helpers.ts";
 
@@ -165,7 +165,7 @@ test("accepts beacon bodies with octet-stream or no content type", async () => {
   assert.equal(store.writes.length, 2);
 });
 
-test("answers 429 with Retry-After when the per-key bucket is empty", async () => {
+test("answers 429 with Retry-After when the project bucket is empty", async () => {
   const store = new MemoryStore({ [KEY]: access("proj_a") });
   const app = createApp({
     core: await core(),
@@ -179,6 +179,101 @@ test("answers 429 with Retry-After when the per-key bucket is empty", async () =
   const retry = Number(limited.headers.get("retry-after"));
   assert.ok(retry >= 1, `retry-after ${retry}`);
   assert.equal(store.writes.length, 1);
+});
+
+test("all keys of a project share one bucket; other projects are separate", async () => {
+  const store = new MemoryStore({
+    k1: access("proj_a"),
+    k2: access("proj_a"),
+    k3: access("proj_b"),
+  });
+  const app = createApp({ core: await core(), store, limits: { ratePerMin: 1, rateBurst: 1 } });
+  assert.equal((await app.request(post(batch([offsetQuery(1)]), "k1"))).status, 202);
+  const shared = await app.request(post(batch([offsetQuery(2)]), "k2"));
+  assert.equal(shared.status, 429);
+  assert.equal((await shared.json()).error, "rate_limited");
+  assert.equal((await app.request(post(batch([offsetQuery(3)]), "k3"))).status, 202);
+});
+
+test("a project's own rate_per_min replaces the default, with a proportional burst", async () => {
+  const store = new MemoryStore({ fast: access("proj_fast", [], HASH_KEY, 12), slow: access("proj_slow") });
+  // Default 6/min with burst 1; 12/min gets burst ceil(12 * 1 / 6) = 2.
+  const app = createApp({ core: await core(), store, limits: { ratePerMin: 6, rateBurst: 1 } });
+  const send = async (key: string) => (await app.request(post(batch([offsetQuery(1)]), key))).status;
+  assert.deepEqual([await send("fast"), await send("fast"), await send("fast")], [202, 202, 429]);
+  assert.deepEqual([await send("slow"), await send("slow")], [202, 429]);
+});
+
+test("burst scales with the per-minute rate", () => {
+  const base = { ratePerMin: 600, rateBurst: 100 };
+  assert.equal(burstFor(600, base), 100);
+  assert.equal(burstFor(60, base), 10);
+  assert.equal(burstFor(120, base), 20);
+  assert.equal(burstFor(1, base), 1);
+});
+
+const browser = (opts: { ip: string; origin?: string; forwardedFor?: string; key?: string }) => {
+  const headers: Record<string, string> = { authorization: `Bearer ${opts.key ?? KEY}` };
+  if (opts.origin !== undefined) headers.origin = opts.origin;
+  if (opts.forwardedFor !== undefined) headers["x-forwarded-for"] = opts.forwardedFor;
+  return [
+    new Request("http://x/v1/batches", { method: "POST", headers, body: batch([offsetQuery(1)]) }),
+    undefined,
+    { incoming: { socket: { remoteAddress: opts.ip } } },
+  ] as const;
+};
+
+test("limits browser requests per client IP", async () => {
+  const store = new MemoryStore({ [KEY]: access("proj_a") });
+  // Per-IP 1/min: burst ceil(1 * 100 / 600) = 1. The project limit stays high.
+  const app = createApp({ core: await core(), store, limits: { ratePerIpPerMin: 1 } });
+  const origin = "https://app.example";
+  assert.equal((await app.request(...browser({ ip: "10.0.0.1", origin }))).status, 202);
+  const limited = await app.request(...browser({ ip: "10.0.0.1", origin }));
+  assert.equal(limited.status, 429);
+  assert.equal((await limited.json()).error, "rate_limited");
+  assert.ok(Number(limited.headers.get("retry-after")) >= 1);
+  assert.equal((await app.request(...browser({ ip: "10.0.0.2", origin }))).status, 202);
+  // No Origin: a server caller, only the project limit applies.
+  assert.equal((await app.request(...browser({ ip: "10.0.0.1" }))).status, 202);
+  // Limited before the key lookup.
+  assert.equal((await app.request(...browser({ ip: "10.0.0.1", origin, key: "bad" }))).status, 429);
+  assert.equal(store.writes.length, 3);
+
+  const off = createApp({ core: await core(), store, limits: { ratePerIpPerMin: 0 } });
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal((await off.request(...browser({ ip: "10.0.0.9", origin }))).status, 202);
+  }
+});
+
+test("X-Forwarded-For is ignored unless trustProxy is on", async () => {
+  const origin = "https://app.example";
+  const store = new MemoryStore({ [KEY]: access("proj_a") });
+  const direct = createApp({ core: await core(), store, limits: { ratePerIpPerMin: 1 } });
+  assert.equal((await direct.request(...browser({ ip: "10.0.0.1", origin, forwardedFor: "1.1.1.1" }))).status, 202);
+  assert.equal((await direct.request(...browser({ ip: "10.0.0.1", origin, forwardedFor: "2.2.2.2" }))).status, 429);
+
+  const proxied = createApp({ core: await core(), store, limits: { ratePerIpPerMin: 1, trustProxy: true } });
+  const viaProxy = (forwardedFor: string) =>
+    Promise.resolve(proxied.request(...browser({ ip: "10.0.0.1", origin, forwardedFor }))).then((r) => r.status);
+  assert.equal(await viaProxy("1.1.1.1"), 202);
+  assert.equal(await viaProxy("2.2.2.2"), 202);
+  // The last entry is the one the proxy appended; a client-sent first entry does not matter.
+  assert.equal(await viaProxy("9.9.9.9, 1.1.1.1"), 429);
+  // Without the header the socket address is used.
+  assert.equal((await proxied.request(...browser({ ip: "10.0.0.7", origin }))).status, 202);
+});
+
+test("token bucket evicts the least recently used key", () => {
+  const bucket = new TokenBucket(60, 1, 2);
+  assert.equal(bucket.take("a", 0), null);
+  assert.equal(bucket.take("b", 0), null);
+  assert.equal(bucket.take("a", 0), 1);
+  assert.equal(bucket.take("c", 0), null);
+  assert.equal(bucket.size, 2);
+  // b was least recently used and is gone; a kept its empty bucket.
+  assert.equal(bucket.take("a", 0), 1);
+  assert.equal(bucket.take("b", 0), null);
 });
 
 test("token bucket waits at least one second and refills", () => {

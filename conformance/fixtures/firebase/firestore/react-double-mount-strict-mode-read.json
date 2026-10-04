@@ -1,0 +1,24 @@
+{
+  "description": "One React component under StrictMode calls getDocs(query(collection(db, 'todos'), limit(10))) in useReadmeterEffect from @readmeter/react. StrictMode runs the effect, its cleanup and the effect again for the same instance, so both reads carry the same mount id and react-double-mount fires.",
+  "platform": "browser",
+  "evaluations": ["local", "window"],
+  "calls": [
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1000, "call_id": 1, "mount": 1,
+      "path": "todos", "query": { "limit": 10 }, "callsite": "src/Todos.tsx:9:5",
+      "result": { "docs": 10, "bytes": 2000 }
+    },
+    {
+      "service": "firestore", "op": "query", "ts_ms": 1004, "call_id": 2, "mount": 1,
+      "path": "todos", "query": { "limit": 10 }, "callsite": "src/Todos.tsx:9:5",
+      "result": { "docs": 10, "bytes": 2000 }
+    }
+  ],
+  "expect_envelopes": [
+    { "op": "query", "template": "todos", "units": { "reads": 10, "egress_bytes": 2000 } },
+    { "op": "query", "template": "todos", "units": { "reads": 10, "egress_bytes": 2000 } }
+  ],
+  "expect_findings": [
+    { "rule": "generic/react-double-mount", "wasted": { "reads": 10, "egress_bytes": 2000 } }
+  ]
+}

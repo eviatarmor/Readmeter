@@ -3,7 +3,7 @@
  * record. The promise the host awaits is the one Firestore returned.
  */
 
-import { callsite } from "../core/callsite.ts";
+import { callsite, readSite, takeInjected } from "../core/callsite.ts";
 import { sdkDebug } from "../core/client.ts";
 import { debugOnce } from "../core/log.ts";
 import { writeSignal } from "../core/payload.ts";
@@ -41,6 +41,7 @@ import {
   recordQueryResult,
   recordWrite,
   watch,
+  withCurrentMount,
   type ListenerSession,
   type Timing,
 } from "./sink.ts";
@@ -50,11 +51,22 @@ export * from "firebase/firestore";
 type AnyFn = (...args: unknown[]) => unknown;
 
 function timing(): Timing {
-  return { site: callsite(), ts: Date.now(), start: performance.now() };
+  return withCurrentMount({ site: callsite(), ts: Date.now(), start: performance.now() });
 }
 
-function traced<T>(run: () => Promise<T>, ok: (value: T, at: Timing) => void, bad: (error: unknown, at: Timing) => void): Promise<T> {
-  const at = timing();
+/** Reads also record whether they ran in a React render; one stack serves both. */
+function readTiming(): Timing {
+  const { site, inRender } = readSite();
+  return withCurrentMount({ site, inRender, ts: Date.now(), start: performance.now() });
+}
+
+function traced<T>(
+  run: () => Promise<T>,
+  ok: (value: T, at: Timing) => void,
+  bad: (error: unknown, at: Timing) => void,
+  start: () => Timing = timing,
+): Promise<T> {
+  const at = start();
   let pending: Promise<T>;
   try {
     pending = run();
@@ -78,6 +90,7 @@ export const getDocs: typeof realGetDocs = ((...args: unknown[]) =>
     () => call(realGetDocs as AnyFn, args),
     (snap, at) => recordQueryResult(args[0], snap, at, true),
     (error, at) => recordFailure("query", args[0], error, at),
+    readTiming,
   )) as typeof realGetDocs;
 
 export const getDocsFromServer: typeof realGetDocsFromServer = ((...args: unknown[]) =>
@@ -85,6 +98,7 @@ export const getDocsFromServer: typeof realGetDocsFromServer = ((...args: unknow
     () => call(realGetDocsFromServer as AnyFn, args),
     (snap, at) => recordQueryResult(args[0], snap, at, true, "server"),
     (error, at) => recordFailure("query", args[0], error, at),
+    readTiming,
   )) as typeof realGetDocsFromServer;
 
 export const getDocsFromCache: typeof realGetDocsFromCache = ((...args: unknown[]) =>
@@ -92,6 +106,7 @@ export const getDocsFromCache: typeof realGetDocsFromCache = ((...args: unknown[
     () => call(realGetDocsFromCache as AnyFn, args),
     (snap, at) => recordQueryResult(args[0], snap, at, true, "cache"),
     (error, at) => recordFailure("query", args[0], error, at),
+    readTiming,
   )) as typeof realGetDocsFromCache;
 
 export const getDoc: typeof realGetDoc = ((...args: unknown[]) =>
@@ -99,6 +114,7 @@ export const getDoc: typeof realGetDoc = ((...args: unknown[]) =>
     () => call(realGetDoc as AnyFn, args),
     (snap, at) => recordGetResult(args[0], snap, at, undefined, true),
     (error, at) => recordFailure("get", args[0], error, at),
+    readTiming,
   )) as typeof realGetDoc;
 
 export const getDocFromServer: typeof realGetDocFromServer = ((...args: unknown[]) =>
@@ -106,6 +122,7 @@ export const getDocFromServer: typeof realGetDocFromServer = ((...args: unknown[
     () => call(realGetDocFromServer as AnyFn, args),
     (snap, at) => recordGetResult(args[0], snap, at, "server", true),
     (error, at) => recordFailure("get", args[0], error, at),
+    readTiming,
   )) as typeof realGetDocFromServer;
 
 export const getDocFromCache: typeof realGetDocFromCache = ((...args: unknown[]) =>
@@ -113,6 +130,7 @@ export const getDocFromCache: typeof realGetDocFromCache = ((...args: unknown[])
     () => call(realGetDocFromCache as AnyFn, args),
     (snap, at) => recordGetResult(args[0], snap, at, "cache", true),
     (error, at) => recordFailure("get", args[0], error, at),
+    readTiming,
   )) as typeof realGetDocFromCache;
 
 export const getCountFromServer: typeof realGetCountFromServer = ((...args: unknown[]) =>
@@ -120,6 +138,7 @@ export const getCountFromServer: typeof realGetCountFromServer = ((...args: unkn
     () => call(realGetCountFromServer as AnyFn, args),
     (snap, at) => recordAggregateResult(args[0], snap, ["count"], undefined, at),
     (error, at) => recordFailure("aggregate", args[0], error, at),
+    readTiming,
   )) as typeof realGetCountFromServer;
 
 export const getAggregateFromServer: typeof realGetAggregateFromServer = ((...args: unknown[]) => {
@@ -129,6 +148,7 @@ export const getAggregateFromServer: typeof realGetAggregateFromServer = ((...ar
     () => call(realGetAggregateFromServer as AnyFn, args),
     (snap, at) => recordAggregateResult(args[0], snap, names, spec, at),
     (error, at) => recordFailure("aggregate", args[0], error, at),
+    readTiming,
   );
 }) as typeof realGetAggregateFromServer;
 
@@ -217,8 +237,10 @@ export const enableMultiTabIndexedDbPersistence: typeof realEnableMultiTabIndexe
 }) as typeof realEnableMultiTabIndexedDbPersistence;
 
 export const writeBatch: typeof realWriteBatch = ((...args: unknown[]) => {
+  // Build-plugin callsite of `writeBatch(...)`, the fallback for `commit()`.
+  const created = takeInjected();
   const batch = (realWriteBatch as AnyFn)(...args);
-  if (batch && typeof batch === "object") bindBatch(batch);
+  if (batch && typeof batch === "object") bindBatch(batch, created);
   return batch;
 }) as typeof realWriteBatch;
 

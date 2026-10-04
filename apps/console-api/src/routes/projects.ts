@@ -16,15 +16,27 @@ const createProjectBody = z.object({
   firebaseProjectId: z.string().min(1).max(120).nullable().optional(),
 });
 
+/** Accepted ingest batches per minute for the project; null uses the ingest default. */
+const ratePerMin = z
+  .number({ error: "ratePerMin must be a whole number from 1 to 1000000, or null" })
+  .int("ratePerMin must be a whole number from 1 to 1000000, or null")
+  .min(1, "ratePerMin must be a whole number from 1 to 1000000, or null")
+  .max(1_000_000, "ratePerMin must be a whole number from 1 to 1000000, or null")
+  .nullable();
+
 const patchProjectBody = z
   .object({
     name: z.string().min(1).max(80).optional(),
     environment: environment.optional(),
     firebaseProjectId: z.string().min(1).max(120).nullable().optional(),
+    ratePerMin: ratePerMin.optional(),
   })
   .refine(
     (body) =>
-      body.name !== undefined || body.environment !== undefined || body.firebaseProjectId !== undefined,
+      body.name !== undefined ||
+      body.environment !== undefined ||
+      body.firebaseProjectId !== undefined ||
+      body.ratePerMin !== undefined,
     { message: "nothing to update" },
   );
 
@@ -85,6 +97,7 @@ export function projectRoutes(db: Db, ingestPublicUrl: string) {
         name: schema.projects.name,
         environment: schema.projects.environment,
         firebaseProjectId: schema.projects.firebaseProjectId,
+        ratePerMin: schema.projects.ratePerMin,
         createdAt: schema.projects.createdAt,
       })
       .from(schema.projects)
@@ -177,6 +190,7 @@ export function projectRoutes(db: Db, ingestPublicUrl: string) {
         ...(parsed.data.firebaseProjectId !== undefined
           ? { firebaseProjectId: parsed.data.firebaseProjectId }
           : {}),
+        ...(parsed.data.ratePerMin !== undefined ? { ratePerMin: parsed.data.ratePerMin } : {}),
       })
       .where(and(eq(schema.projects.id, c.req.param("projectId")), eq(schema.projects.orgId, workspace.id)))
       .returning();
@@ -337,6 +351,7 @@ function publicProject(project: {
   name: string;
   environment: string;
   firebaseProjectId: string | null;
+  ratePerMin: number | null;
   createdAt: Date;
   orgId: string;
 }) {
@@ -345,6 +360,7 @@ function publicProject(project: {
     name: project.name,
     environment: project.environment,
     firebaseProjectId: project.firebaseProjectId,
+    ratePerMin: project.ratePerMin,
     createdAt: project.createdAt,
   };
 }

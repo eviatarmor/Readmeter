@@ -1,0 +1,72 @@
+---
+title: Python (sink API)
+description: Record raw Firebase calls from Python through the Rust core's C ABI.
+---
+
+The `readmeter` Python package loads the same Rust core as the JavaScript SDK, through its C ABI (`crates/bindings/ffi`) with `ctypes`. Normalization, redaction, local rules and batching all happen in Rust, so Python produces the same envelopes and findings as every other SDK.
+
+It exists to prove the non-JavaScript path. There are no drop-in wrappers yet: you build each raw call yourself and pass it to `sink`. Wrappers for the Firebase Admin SDK for Python come later. The package has no dependencies beyond the standard library and needs Python 3.9 or newer.
+
+## Install from source
+
+The package is not on PyPI yet. Build the shared library and the rule bundle in a checkout of the repository, then install the package:
+
+```sh
+cargo build -p readmeter-ffi --release --features firebase,database,storage,auth,functions
+cargo run -p readmeter-rules --features catalog-toml --bin readmeter-rulec -- build rules target/rules
+
+pip install ./sdks/python/readmeter
+```
+
+The client looks for the shared library (`readmeter_ffi.dll`, `libreadmeter_ffi.so` or `libreadmeter_ffi.dylib`) in this order:
+
+1. The `READMETER_LIB` environment variable (a file path).
+2. Next to the installed `readmeter` package.
+3. `target/release`, then `target/debug`, of the checkout the package was loaded from.
+
+The rule bundle is found the same way: the `bundle=` argument, `READMETER_BUNDLE`, a `bundle.bin` next to the package, then `target/rules/bundle.bin`. To ship both with the package, copy them into `sdks/python/readmeter/src/readmeter/` before `pip install` or building a wheel.
+
+## The sink API
+
+```python
+from readmeter import Client
+
+client = Client(hash_key="<32 hex chars from the console>")
+
+findings = client.sink({
+    "service": "firestore",
+    "op": "query",
+    "ts_ms": 1_000,
+    "path": "posts",
+    "query": {"order_by": [{"field": "createdAt"}], "limit": 20, "offset": 200},
+    "result": {"docs": 20, "bytes": 20_000},
+})
+# [{"rule": "firebase.firestore/offset-pagination", "severity": ..., "wasted": {"reads": 200}, ...}]
+
+client.send("http://127.0.0.1:8090", "rm_...")  # POST /v1/batches
+client.close()
+```
+
+| Method | What it does |
+| --- | --- |
+| `Client(hash_key, *, bundle=None, platform="server", dev=False, session=None, sample_rate=1.0, evaluations=None, max_events=None, max_findings=None, library=None, on_finding=None)` | Creates a client. Raises `ConfigError` (a `ValueError`) on a bad config or bundle, and `LibraryNotFoundError` when the shared library is missing. |
+| `sink(raw: dict) -> list[dict]` | Records one raw call and returns its local findings. Never raises: a call the core rejects is logged on the `readmeter` logger, counted in `dropped_calls`, and dropped. |
+| `record(raw) -> list[dict]` | Same as `sink` but raises `ReadmeterError`. Useful in tests. |
+| `findings() -> list[dict]` | Local findings since the last call, oldest first. At most `max_findings` (default 200) are kept. |
+| `flush() -> bytes` | Drains buffered events into an encoded batch, or `b""` when empty. |
+| `send(endpoint, api_key) -> bool` | Flushes and posts to `{endpoint}/v1/batches`. Never raises. |
+| `close()` | Frees the core client. The client is also a context manager. |
+
+Each finding has `rule`, `severity`, `template`, `message` and `wasted`. All methods are thread-safe; one lock serializes calls into the core.
+
+The hash key never leaves the process. The core uses it only to hash ids, so concrete ids, filter values and cursors never reach the batch.
+
+## Raw calls
+
+`sink` takes the same raw call JSON every SDK builds, as a `dict`. The format for each service is in the [raw call reference](/docs/reference/raw-calls). `ts_ms` is the call time in milliseconds; pass the same `listener` id for a subscribe and its snapshots so window rules can follow them.
+
+## Sending batches
+
+`send` uses `urllib.request` with `Authorization: Bearer <api key>` and `Content-Type: application/octet-stream`. On 429 and 503 it waits for `Retry-After` (at least one second) and retries; other 5xx responses and network errors back off exponentially. A batch it could not deliver is kept, up to 8, and retried on the next `send`. Other 4xx responses drop the batch, since resending it cannot succeed. Call `send` on a timer or at the end of a request, for example from a background thread.
+
+If you have your own HTTP client, call `flush()` and post the bytes yourself; see the [ingest API](/docs/reference/ingest-api).

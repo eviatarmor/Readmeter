@@ -1,8 +1,6 @@
 import { debugOnce } from "./log.ts";
-import { detectPlatform } from "./env.ts";
-import { loadWasm, type WasmHandle } from "./wasm.ts";
-import { SDK_NAME, SDK_VERSION } from "../version.ts";
-import type { Finding, Platform } from "../types.ts";
+import type { WasmHandle } from "./wasm.ts";
+import type { Finding } from "../types.ts";
 
 /** Calls made before wasm is ready. Drop the oldest past this. */
 export const QUEUE_CAP = 1000;
@@ -17,42 +15,6 @@ export interface RecordResult {
   findings: Finding[];
   /** True when the call reached wasm. Queued calls are not counted yet. */
   wrote: boolean;
-}
-
-export interface OpenCoreOptions {
-  hashKey: string;
-  bundle: Uint8Array;
-  session?: string;
-  platform?: Platform;
-  dev?: boolean;
-  debug?: boolean;
-  sampleRate?: number;
-  /** Passed through to the core. Window rules need the dev wasm build. */
-  evaluations?: string[];
-  onFinding?: (finding: Finding) => void;
-  wasmDir?: URL;
-}
-
-interface ConfigInput {
-  hashKey: string;
-  session: string;
-  platform: Platform;
-  dev: boolean;
-  sampleRate: number;
-  evaluations: string[];
-}
-
-export function configJson(input: ConfigInput): string {
-  return JSON.stringify({
-    provider: "firebase",
-    sdk: { name: SDK_NAME, version: SDK_VERSION },
-    session: input.session,
-    hash_key: input.hashKey.toLowerCase(),
-    platform: input.platform,
-    dev: input.dev,
-    sample_rate: input.sampleRate,
-    evaluations: input.evaluations,
-  });
 }
 
 function asFinding(value: unknown): Finding | undefined {
@@ -271,25 +233,4 @@ export function disableRecording(): void {
 /** Whether the active client was started with `debug`. */
 export function sdkDebug(): boolean {
   return active.isDebug();
-}
-
-/** Wasm client for tests and the conformance runner. Does not touch the singleton. */
-export async function openCore(opts: OpenCoreOptions): Promise<CoreClient> {
-  const evaluations = opts.evaluations ?? (opts.dev === true ? ["local", "window"] : ["local"]);
-  const devWasm = opts.dev === true || evaluations.includes("window");
-  const wasm = await loadWasm(devWasm, opts.wasmDir);
-  const client = new CoreClient({ dev: opts.dev === true, debug: opts.debug, onFinding: opts.onFinding });
-  const handle = new wasm.Readmeter(
-    configJson({
-      hashKey: opts.hashKey,
-      session: opts.session ?? "1",
-      platform: opts.platform ?? detectPlatform(),
-      dev: opts.dev === true,
-      sampleRate: opts.sampleRate ?? 1,
-      evaluations,
-    }),
-    opts.bundle,
-  );
-  client.attach(handle);
-  return client;
 }

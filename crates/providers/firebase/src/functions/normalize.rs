@@ -73,6 +73,7 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             platform: cx.platform,
             attempt: raw.attempt.max(1),
             dev: cx.dev,
+            in_render: false,
         },
         units: Default::default(),
     };
@@ -96,6 +97,9 @@ fn attributes(raw: &RawCall) -> Vec<FilterShape> {
     }
     if raw.storage_ops > 0 {
         filters.push(number("storage_ops", raw.storage_ops));
+    }
+    if raw.trigger_writes > 0 {
+        filters.push(number("trigger_writes", raw.trigger_writes));
     }
     filters
 }
@@ -190,7 +194,8 @@ mod tests {
             "request_bytes": 8,
             "reads": 3,
             "rtdb_download_bytes": 90,
-            "storage_ops": 2
+            "storage_ops": 2,
+            "trigger_writes": 4
         }));
         assert_eq!(warm.target.key, cold.target.key);
         assert_eq!(warm.target.template, "functions/echo");
@@ -201,6 +206,8 @@ mod tests {
         assert_eq!(attr(&cold, "cpu_milli"), Some("1000"));
         assert_eq!(attr(&cold, "rtdb_download_bytes"), Some("90"));
         assert_eq!(attr(&cold, "storage_ops"), Some("2"));
+        assert_eq!(attr(&cold, "trigger_writes"), Some("4"));
+        assert_eq!(attr(&warm, "trigger_writes"), None);
         assert_eq!(cold.items(), 3);
         assert_eq!(cold.bytes(), 4);
         assert_eq!(
@@ -267,6 +274,29 @@ mod tests {
     }
 
     #[test]
+    fn trigger_writes_keep_only_the_count() {
+        // A shim that misbehaves and sends the trigger document, params, and
+        // write paths must not get them into the envelope.
+        let env = norm(json!({
+            "service": "functions",
+            "op": "invoke",
+            "name": "onPost",
+            "ts_ms": 1,
+            "trigger_writes": 2,
+            "document": "posts/secret-doc-id",
+            "trigger": "posts/{id}",
+            "params": { "id": "secret-doc-id" },
+            "paths": ["posts/secret-doc-id", "posts/other-secret-id"]
+        }));
+        assert_eq!(attr(&env, "trigger_writes"), Some("2"));
+        let dump = format!("{env:?}");
+        for secret in ["secret-doc-id", "other-secret-id", "posts/"] {
+            assert!(!dump.contains(secret), "{secret} in {dump}");
+        }
+        assert_eq!(env.target.template, "functions/onPost");
+    }
+
+    #[test]
     fn hostile_raw_calls_never_panic() {
         let provider = crate::FirebaseProvider;
         let cases = [
@@ -280,6 +310,8 @@ mod tests {
             r#"{"service":"functions","op":"invoke","ts_ms":1,"name":{"url":"http://x"}}"#,
             r#"{"service":"functions","op":"callable","ts_ms":1,"error":1}"#,
             r#"{"service":"functions","op":"invoke","ts_ms":1,"memory_mb":-1}"#,
+            r#"{"service":"functions","op":"invoke","ts_ms":1,"trigger_writes":"posts/a"}"#,
+            r#"{"service":"functions","op":"invoke","ts_ms":1,"trigger_writes":-3}"#,
         ];
         for case in cases {
             let _ = provider.normalize(case.as_bytes(), &cx());

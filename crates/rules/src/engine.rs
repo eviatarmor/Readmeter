@@ -4,6 +4,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use readmeter_core::{Envelope, Finding};
 
 use crate::config::{ParamError, ResolvedRule, RuleConfig};
+#[cfg(feature = "window")]
+use crate::def::HOST_PROVIDER;
 use crate::def::{Evaluation, RuleSpec};
 use crate::detector::{Detector, Emitter, Registry};
 
@@ -13,6 +15,19 @@ const MAX_COOLDOWN_KEYS: usize = 10_000;
 struct Slot {
     rule: ResolvedRule,
     detector: Box<dyn Detector>,
+    /// Cached [`Detector::host_events`].
+    #[cfg(feature = "window")]
+    host_events: bool,
+}
+
+impl Slot {
+    fn accepts(&self, env: &Envelope) -> bool {
+        #[cfg(feature = "window")]
+        if self.host_events && env.provider == HOST_PROVIDER {
+            return true;
+        }
+        self.rule.spec.applies_to(env)
+    }
 }
 
 /// Runs a set of detectors over a stream of envelopes.
@@ -70,7 +85,12 @@ impl Engine {
                 continue;
             };
             let detector = factory(&rule.params)?;
-            slots.push(Slot { rule, detector });
+            slots.push(Slot {
+                #[cfg(feature = "window")]
+                host_events: detector.host_events(),
+                rule,
+                detector,
+            });
         }
         Ok(Self {
             slots,
@@ -98,7 +118,7 @@ impl Engine {
         #[cfg(feature = "aggregate")]
         let mut aggregate = Vec::new();
         for slot in &mut self.slots {
-            if !slot.rule.spec.applies_to(env) {
+            if !slot.accepts(env) {
                 continue;
             }
             let mut emitter = Emitter::new(&slot.rule, &mut raw);
@@ -239,6 +259,47 @@ mod tests {
         assert_eq!(engine.observe(&e(0)).len(), 1);
         assert!(engine.observe(&e(500)).is_empty());
         assert_eq!(engine.observe(&e(1_000)).len(), 1);
+    }
+
+    #[cfg(feature = "window")]
+    #[test]
+    fn host_events_reach_provider_rules_only_on_opt_in() {
+        struct Host;
+        impl Detector for Host {
+            fn observe(&mut self, env: &Envelope, out: &mut Emitter<'_>) {
+                out.emit(env, "hit");
+            }
+            fn host_events(&self) -> bool {
+                true
+            }
+        }
+        fn host(_: &Params) -> Result<Box<dyn Detector>, ParamError> {
+            Ok(Box::new(Host))
+        }
+        let catalog = Catalog::new(vec![
+            rule_def("firebase.firestore/host", "firebase", "firestore"),
+            rule_def("firebase.firestore/always", "firebase", "firestore"),
+        ])
+        .unwrap();
+        let mut reg = Registry::new();
+        reg.register("firebase.firestore/host", host);
+        reg.register("firebase.firestore/always", always);
+        let config = RuleConfig {
+            cooldown_ms: 0,
+            ..Default::default()
+        };
+        let mut engine =
+            Engine::build(&catalog.specs(), &config, &reg, &[Evaluation::Local]).unwrap();
+        let event = EnvBuilder::get("")
+            .provider(HOST_PROVIDER, "connection")
+            .connection(false)
+            .build();
+        let rules: Vec<_> = engine.observe(&event).into_iter().map(|f| f.rule).collect();
+        assert_eq!(rules, ["firebase.firestore/host"]);
+        let other = EnvBuilder::get("x")
+            .provider("supabase", "postgrest")
+            .build();
+        assert!(engine.observe(&other).is_empty());
     }
 
     #[cfg(feature = "aggregate")]

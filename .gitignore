@@ -8,7 +8,10 @@ sdks/js/firebase/dist/
 sdks/js/firebase/wasm/
 sdks/js/firebase/bundle/
 sdks/js/firebase/test/bundle/dist/
+sdks/js/firebase/test/bundle/app/dist/
 sdks/js/firebase/*.tgz
+sdks/js/react/dist/
+sdks/js/react/*.tgz
 .readmeter/
 examples/functions/lib/
 examples/functions/package-lock.json

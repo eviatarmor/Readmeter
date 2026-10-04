@@ -75,6 +75,7 @@ mod tests {
                     read_items,
                     read_empty: false,
                     items_used: None,
+                    ..ResultUsage::default()
                 },
             )
             .build()

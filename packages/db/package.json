@@ -11,7 +11,9 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
+    "retention": "tsx src/retention-cli.ts",
     "seed": "tsx src/seed.ts && pnpm --filter @readmeter/console-api exec tsx src/seed-user.ts",
+    "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc -p ."
   },
   "dependencies": {

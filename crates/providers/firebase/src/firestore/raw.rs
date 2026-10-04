@@ -40,6 +40,8 @@ pub struct RawCall {
     pub callsite: Option<String>,
     pub listener: Option<u64>,
     pub mount: Option<u64>,
+    /// Issued while a UI framework was rendering a component.
+    pub in_render: bool,
     pub attempt: u32,
 }
 
@@ -69,6 +71,7 @@ impl RawCall {
             callsite: opt_string(value, "callsite")?,
             listener: opt_u64(value, "listener")?,
             mount: opt_u64(value, "mount")?,
+            in_render: def_bool(value, "in_render", false)?,
             attempt: def_u32(value, "attempt", 1)?,
         })
     }
@@ -357,6 +360,8 @@ fn usage_from(value: &JsonValue) -> Result<ResultUsage, NormalizeError> {
         read_size: def_bool(value, "read_size", false)?,
         read_empty: def_bool(value, "read_empty", false)?,
         items_used: opt_u32(value, "items_used")?,
+        fields_read: opt_u32(value, "fields_read")?,
+        fields_numeric: def_bool(value, "fields_numeric", false)?,
     })
 }
 

@@ -8,6 +8,7 @@ use super::billing::{self, Observed};
 use super::raw::{CacheControl, RawCall, RawOp};
 
 use crate::PROVIDER_ID;
+use crate::values::segment_id;
 
 /// Placeholder for redacted path segments.
 const ID: &str = "{id}";
@@ -117,6 +118,7 @@ pub fn normalize(raw: RawCall, cx: &NormalizeContext) -> Result<Envelope, Normal
             platform: cx.platform,
             attempt: raw.attempt.max(1),
             dev: cx.dev,
+            in_render: false,
         },
         units: Default::default(),
     };
@@ -182,97 +184,6 @@ fn sanitize_ext(ext: Option<&str>) -> Option<String> {
         return None;
     }
     Some(ext.to_ascii_lowercase())
-}
-
-/// `Some` when the segment is an identifier and must leave the template.
-/// Static keys (alphabetic names, short slugs) stay. Same classifier as
-/// Realtime Database: a storage path has no "every second segment" rule.
-fn segment_id(id: &str) -> Option<IdShape> {
-    let bytes = id.as_bytes();
-    if !bytes.is_empty() && bytes.iter().all(u8::is_ascii_digit) {
-        return Some(
-            if (bytes.len() == 10 || bytes.len() == 13) && bytes[0] == b'1' {
-                IdShape::TimestampLike
-            } else {
-                IdShape::Numeric
-            },
-        );
-    }
-    if is_uuid(bytes) {
-        return Some(IdShape::Uuid);
-    }
-    if is_iso_date_prefix(bytes) {
-        return Some(IdShape::TimestampLike);
-    }
-    if bytes.len() == 20 && bytes.iter().all(u8::is_ascii_alphanumeric) {
-        return Some(IdShape::AutoId);
-    }
-    if is_push_id(bytes) {
-        return Some(IdShape::AutoId);
-    }
-    if is_long_token(bytes) {
-        return Some(IdShape::Other);
-    }
-    if crate::path::personal_segment(id) {
-        return Some(IdShape::Other);
-    }
-    None
-}
-
-fn is_uuid(b: &[u8]) -> bool {
-    b.len() == 36
-        && b.iter().enumerate().all(|(i, c)| match i {
-            8 | 13 | 18 | 23 => *c == b'-',
-            _ => c.is_ascii_hexdigit(),
-        })
-}
-
-/// `YYYY-MM-DD...`
-fn is_iso_date_prefix(b: &[u8]) -> bool {
-    b.len() >= 10
-        && b[..4].iter().all(u8::is_ascii_digit)
-        && b[4] == b'-'
-        && b[5..7].iter().all(u8::is_ascii_digit)
-        && b[7] == b'-'
-        && b[8..10].iter().all(u8::is_ascii_digit)
-}
-
-/// Firebase push id: 20 chars from the push alphabet, and not a plain word.
-fn is_push_id(b: &[u8]) -> bool {
-    if b.len() != 20 {
-        return false;
-    }
-    let mut marked = false;
-    for &c in b {
-        let ok = matches!(c, b'-' | b'0'..=b'9' | b'A'..=b'Z' | b'_' | b'a'..=b'z');
-        if !ok {
-            return false;
-        }
-        if c == b'-' || c == b'_' || c.is_ascii_digit() {
-            marked = true;
-        }
-    }
-    marked
-}
-
-/// Long opaque token (Firebase UID and similar): 16..=128 of `[A-Za-z0-9_-]`
-/// with both a letter and a digit. Short slugs such as `room_1` stay.
-fn is_long_token(b: &[u8]) -> bool {
-    if b.len() < 16 || b.len() > 128 {
-        return false;
-    }
-    let mut digit = false;
-    let mut letter = false;
-    for &c in b {
-        if c.is_ascii_digit() {
-            digit = true;
-        } else if c.is_ascii_alphabetic() {
-            letter = true;
-        } else if c != b'-' && c != b'_' {
-            return false;
-        }
-    }
-    digit && letter
 }
 
 fn attributes(raw: &RawCall, ext: Option<&str>) -> Vec<FilterShape> {

@@ -14,11 +14,15 @@ import { protoWriteSignal } from "../core/payload.ts";
 import { nextCallId, nextListenerId, nextTransactionId } from "../core/session.ts";
 import { documentByteSize } from "../core/size.ts";
 import type { RawQueryShape } from "../web/shape.ts";
+// Lets the root `sink` read Admin SDK targets.
+import "./shape.ts";
 import { instrumentAuth } from "./auth.ts";
 import { instrumentDatabase } from "./database.ts";
 import { instrumentStorage } from "./storage.ts";
+import { noteDocumentWrites } from "./invocation.ts";
 import {
   classifyCommit,
+  classifyWrite,
   countResult,
   readAggregation,
   readStructuredQuery,
@@ -195,6 +199,18 @@ function guard(fn: () => void): void {
   }
 }
 
+/** Document paths of a commit's writes, for the trigger count only. Never recorded. */
+function writePaths(request: unknown): string[] {
+  const writes = (request as { writes?: unknown } | undefined)?.writes;
+  if (!Array.isArray(writes)) return [];
+  const paths: string[] = [];
+  for (const write of writes) {
+    const classified = classifyWrite(write);
+    if (classified) paths.push(classified.path);
+  }
+  return paths;
+}
+
 function noteCommit(request: unknown, at: Timing, error: unknown): void {
   guard(() => {
     const method = typeof request === "object" ? request : undefined;
@@ -207,6 +223,7 @@ function noteCommit(request: unknown, at: Timing, error: unknown): void {
       const stats = protoWriteSignal(method);
       if (stats) extra.write = stats;
     }
+    if (!error) noteDocumentWrites(writePaths(method));
     const buffer = isTxn(request);
     publish(base(classified.op, classified.path, at, extra), buffer);
     if (buffer && !error) settleTx(txState());

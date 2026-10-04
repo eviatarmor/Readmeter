@@ -130,6 +130,124 @@ test("getDoc usage sets items_used when data or get is called", () => {
   assert.deepEqual(read.data(), { n: 1 });
   assert.equal(flags?.items_used, 1);
   assert.equal(read.get("n"), 1);
+  // Single-document snapshots do not track fields.
+  assert.equal(flags?.fields_read, undefined);
+});
+
+function fieldSnap(rows: Array<Record<string, unknown>>, make?: (row: Record<string, unknown>) => unknown) {
+  class Doc {
+    constructor(private readonly row: Record<string, unknown>) {}
+    data(): unknown {
+      return make ? make(this.row) : { ...this.row };
+    }
+    get(field: unknown): unknown {
+      return typeof field === "string" ? this.row[field.split(".")[0] ?? ""] : undefined;
+    }
+  }
+  const docs = rows.map((row) => new Doc(row));
+  return {
+    get docs() {
+      return docs;
+    },
+    forEach(cb: (doc: Doc) => void) {
+      docs.forEach((doc) => cb(doc));
+    },
+  };
+}
+
+test("fields_read counts one numeric field summed through data()", () => {
+  const snap = fieldSnap([
+    { amount: 2, status: "open" },
+    { amount: 3, status: "open" },
+  ]);
+  const flags = installUsage(snap);
+  assert.deepEqual(flags && [flags.fields_read, flags.fields_numeric], [0, false]);
+  let total = 0;
+  snap.forEach((doc) => {
+    total += (doc.data() as { amount: number }).amount;
+  });
+  assert.equal(total, 5);
+  assert.equal(flags?.items_used, 2);
+  assert.equal(flags?.fields_read, 1);
+  assert.equal(flags?.fields_numeric, true);
+});
+
+test("fields_read sees get() paths, spreads and non-numeric values", () => {
+  const rows = [{ amount: 2, status: "open", meta: { n: 1 } }];
+
+  const viaGet = fieldSnap(rows);
+  const getFlags = installUsage(viaGet);
+  assert.equal(viaGet.docs[0]?.get("amount"), 2);
+  assert.equal(viaGet.docs[0]?.get("meta.n"), rows[0]?.meta);
+  // `meta.n` counts as `meta`; the value returned here is an object.
+  assert.equal(getFlags?.fields_read, 2);
+  assert.equal(getFlags?.fields_numeric, false);
+
+  const viaPath = fieldSnap(rows);
+  const pathFlags = installUsage(viaPath);
+  viaPath.docs[0]?.get({ segments: ["amount"] });
+  assert.equal(pathFlags?.fields_read, 0);
+  assert.equal(pathFlags?.fields_numeric, false);
+
+  const spread = fieldSnap(rows);
+  const spreadFlags = installUsage(spread);
+  const copy = { ...(spread.docs[0]?.data() as object) };
+  assert.deepEqual(copy, rows[0]);
+  assert.equal(spreadFlags?.fields_read, 3);
+  assert.equal(spreadFlags?.fields_numeric, false);
+
+  const text = fieldSnap([{ status: "open" }]);
+  const textFlags = installUsage(text);
+  assert.equal((text.docs[0]?.data() as { status: string }).status, "open");
+  assert.equal(textFlags?.fields_read, 1);
+  assert.equal(textFlags?.fields_numeric, false);
+});
+
+test("instrumented data() objects behave like plain objects", () => {
+  const snap = fieldSnap([{ amount: 2, status: "open" }]);
+  installUsage(snap);
+  const data = snap.docs[0]?.data() as Record<string, unknown>;
+  assert.deepEqual(Object.keys(data), ["amount", "status"]);
+  assert.deepEqual(structuredClone(data), { amount: 2, status: "open" });
+  assert.equal(JSON.stringify(data), '{"amount":2,"status":"open"}');
+  data.amount = 7;
+  assert.equal(data.amount, 7);
+  const desc = Object.getOwnPropertyDescriptor(data, "amount");
+  assert.equal(desc?.value, 7);
+  assert.equal(desc?.writable, true);
+  assert.equal(desc?.enumerable, true);
+  delete data.status;
+  assert.deepEqual(structuredClone(data), { amount: 7 });
+  data.extra = 1;
+  assert.deepEqual(Object.keys(data), ["amount", "extra"]);
+});
+
+test("odd data() results are left alone and never throw", () => {
+  class Order {
+    amount = 1;
+  }
+  const odd: Array<() => unknown> = [
+    () => Object.freeze({ amount: 1 }),
+    () => Object.seal({ amount: 1 }),
+    () => new Order(),
+    () => [1, 2],
+    () => undefined,
+    () => 5,
+    () => Object.fromEntries(Array.from({ length: 65 }, (_, i) => [`f${i}`, i])),
+    () => Object.defineProperty({ amount: 1 }, "fixed", { value: 2, enumerable: true, configurable: false }),
+  ];
+  for (const make of odd) {
+    const snap = fieldSnap([{}], () => make());
+    const flags = installUsage(snap);
+    const data = snap.docs[0]?.data() as Record<string, unknown> | undefined;
+    if (data && typeof data === "object") void JSON.stringify(data);
+    assert.equal(flags?.fields_numeric, false);
+  }
+  const nullProto = fieldSnap([{}], () => Object.assign(Object.create(null) as object, { amount: 4 }));
+  const nullFlags = installUsage(nullProto);
+  assert.equal((nullProto.docs[0]?.data() as { amount: number }).amount, 4);
+  assert.equal(nullFlags?.fields_read, 1);
+  assert.equal(nullFlags?.fields_numeric, true);
 });
 
 test("admin proto write stats map transforms and omit the digest", async () => {

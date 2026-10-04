@@ -78,7 +78,7 @@ Everything else is re-exported from `firebase/firestore` unchanged.
 
 ## What each call records
 
-Every record has the operation, the document or collection path, a call id, a timestamp, the duration in microseconds and the callsite (the first stack frame outside `@readmeter/firebase` and `node_modules`, as `file:line:col`). Failed calls record the error code with the `firestore/` prefix removed, for example `permission-denied`.
+Every record has the operation, the document or collection path, a call id, a timestamp, the duration in microseconds and the callsite as `file:line:col`: injected by the [build plugin](/docs/sdk/build-plugin), or in dev and on servers the first stack frame outside `@readmeter/firebase` and `node_modules`. Failed calls record the error code with the `firestore/` prefix removed, for example `permission-denied`.
 
 Reads also record:
 
@@ -86,7 +86,7 @@ Reads also record:
 - The result: document count, estimated stored bytes, and whether it came from the cache. Bytes follow Firestore's [storage size formula](https://firebase.google.com/docs/firestore/storage-size): each document's name, field names and field values, plus 32 bytes.
 - For aggregations, the aggregation list and, for `count`, the number returned.
 
-The core turns this into the envelope. Paths become templates such as `users/{id}/orders`, filter values and cursors are folded into keyed hashes, and only field names and operators stay readable. See [Privacy](/docs/sdk/privacy#cloud-firestore).
+The core turns this into the envelope. Paths become templates such as `users/{id}/orders`, filter values and cursors are folded into keyed hashes, and only field names and operators stay readable. In the browser only id-shaped values are hashed as they are; other values enter the hash as their type and length. See [Privacy](/docs/sdk/privacy#cloud-firestore) and [Browser builds](/docs/sdk/privacy#browser-builds).
 
 ### Result usage
 

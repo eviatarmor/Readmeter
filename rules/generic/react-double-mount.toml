@@ -14,6 +14,12 @@ which exposes effects that fetch without a shared cache. The same pattern
 bills twice in production whenever a component remounts: route changes,
 `key` changes, Suspense retries, list reordering. Findings carry a `dev`
 flag so development-only noise can be filtered.
+
+With `@readmeter/react`, calls carry a component mount id. Two reads are
+only paired when they come from the same mount (or neither has one), so
+sibling components that each read once do not fire. A reopened subscription
+fires either way; its `mount` evidence is `same` when one instance re-ran
+its effect (StrictMode) and `different` when a new instance replaced it.
 """
 
 fix = """

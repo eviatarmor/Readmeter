@@ -1,0 +1,2 @@
+ALTER TABLE "projects" ADD COLUMN "rate_per_min" integer;--> statement-breakpoint
+ALTER TABLE "projects" ADD CONSTRAINT "projects_rate_per_min" CHECK ("projects"."rate_per_min" is null or "projects"."rate_per_min" between 1 and 1000000);

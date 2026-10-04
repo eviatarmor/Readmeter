@@ -35,10 +35,36 @@ export interface InitOptions {
    * bundle, or the bundle cached from the previous `GET /v1/bundle`.
    */
   bundle?: Uint8Array;
+  /**
+   * Ed25519 public key (base64, raw 32 bytes) that signs this ingest's
+   * bundles (`READMETER_BUNDLE_SIGNING_KEY`). When set, a fetched or cached
+   * bundle is used only if its signature verifies; otherwise the packaged
+   * bundle is kept. Needs Ed25519 in WebCrypto (Node 22+, current browsers).
+   */
+  bundlePublicKey?: string;
   /** Default: `window` + `document` means browser, otherwise server. */
   platform?: Platform;
   /** Called for every local finding, including while `dev` is off. */
   onFinding?: (finding: Finding) => void;
   /** Log raw calls, and rate-limit SDK errors, to `console.debug`. */
   debug?: boolean;
+  /**
+   * Where to fetch the `.wasm` core from instead of the base64 chunk bundled
+   * into JavaScript. A function gets the build `dev` selects, so prod and dev
+   * can point at their own file (`wasm/prod/readmeter_wasm_bg.wasm` or
+   * `wasm/dev/readmeter_wasm_bg.wasm` in the package). The file must match
+   * the build. A failed fetch disables the SDK like any other load failure.
+   */
+  wasmUrl?: string | URL | ((build: WasmBuild) => string | URL);
+  /**
+   * Report client-side route changes (`history.pushState`/`replaceState`,
+   * `popstate`, `hashchange`) as page events. Only a route template leaves
+   * the process: query string and fragment are dropped and segments that are
+   * not short lowercase words become `{id}`. Default true. Set false when
+   * your paths carry names or slugs you do not want reported.
+   */
+  routes?: boolean;
 }
+
+/** Which wasm core `init` loads: `dev` when `init({ dev: true })`. */
+export type WasmBuild = "prod" | "dev";

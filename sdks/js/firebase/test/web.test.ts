@@ -67,13 +67,13 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
   const emptyFlags = installUsage(empty);
   assert.ok(emptyFlags);
   assert.equal(empty.empty, true);
-  assert.deepEqual(emptyFlags, { read_items: false, read_size: false, read_empty: true, items_used: 0 });
+  assert.deepEqual(emptyFlags, { read_items: false, read_size: false, read_empty: true, items_used: 0, fields_read: 0, fields_numeric: false });
 
   const sized = new Snap(4);
   const sizeFlags = installUsage(sized);
   assert.ok(sizeFlags);
   assert.equal(sized.size, 4);
-  assert.deepEqual(sizeFlags, { read_items: false, read_size: true, read_empty: false, items_used: 0 });
+  assert.deepEqual(sizeFlags, { read_items: false, read_size: true, read_empty: false, items_used: 0, fields_read: 0, fields_numeric: false });
   assert.deepEqual(sized.docs, [1]);
   assert.equal(sizeFlags.read_items, true);
 
@@ -168,8 +168,9 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
     const listeners: Array<() => void> = [];
     const fakeDocument = {
       visibilityState: "visible",
-      addEventListener(_type: string, listener: () => void) {
-        listeners.push(listener);
+      addEventListener(type: string, listener: () => void) {
+        // Connection events (freeze/resume) are covered in connection.test.ts.
+        if (type === "visibilitychange") listeners.push(listener);
       },
       removeEventListener(_type: string, listener: () => void) {
         const at = listeners.indexOf(listener);
@@ -186,6 +187,8 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
         hashKey: HASH_KEY,
         bundle: bundleBytes(),
         debug: true,
+        // Browser callsites come from stacks only in dev; production uses the build plugin.
+        dev: true,
         platform: "browser",
       });
       await flush();
@@ -209,6 +212,21 @@ test("web shape, usage, and sink", { timeout: 30_000 }, async () => {
       assert.equal(recorded.path, "posts");
       assert.equal(recorded.duration_us, undefined);
       assert.deepEqual(recorded.query, {});
+      assert.equal((recorded as { in_render?: unknown }).in_render, undefined);
+
+      // A function named like React's render entry point stands in for a dev-build render.
+      const renderWithHooks = (run: () => void): void => run();
+      renderWithHooks(() => {
+        sink(query(collection(db, "posts")), snap);
+        sinkWrite(ref, "set");
+      });
+      const renderedRead = JSON.parse(logged.at(-2) ?? "{}") as { op?: string; in_render?: unknown; callsite?: string };
+      const renderedWrite = JSON.parse(logged.at(-1) ?? "{}") as { op?: string; in_render?: unknown };
+      assert.equal(renderedRead.op, "query");
+      assert.equal(renderedRead.in_render, true);
+      assert.match(renderedRead.callsite ?? "", /web\.test\.ts:\d+:\d+$/);
+      assert.equal(renderedWrite.op, "set");
+      assert.equal(renderedWrite.in_render, undefined);
 
       logged.length = 0;
       fakeDocument.visibilityState = "hidden";

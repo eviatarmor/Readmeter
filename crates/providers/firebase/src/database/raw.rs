@@ -22,7 +22,12 @@ pub struct RawCall {
     pub call_id: u64,
     pub callsite: Option<String>,
     pub listener: Option<u64>,
+    /// UI component mount id (e.g. from `@readmeter/react`). A counter, not hashed.
+    pub mount: Option<u64>,
     pub attempt: u32,
+    /// For `index_warning`: the child named in the SDK's "Using an
+    /// unspecified index" warning (`$value` for `orderByValue`).
+    pub order_by_child: Option<String>,
 }
 
 impl RawCall {
@@ -40,7 +45,9 @@ impl RawCall {
             call_id: def_u64(value, "call_id", 0)?,
             callsite: opt_string(value, "callsite")?,
             listener: opt_u64(value, "listener")?,
+            mount: opt_u64(value, "mount")?,
             attempt: def_u32(value, "attempt", 1)?,
+            order_by_child: opt_string(value, "order_by_child")?,
         })
     }
 }
@@ -62,6 +69,8 @@ pub enum RawOp {
     ChildMoved,
     GoOnline,
     GoOffline,
+    /// The SDK logged "Using an unspecified index" for a listen at `path`.
+    IndexWarning,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -259,6 +268,7 @@ fn parse_op(s: &str) -> Result<RawOp, NormalizeError> {
         "child_moved" => RawOp::ChildMoved,
         "go_online" => RawOp::GoOnline,
         "go_offline" => RawOp::GoOffline,
+        "index_warning" => RawOp::IndexWarning,
         _ => return Err(NormalizeError::Invalid("unknown `op`".into())),
     })
 }

@@ -15,6 +15,9 @@ x-server: &server
     MAIL_FROM: ${MAIL_FROM:-}
     GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    READMETER_EVENTS_RETENTION_DAYS: ${READMETER_EVENTS_RETENTION_DAYS:-30}
+    READMETER_FINDINGS_RETENTION_DAYS: ${READMETER_FINDINGS_RETENTION_DAYS:-365}
+    READMETER_ROLLUP_RETENTION_DAYS: ${READMETER_ROLLUP_RETENTION_DAYS:-0}
   depends_on:
     migrate:
       condition: service_completed_successfully
@@ -67,14 +70,19 @@ services:
       <<: *environment
       PORT: "8090"
       READMETER_RATE_PER_MIN: ${READMETER_RATE_PER_MIN:-600}
+      READMETER_RATE_PER_IP_PER_MIN: ${READMETER_RATE_PER_IP_PER_MIN:-120}
+      # Set to 1 when ingest sits behind a reverse proxy that sets X-Forwarded-For.
+      READMETER_TRUST_PROXY: ${READMETER_TRUST_PROXY:-0}
+      READMETER_BUNDLE_SIGNING_KEY: ${READMETER_BUNDLE_SIGNING_KEY:-}
     ports:
       - "${INGEST_BIND:-127.0.0.1}:${INGEST_PORT:-8090}:8090"
     healthcheck: *health
 
-  connector-gcp:
+  # Rolls up and deletes old telemetry every hour, and syncs Google Cloud
+  # usage and billing for connected projects.
+  worker:
     <<: *server
-    command: ["connector-gcp"]
-    profiles: ["gcp"]
+    command: ["worker"]
 
 volumes:
   pgdata:

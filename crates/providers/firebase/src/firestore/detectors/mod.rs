@@ -8,6 +8,8 @@ pub mod blob_in_document;
 #[cfg(feature = "aggregate")]
 pub mod broadcast_listener;
 #[cfg(feature = "window")]
+pub mod client_side_aggregation;
+#[cfg(feature = "window")]
 pub mod client_side_bulk_delete;
 #[cfg(feature = "window")]
 pub mod count_then_fetch;
@@ -34,6 +36,8 @@ pub mod large_listener_result;
 #[cfg(feature = "window")]
 pub mod listener_per_item;
 #[cfg(feature = "window")]
+pub mod listener_reconnect_rebill;
+#[cfg(feature = "window")]
 pub mod manual_ttl_cleanup;
 #[cfg(feature = "window")]
 pub mod missing_cursor;
@@ -58,6 +62,8 @@ pub mod query_per_keystroke;
 #[cfg(feature = "window")]
 pub mod read_after_write;
 #[cfg(feature = "window")]
+pub mod read_in_render;
+#[cfg(feature = "window")]
 pub mod read_modify_write_counter;
 #[cfg(feature = "window")]
 pub mod tiny_batches;
@@ -74,6 +80,8 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (blob_in_document::ID, blob_in_document::build),
         #[cfg(feature = "aggregate")]
         (broadcast_listener::ID, broadcast_listener::build),
+        #[cfg(feature = "window")]
+        (client_side_aggregation::ID, client_side_aggregation::build),
         #[cfg(feature = "window")]
         (client_side_bulk_delete::ID, client_side_bulk_delete::build),
         #[cfg(feature = "window")]
@@ -104,6 +112,11 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         #[cfg(feature = "window")]
         (listener_per_item::ID, listener_per_item::build),
         #[cfg(feature = "window")]
+        (
+            listener_reconnect_rebill::ID,
+            listener_reconnect_rebill::build,
+        ),
+        #[cfg(feature = "window")]
         (manual_ttl_cleanup::ID, manual_ttl_cleanup::build),
         #[cfg(feature = "window")]
         (missing_cursor::ID, missing_cursor::build),
@@ -133,6 +146,8 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (query_per_keystroke::ID, query_per_keystroke::build),
         #[cfg(feature = "window")]
         (read_after_write::ID, read_after_write::build),
+        #[cfg(feature = "window")]
+        (read_in_render::ID, read_in_render::build),
         #[cfg(feature = "window")]
         (
             read_modify_write_counter::ID,

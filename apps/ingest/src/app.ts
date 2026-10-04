@@ -8,7 +8,8 @@
 // `Retry-After`; SDKs keep the batch buffered and retry.
 //
 // Browser SDKs also call `GET /v1/config` (hash key) and `GET /v1/bundle`
-// (rule bundle). `sendBeacon` may post `application/octet-stream` or omit
+// (rule bundle). With `READMETER_BUNDLE_SIGNING_KEY` set, the bundle response
+// carries an Ed25519 signature of its exact bytes. `sendBeacon` may post `application/octet-stream` or omit
 // the content type; the body is raw bytes either way.
 import { createHash } from "node:crypto";
 import { Hono, type Context } from "hono";
@@ -16,16 +17,33 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 
 import { CoreError, type Core } from "./core.ts";
-import { TokenBucket } from "./rate.ts";
+import { burstFor, TokenBucket } from "./rate.ts";
+import { SIGNATURE_HEADER, type BundleSigner } from "./signing.ts";
 import { overridesRevision, type ProjectAccess, type Store } from "./store.ts";
 
 export interface Limits {
   maxBodyBytes: number;
   maxInflight: number;
-  /** Accepted batches per minute per API key. */
+  /**
+   * Accepted batches per minute per project (all its keys share one bucket),
+   * unless the project sets its own `rate_per_min`.
+   */
   ratePerMin: number;
-  /** Token bucket capacity (burst). */
+  /**
+   * Bucket capacity (burst) at `ratePerMin`. Other rates (a project's own
+   * limit, the per-IP limit) get a burst at the same ratio; see `burstFor`.
+   */
   rateBurst: number;
+  /** Batches per minute per client IP for browser requests (with `Origin`). 0 disables. */
+  ratePerIpPerMin: number;
+  /** Most client IPs tracked at once; the least recently seen is dropped. */
+  maxTrackedIps: number;
+  /**
+   * Take the client IP from the last `X-Forwarded-For` entry (the address
+   * the reverse proxy saw) instead of the socket. Only behind a proxy that
+   * sets it.
+   */
+  trustProxy: boolean;
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -33,13 +51,45 @@ export const DEFAULT_LIMITS: Limits = {
   maxInflight: 64,
   ratePerMin: 600,
   rateBurst: 100,
+  ratePerIpPerMin: 120,
+  maxTrackedIps: 10_000,
+  trustProxy: false,
 };
+
+type SocketBindings = { incoming?: { socket?: { remoteAddress?: string } } };
+
+/** Socket address from @hono/node-server bindings, or `null` (e.g. `app.request` in tests). */
+function socketAddress(c: Context): string | null {
+  const env = c.env as (SocketBindings & { server?: SocketBindings }) | undefined;
+  const bindings = env?.server ?? env;
+  return bindings?.incoming?.socket?.remoteAddress ?? null;
+}
+
+export function clientIp(c: Context, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = (c.req.header("x-forwarded-for") ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    const last = forwarded[forwarded.length - 1];
+    if (last) return last;
+  }
+  return socketAddress(c) ?? "unknown";
+}
 
 /** SDK rule bundle served at `GET /v1/bundle`. Hashed once at startup. */
 export interface SdkBundle {
   body: Uint8Array;
   etag: string;
 }
+
+interface ServedBundle extends SdkBundle {
+  /** `ed25519:<base64>` header value, when a signing key is configured. */
+  signature?: string;
+}
+
+/** Projects whose override-merged bundle is kept. Oldest entry goes first. */
+const BUNDLE_CACHE_MAX = 1_000;
 
 /** First 16 hex chars of the SHA-256 of the bundle bytes. */
 export function bundleEtag(bytes: Uint8Array): string {
@@ -52,6 +102,8 @@ export interface Deps {
   limits?: Partial<Limits>;
   log?: (msg: string, fields: Record<string, unknown>) => void;
   bundle?: SdkBundle;
+  /** Signs every bundle served at `GET /v1/bundle`. */
+  signer?: BundleSigner;
 }
 
 const STATUS = { bad_batch: 400, batch_too_large: 413, internal: 500 } as const;
@@ -63,16 +115,26 @@ function etagMatches(header: string, etag: string): boolean {
   });
 }
 
-type Authed = { ok: true; access: ProjectAccess; apiKey: string } | { ok: false; response: Response };
+type Authed = { ok: true; access: ProjectAccess } | { ok: false; response: Response };
 
-export function createApp({ core, store, limits: overrides, log = () => {}, bundle }: Deps) {
+export function createApp({ core, store, limits: overrides, log = () => {}, bundle, signer }: Deps) {
   const limits = { ...DEFAULT_LIMITS, ...overrides };
   let inflight = 0;
   const rates = new TokenBucket(limits.ratePerMin, limits.rateBurst);
+  const ipRates =
+    limits.ratePerIpPerMin > 0
+      ? new TokenBucket(limits.ratePerIpPerMin, burstFor(limits.ratePerIpPerMin, limits), limits.maxTrackedIps)
+      : null;
   const app = new Hono();
+  const bundles = bundle ? new ProjectBundles(core, store, bundle, signer) : undefined;
 
   const fail = (status: 400 | 401 | 403 | 413 | 429 | 500 | 503, error: string, detail?: string) =>
     Response.json(detail === undefined ? { error } : { error, detail }, { status });
+  const limited = (retryAfter: number, detail: string) => {
+    const res = fail(429, "rate_limited", detail);
+    res.headers.set("retry-after", String(retryAfter));
+    return res;
+  };
 
   app.get("/healthz", (c) => c.text("ok"));
 
@@ -84,6 +146,7 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
       origin: (origin) => origin || null,
       allowMethods: ["POST", "GET", "OPTIONS"],
       allowHeaders: ["authorization", "content-type"],
+      exposeHeaders: ["etag", SIGNATURE_HEADER],
       maxAge: 600,
     }),
   );
@@ -97,7 +160,7 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
     if (access.allowedOrigins.length > 0 && origin && !access.allowedOrigins.includes(origin)) {
       return { ok: false, response: fail(403, "origin_not_allowed") };
     }
-    return { ok: true, access, apiKey };
+    return { ok: true, access };
   };
 
   app.post(
@@ -107,15 +170,24 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
       onError: () => fail(413, "batch_too_large", `body exceeds ${limits.maxBodyBytes} bytes`),
     }),
     async (c) => {
+      // Browsers send Origin. Their keys are public, so one client must not
+      // be able to use up the whole project's limit. Checked before the key
+      // lookup so floods with bad keys are limited too.
+      if (ipRates && c.req.header("origin")) {
+        const retryAfter = ipRates.take(clientIp(c, limits.trustProxy));
+        if (retryAfter !== null) return limited(retryAfter, "too many batches from this address");
+      }
+
       const authz = await authorize(c);
       if (!authz.ok) return authz.response;
 
-      const retryAfter = rates.take(authz.apiKey);
-      if (retryAfter !== null) {
-        const res = fail(429, "rate_limited", "too many batches");
-        res.headers.set("retry-after", String(retryAfter));
-        return res;
-      }
+      const own = authz.access.ratePerMin;
+      const retryAfter = rates.take(
+        authz.access.projectId,
+        Date.now(),
+        own == null ? undefined : { perMin: own, burst: burstFor(own, limits) },
+      );
+      if (retryAfter !== null) return limited(retryAfter, "too many batches");
 
       if (inflight >= limits.maxInflight) {
         const res = fail(503, "busy", "too many batches in flight");
@@ -164,22 +236,27 @@ export function createApp({ core, store, limits: overrides, log = () => {}, bund
   app.get("/v1/bundle", async (c) => {
     const authz = await authorize(c);
     if (!authz.ok) return authz.response;
-    if (!bundle) return fail(500, "internal", "sdk bundle is not configured");
-    const served = await projectBundle(core, store, bundle, authz.access.projectId);
+    if (!bundles) return fail(500, "internal", "sdk bundle is not configured");
+    const served = await bundles.get(authz.access.projectId);
+    const headers: Record<string, string> = { etag: served.etag };
+    if (served.signature) headers[SIGNATURE_HEADER] = served.signature;
     const inm = c.req.header("if-none-match");
-    if (inm && etagMatches(inm, served.etag)) {
-      return new Response(null, { status: 304, headers: { etag: served.etag } });
-    }
+    if (inm && etagMatches(inm, served.etag)) return new Response(null, { status: 304, headers });
     return new Response(Buffer.from(served.body), {
       status: 200,
-      headers: { "content-type": "application/octet-stream", etag: served.etag },
+      headers: { ...headers, "content-type": "application/octet-stream" },
     });
   });
 
   app.get("/v1/config", async (c) => {
     const authz = await authorize(c);
     if (!authz.ok) return authz.response;
-    return c.json({ project: authz.access.projectId, hash_key: authz.access.hashKey });
+    const body: Record<string, string> = { project: authz.access.projectId, hash_key: authz.access.hashKey };
+    if (signer) {
+      body.bundle_public_key = signer.publicKey;
+      body.bundle_key_id = signer.keyId;
+    }
+    return c.json(body);
   });
 
   return app;
@@ -200,14 +277,43 @@ export function overrideJson(
   return out;
 }
 
-async function projectBundle(
-  core: Core,
-  store: Store,
-  bundle: SdkBundle,
-  projectId: string,
-): Promise<SdkBundle> {
-  const overrides = overrideJson(await store.ruleOverrides(projectId));
-  if (Object.keys(overrides).length === 0) return bundle;
-  const body = core.applyOverrides(bundle.body, JSON.stringify(overrides));
-  return { body, etag: bundleEtag(body) };
+/**
+ * Per-project bundle: the base bundle with the project's overrides merged in,
+ * its ETag and signature. Rebuilt only when the overrides change.
+ */
+class ProjectBundles {
+  private readonly base: ServedBundle;
+  private readonly cache = new Map<string, { overrides: string; served: ServedBundle }>();
+
+  constructor(
+    private readonly core: Core,
+    private readonly store: Store,
+    bundle: SdkBundle,
+    private readonly signer?: BundleSigner,
+  ) {
+    this.base = this.serve(bundle.body, bundle.etag);
+  }
+
+  private serve(body: Uint8Array, etag: string): ServedBundle {
+    return this.signer ? { body, etag, signature: this.signer.sign(body) } : { body, etag };
+  }
+
+  async get(projectId: string): Promise<ServedBundle> {
+    const overrides = JSON.stringify(overrideJson(await this.store.ruleOverrides(projectId)));
+    if (overrides === "{}") {
+      this.cache.delete(projectId);
+      return this.base;
+    }
+    const hit = this.cache.get(projectId);
+    if (hit && hit.overrides === overrides) return hit.served;
+    const body = this.core.applyOverrides(this.base.body, overrides);
+    const served = this.serve(body, bundleEtag(body));
+    this.cache.delete(projectId);
+    this.cache.set(projectId, { overrides, served });
+    if (this.cache.size > BUNDLE_CACHE_MAX) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
+    }
+    return served;
+  }
 }

@@ -106,6 +106,7 @@ fn op_parts(op: &Op) -> (String, Value) {
         ),
         Op::Snapshot { initial } => ("snapshot".into(), serde_json::json!({"initial": initial})),
         Op::Page { visible } => ("page".into(), serde_json::json!({"visible": visible})),
+        Op::Connection { online } => ("connection".into(), serde_json::json!({"online": online})),
         Op::Other(name) => ("other".into(), serde_json::json!({"name": name})),
         simple => match to_value(simple) {
             Value::String(s) => (s, Value::Null),
@@ -188,6 +189,9 @@ fn signals(e: &Envelope) -> Value {
     if let Some(setup) = e.setup {
         map.insert("setup".into(), setup_value(setup));
     }
+    if e.ctx.in_render {
+        map.insert("in_render".into(), Value::Bool(true));
+    }
     if map.is_empty() {
         Value::Null
     } else {
@@ -202,6 +206,10 @@ fn usage_value(usage: ResultUsage) -> Value {
     map.insert("read_empty".into(), Value::Bool(usage.read_empty));
     if let Some(n) = usage.items_used {
         map.insert("items_used".into(), Value::from(n));
+    }
+    if let Some(n) = usage.fields_read {
+        map.insert("fields_read".into(), Value::from(n));
+        map.insert("fields_numeric".into(), Value::Bool(usage.fields_numeric));
     }
     Value::Object(map)
 }
@@ -335,10 +343,14 @@ mod tests {
             read_size: false,
             read_empty: true,
             items_used: Some(4),
+            fields_read: Some(1),
+            fields_numeric: true,
         });
         let row = EventRow::from_envelope(&used);
         assert_eq!(row.signals["usage"]["read_items"], true);
         assert_eq!(row.signals["usage"]["read_size"], false);
+        assert_eq!(row.signals["usage"]["fields_read"], 1);
+        assert_eq!(row.signals["usage"]["fields_numeric"], true);
         assert_eq!(row.signals["usage"]["read_empty"], true);
         assert_eq!(row.signals["usage"]["items_used"], 4);
 

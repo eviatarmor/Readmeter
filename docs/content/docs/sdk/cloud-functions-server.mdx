@@ -102,10 +102,11 @@ A handler without `withFlush` produces no `invoke` record, and its calls go out 
 | Reads | Billed Firestore reads observed while the handler ran. |
 | RTDB download bytes | Realtime Database bytes downloaded while the handler ran. |
 | Storage calls | Successful Cloud Storage calls made while the handler ran. |
+| Trigger writes | For a Firestore trigger event (v2 `event.document` and `event.params`, or v1 snapshot or change with `context.params`), committed Firestore writes whose document path matches the trigger. A segment holding a param value is a wildcard, so `posts/abc` with `{ id: "abc" }` matches any `posts/{id}`. Only the count is recorded. |
 
 Byte counts are capped at 10,000,000.
 
-The three tallies come from the records the instrumented services already produce, scoped to the invocation with `AsyncLocalStorage`, so only work done inside the handler's async context counts. Firestore reads follow the billing rules the core uses: a document get is 1, a query is its document count (at least 1) plus any `offset`, an aggregation is one read per 1,000 index entries (at least 1), and a listener snapshot counts its documents. Failed calls and cache hits count 0.
+The read, download, and Storage tallies come from the records the instrumented services already produce, scoped to the invocation with `AsyncLocalStorage`, so only work done inside the handler's async context counts. Firestore reads follow the billing rules the core uses: a document get is 1, a query is its document count (at least 1) plus any `offset`, an aggregation is one read per 1,000 index entries (at least 1), and a listener snapshot counts its documents. Failed calls and cache hits count 0.
 
 ### Cold starts
 
@@ -156,4 +157,4 @@ The query reader was verified against the `@google-cloud/firestore` shipped with
 
 ## Rules
 
-Invocation records feed the [Cloud Functions rules](/docs/rules/functions), in particular [reads per invocation](/docs/rules/functions#reads-per-invocation) and [cold start is slow](/docs/rules/functions#cold-start-heavy). [Trigger cascade](/docs/rules/functions#trigger-cascade) is planned: the handler `withFlush` wraps does not see the trigger path without the concrete document id. Firestore, Realtime Database, Storage and Authentication calls made on the server feed the rules for those services, including [listUsers inside a request](/docs/rules/authentication#server-list-users-in-request).
+Invocation records feed the [Cloud Functions rules](/docs/rules/functions), in particular [reads per invocation](/docs/rules/functions#reads-per-invocation) and [cold start is slow](/docs/rules/functions#cold-start-heavy). For a Firestore-triggered handler, `withFlush` turns the event's document path and params into the trigger pattern in memory and counts committed writes that match it, which feeds [trigger cascade](/docs/rules/functions#trigger-cascade). Only the count is recorded; the pattern and document paths stay in the process. Firestore, Realtime Database, Storage and Authentication calls made on the server feed the rules for those services, including [listUsers inside a request](/docs/rules/authentication#server-list-users-in-request).

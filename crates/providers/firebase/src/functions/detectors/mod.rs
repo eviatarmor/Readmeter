@@ -12,6 +12,7 @@ pub mod cold_start_heavy;
 pub mod large_callable_payload;
 #[cfg(feature = "window")]
 pub mod reads_per_invocation;
+pub mod trigger_cascade;
 
 pub fn all() -> Vec<(&'static str, DetectorFactory)> {
     vec![
@@ -22,6 +23,7 @@ pub fn all() -> Vec<(&'static str, DetectorFactory)> {
         (large_callable_payload::ID, large_callable_payload::build),
         #[cfg(feature = "window")]
         (reads_per_invocation::ID, reads_per_invocation::build),
+        (trigger_cascade::ID, trigger_cascade::build),
     ]
 }
 

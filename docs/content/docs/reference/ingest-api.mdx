@@ -11,7 +11,7 @@ The ingest service ([`apps/ingest/src/app.ts`](https://github.com/eviatarmor/Rea
 | `OPTIONS` | `/v1/*` | none | CORS preflight |
 | `POST` | `/v1/batches` | API key | Store one SDK batch |
 | `GET` | `/v1/bundle` | API key | Download the project's rule bundle |
-| `GET` | `/v1/config` | API key | Read the project id and hash key |
+| `GET` | `/v1/config` | API key | Read the project id, hash key and bundle public key |
 
 ## Authentication
 
@@ -55,7 +55,7 @@ Error responses are JSON with an `error` code and, for most codes, a `detail` st
 | 401 | `unauthorized` | Missing or invalid API key |
 | 403 | `origin_not_allowed` | `Origin` not in the key's allowlist |
 | 413 | `batch_too_large` | Body over 1 MiB, or more than 10,000 events or 1,000 findings in the batch |
-| 429 | `rate_limited` | The key's rate limit bucket is empty. Has `Retry-After` |
+| 429 | `rate_limited` | The client IP's (browser requests) or the project's rate limit bucket is empty. Has `Retry-After` |
 | 500 | `internal` | The core failed, the store write failed, or the SDK bundle is not configured |
 | 503 | `busy` | 64 store writes already in flight. Has `Retry-After: 5` |
 
@@ -70,6 +70,7 @@ All `/v1/*` routes use the same CORS settings:
 - `Access-Control-Allow-Origin` reflects the request's `Origin`, for any origin. Preflight carries no key, so the allowlist cannot be checked there; it is checked on the real request.
 - Allowed methods: `POST`, `GET`, `OPTIONS`.
 - Allowed request headers: `authorization`, `content-type`.
+- Exposed response headers: `etag`, `x-readmeter-signature`.
 - `Access-Control-Max-Age: 600`.
 
 ## `POST /v1/batches`
@@ -86,11 +87,14 @@ Stores one batch produced by the SDK core's `flush()`.
 The checks run in this order, and the first failure answers:
 
 1. Body size (`413`).
-2. API key (`401`) and origin (`403`).
-3. Rate limit for the key (`429` with `Retry-After` in whole seconds, at least 1).
-4. Writes in flight (`503` with `Retry-After: 5`).
-5. The Rust core decodes the batch (`400 bad_batch`), checks the event and finding counts (`413 batch_too_large`), and runs `window` and `aggregate` rules for the project.
-6. One Postgres transaction inserts the batch row, the events in chunks of 1,000, and upserts the findings (`500 internal` if it fails).
+2. Per-IP rate limit, only for requests with an `Origin` header (`429`, detail `too many batches from this address`).
+3. API key (`401`) and origin (`403`).
+4. Rate limit for the project, shared by all its keys (`429`, detail `too many batches`).
+5. Writes in flight (`503` with `Retry-After: 5`).
+6. The Rust core decodes the batch (`400 bad_batch`), checks the event and finding counts (`413 batch_too_large`), and runs `window` and `aggregate` rules for the project.
+7. One Postgres transaction inserts the batch row, the events in chunks of 1,000, and upserts the findings (`500 internal` if it fails).
+
+Both `429` answers carry `Retry-After` in whole seconds, at least 1. The project limit is the project's own `ratePerMin` (console project settings) or `READMETER_RATE_PER_MIN` (default 600 per minute, burst 100); the per-IP limit is `READMETER_RATE_PER_IP_PER_MIN` (default 120, burst 20). Burst is `max(1, ceil(rate / 6))`. The limits are held in each ingest process, not in Postgres, so several ingest instances each apply them separately. See [Security](/docs/self-hosting/security#rate-limits-and-backpressure).
 
 Findings that share project, rule, session, callsite and template are merged: `occurrences` is summed, `first_seen` and `last_seen` are widened, and severity, message, evidence, wasted units and the callsite label take the latest values. Window and aggregate rules run with the project's rule overrides. Ingest loads those overrides on each batch and rebuilds that project's rule state when they change.
 
@@ -129,15 +133,25 @@ Returns the SDK rule bundle (`bundle.bin`, built by `readmeter-rulec`) for the k
 
 ### Response
 
-- `200` with `Content-Type: application/octet-stream`, the bundle bytes, and an `ETag` header.
-- `304` with the `ETag` header and no body, when `If-None-Match` matches.
+- `200` with `Content-Type: application/octet-stream`, the bundle bytes, an `ETag` header, and `X-Readmeter-Signature` when signing is on.
+- `304` with the `ETag` (and signature) headers and no body, when `If-None-Match` matches.
 - `500 internal` when ingest was started without an SDK bundle.
 
 The ETag is the first 16 hex characters of the SHA-256 of the bytes served. When the project has rule overrides (set on the console's Rules page), ingest merges them into the bundle before serving it, so the bytes and the ETag differ from the base bundle. A project with no overrides gets the file from `READMETER_SDK_BUNDLE` unchanged.
 
+### Signature
+
+When ingest runs with `READMETER_BUNDLE_SIGNING_KEY`, every bundle response carries:
+
+```http
+X-Readmeter-Signature: ed25519:<base64 64-byte signature>
+```
+
+The signature is Ed25519 over the exact response body, so a project with overrides gets a different signature than the base bundle. Verify it with the raw 32-byte public key from `GET /v1/config` (`bundle_public_key`). Without a signing key the header is absent. See [Security](/docs/self-hosting/security#rule-bundle-signing).
+
 ## `GET /v1/config`
 
-Returns the key's project and its hash key.
+Returns the key's project, its hash key and, when bundle signing is on, the public key that verifies `GET /v1/bundle`.
 
 ### Request
 
@@ -146,13 +160,20 @@ Returns the key's project and its hash key.
 ### Response
 
 ```json
-{ "project": "proj_abc123", "hash_key": "000102030405060708090a0b0c0d0e0f" }
+{
+  "project": "proj_abc123",
+  "hash_key": "000102030405060708090a0b0c0d0e0f",
+  "bundle_public_key": "DaUtjThg+2KzpU//CtYzVviKR7nJ0a1Uyivr+02VrCc=",
+  "bundle_key_id": "cb4d03e7736bea11"
+}
 ```
 
 <TypeTable
   type={{
     project: { type: "string", description: "Project id the key belongs to." },
     hash_key: { type: "string", description: "32 lowercase hex characters. The SDK uses it as the key for keyed hashes." },
+    bundle_public_key: { type: "string", description: "Only with READMETER_BUNDLE_SIGNING_KEY. Base64 raw 32-byte Ed25519 public key; pass it to `init({ bundlePublicKey })`." },
+    bundle_key_id: { type: "string", description: "Only with READMETER_BUNDLE_SIGNING_KEY. First 16 hex characters of the SHA-256 of the public key, for telling keys apart." },
   }}
 />
 
